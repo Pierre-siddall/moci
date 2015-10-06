@@ -245,7 +245,7 @@ class CommandExec(object):
                       % commands['CURRENT_RQST_NAME'])
                 ret_code["DELETE"] = 1
         else:
-            print("Request action neiher ARCHIVE nor DELETE")
+            print("Request action neither ARCHIVE nor DELETE")
             ret_code['NO ACTION'] = 0
         print("\n")  # for clarity in output file.
 

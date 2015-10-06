@@ -31,22 +31,27 @@ ENVIRONMENT VARIABLES
 import re
 import os
 
-import nlist
 import utils
 
 
 class SuiteEnvironment(object):
     '''Object to hold model independent aspects of the post processing app'''
     def __init__(self, sourcedir, input_nl='atmospp.nl'):
-        self.nl = nlist.loadNamelist(input_nl).suitegen
+        from nlist import loadNamelist
+        try:
+            self.nl = loadNamelist(input_nl).suitegen
+        except AttributeError:
+            msg = 'SuiteEnvironment: Failed to load '
+            '&suitegen namelist from namelist file: ' + input_nl
+            utils.log_msg(msg, 5)
+
         self.envars = utils.loadEnv('CYLC_TASK_LOG_ROOT')
 
-        try:
-            # Cylc6.0 ->
-            self.envars = utils.loadEnv('CYLC_TASK_CYCLE_POINT',
-                                        append=self.envars)
+        self.envars = utils.loadEnv('CYLC_TASK_CYCLE_POINT',
+                                    append=self.envars)
+        if hasattr(self.envars, 'CYLC_TASK_CYCLE_POINT'):
             self.cylc6 = True
-        except Exception:
+        else:
             # Pre-Cylc6.0
             self.envars = utils.loadEnv('CYLC_TASK_CYCLE_TIME',
                                         append=self.envars)
@@ -167,14 +172,13 @@ class SuiteEnvironment(object):
             else:
                 log_line = '{} ARCHIVE FAILED. Archive process error\n'.\
                     format(archfile)
-                logfile = self.logfile
 
         if not logfile:
             logfile = self.logfile
 
         try:
             logfile.write(log_line)
-        except AttributeError:  # String, not file given.  Open new file
+        except AttributeError:  # String, not file handle given.  Open new file
             action = 'a' if os.path.exists(logfile) else 'w'
             logfile = open(logfile, action)
             logfile.write(log_line)

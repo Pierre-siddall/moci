@@ -96,8 +96,8 @@ class AtmosPostProc(control.runPostProc):
         try:
             return self._share
         except AttributeError:
-            self._share = self.nl.atmospp.share_directory
-            utils.check_directory(self._share)
+            self._share = utils.check_directory(self.nl.atmospp.
+                                                share_directory)
             return self._share
 
     def dumpname(self, dumpdate=None):

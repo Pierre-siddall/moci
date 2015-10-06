@@ -32,28 +32,30 @@ class ReadNamelist(object):
             for attribute in [a for a in dir(baseclass) if
                               not a.startswith('_')]:
                 setattr(self, attribute, getattr(baseclass, attribute))
-        except AttributeError:
-            pass
         except KeyError:
-            log = 'No default namelist available: &' + nl_name
-            utils.log_msg(log, 3)
+            msg = 'readNamelist: No default namelist available: &' + nl_name
+            utils.log_msg(msg, 3)
 
-        self.__uppercase_vars = uppercase_vars
-        self.__readVariables(nl_linearray)
+        self._uppercase_vars = uppercase_vars
+        self._readVariables(nl_linearray)
 
-    def __readVariables(self, line_array):
+    def _readVariables(self, line_array):
+        if type(line_array) != list:
+            line_array = [line_array]
+
         for line in line_array:
             # Remove whitespace, newlines, and trailing comma
             key, val = line.split('=')
             if ',' in val:
-                val = map(self.__testVal, val.split(','))
+                val = map(self._testVal, val.split(','))
             else:
-                val = self.__testVal(val)
+                val = self._testVal(val)
 
-            key = key.upper() if self.__uppercase_vars else key
+            key = key.upper() if self._uppercase_vars else key
             setattr(self, key, val)
 
-    def __testVal(self, valstring):
+    @staticmethod
+    def _testVal(valstring):
         ''' Returns appropriate Python variable type '''
         if 'true' in valstring.lower():
             return True
@@ -79,12 +81,12 @@ def loadNamelist(*nl_files):
         inside_namelist = False
         nl_linelist = []
         try:
-            infile = open(nl_file, 'r').readlines()
+            infile = open(nl_file, 'r')
         except IOError:
-            msg = 'Failed to open namelist file for reading: ' + nl_file
-            utils.log_msg(msg, 5)
+            msg = 'loadNamelist: Failed to open namelist file for reading: '
+            utils.log_msg(msg + nl_file, 5)
 
-        for line in infile:
+        for line in infile.readlines():
             if line[0] == '&':
                 inside_namelist = True
                 working_name = line.strip().strip('&')
@@ -95,6 +97,7 @@ def loadNamelist(*nl_files):
                 nl_linelist = []
             elif inside_namelist:
                 nl_linelist.append(line.strip().strip(','))
+        infile.close()
 
     return namelists
 
@@ -104,7 +107,6 @@ def create_example_nl(nl_file):
     If no input namelist exist, provide an example using the
     base classes available.
     '''
-    # Input file does not exist. Write out namelist example and exit
     nl_text = ''
     for nl_name in control.NL:
         nl_text += '\n&' + nl_name
@@ -124,12 +126,12 @@ def create_example_nl(nl_file):
         nl_text += '\n/\n'
 
     try:
-        open(nl_file, 'w').write(nl_text)
+        with open(nl_file, 'w') as outfile:
+            outfile.write(nl_text)
     except IOError:
-        msg = 'Failed to open namelist file for writing: ' + nl_file
-        utils.log_msg(msg, 5)
-    close(nl_file)
+        msg = 'create_example_nl: Failed to open namelist file for writing: '
+        utils.log_msg(msg + nl_file, 5)
 
-    msg = 'Namelist file {} does not exist.  An example has been created.'.\
-        format(nl_file)
-    utils.log_msg(msg, 2)
+    msg = 'Namelist file "{}" does not exist.  The file has been created ' \
+        'using default namelists.'.format(nl_file)
+    utils.log_msg(msg, 1)

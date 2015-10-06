@@ -39,25 +39,50 @@ def loadEnv(*envars, **append):
         try:
             setattr(container, var, os.environ[var])
         except KeyError:
-            msg = 'Unable to find the environment variable:' + var
-            level = 1 if var == 'ARCHIVE_FINAL' else 5
+            noFail = {
+                'ARCHIVE_FINAL': 'ARCHIVE_FINAL=False',
+                'CYLC_TASK_CYCLE_POINT': 'Pre-Cylc 6 environment identified'
+                }
+            if var in noFail.keys():
+                msg = noFail[var]
+                level = 1
+            else:
+                msg = 'LoadEnv: Unable to find the environment variable: '
+                level = 5
             log_msg(msg, level)
 
     return container
 
 
-def exec_subproc(cmd, verbose=True):
+def exec_subproc(cmd, verbose=True, cwd=os.environ['PWD']):
     import subprocess
-    process = subprocess.Popen(cmd, shell=True,
-                               stdin=subprocess.PIPE,
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE)
-    output, error = process.communicate()
-    if verbose and output:
-        print >> sys.stdout, '[SUBPROCESS OUTPUT]', output
-    if error:
-        print >> sys.stderr, '[SUBPROCESS ERROR]', error
-    return process.returncode, output
+    cmd_array = [cmd]
+    if type(cmd) != list:
+        cmd_array = cmd.split(';')
+        for i, cmd in enumerate(cmd_array):
+            cmd_array[i] = cmd.split()
+
+    for cmd in cmd_array:
+        if 'cd' in cmd:
+            cwd = cmd[1]
+            continue
+        try:
+            output = subprocess.check_output(cmd, stderr=subprocess.STDOUT,
+                                             universal_newlines=True, cwd=cwd)
+            rcode = 0
+            if verbose:
+                log_msg('[SUBPROCESS]: ' + str(output))
+        except subprocess.CalledProcessError as exc:
+            output = exc.output
+            rcode = exc.returncode
+        except OSError as exc:
+            output = exc.strerror
+            rcode = exc.errno
+        if rcode != 0:
+            log_msg('[SUBPROCESS]: Command: {}'.format(rcode, output, 4))
+            log_msg('[SUBPROCESS]: Error = {}:\n\t{}'.format(rcode, output, 4))
+            break
+    return rcode, output
 
 
 def catch_failure(ignore=False):
@@ -69,74 +94,80 @@ def catch_failure(ignore=False):
 
 def get_subset(datadir, pattern):
     '''Returns a list of files matching a given regex'''
-    check_directory(datadir)
-    patt = re.compile(pattern)
-    return [fn for fn in sorted(os.listdir(datadir)) if patt.search(fn)]
+    datadir = check_directory(datadir)
+    try:
+        patt = re.compile(pattern)
+    except TypeError:
+        log_msg('get_subset: Incompatible pattern supplied.', 4)
+        files = []
+    else:
+        files = [fn for fn in sorted(os.listdir(datadir)) if patt.search(fn)]
+    return files
 
 
 def check_directory(datadir):
+    try:
+        datadir = os.path.expandvars(datadir)
+    except TypeError:
+        log_msg('check_directory: Exiting - No directory provided', 5)
+
     if not os.path.isdir(datadir):
-        log_msg('Exiting - Directory does not exist: ' + datadir, 5)
+        log_msg('check_directory: Exiting - Directory does not exist: '
+                + str(datadir), 5)
+    return datadir
 
 
 def add_path(files, path):
-    check_directory(path)
-    if type(files) == list:
-        outfiles = map(lambda f: os.path.join(path, f), files)
-    else:
-        outfiles = os.path.join(path, files)
-    return outfiles
+    path = check_directory(path)
+    if type(files) != list:
+        files = [files]
+
+    return map(lambda f: os.path.join(path, f), files)
 
 
 def remove_files(delfiles, path=None):
     if path:
-        check_directory(path)
+        path = check_directory(path)
         delfiles = add_path(delfiles, path)
-    if type(delfiles) == list:
-        for fn in delfiles:
-            try:
-                os.remove(fn)
-            except OSError:
-                log_msg('File does not exist: ' + fn, 3)
-    else:
+
+    if type(delfiles) != list:
+        delfiles = [delfiles]
+
+    for fn in delfiles:
         try:
-            os.remove(delfiles)
+            os.remove(fn)
         except OSError:
-            log_msg('File to be deleted does not exist: ' + delfiles, 3)
+            log_msg('remove_files: File does not exist: ' + fn, 3)
 
 
 def move_files(mvfiles, destination, originpath=None):
-    check_directory(destination)
+    destination = check_directory(destination)
 
     if originpath:
         mvfiles = add_path(mvfiles, originpath)
 
-    if type(mvfiles) == list:
-        for fn in mvfiles:
-            try:
-                shutil.move(fn, destination)
-            except IOError:
-                log_msg('File does not exist:\n\t' + fn, 3)
-            except shutil.Error:
-                log_msg('Destination already exists?: \n\t' + fn, 3)
+    if type(mvfiles) != list:
+        mvfiles = [mvfiles]
 
-    else:
+    for fn in mvfiles:
         try:
-            shutil.move(mvfiles, destination)
+            shutil.move(fn, destination)
         except IOError:
-            log_msg('File to be moved does not exist: \n\t' + mvfiles, 3)
+            log_msg('move_files: File does not exist: ' + fn, 3)
+        except shutil.Error:
+            log_msg('move_files: Destination already exists?: ' + fn, 3)
 
 
 def add_period_to_date(indate, delta, lcal360=True):
     while len(indate) < 5:
         indate.append(0)
         msg = '`rose date` requires length=5 input date array - adding zero: '
-        log_msg(msg + indate, 3)
+        log_msg(msg + str(indate), 3)
 
+    cylc6 = True
     try:
         # Cylc6.0 ->
         cal = os.environ['CYLC_CYCLING_MODE']
-        cylc6 = True
     except KeyError:
         # 'Pre Cylc6.0...'
         cylc6 = False
@@ -146,23 +177,31 @@ def add_period_to_date(indate, delta, lcal360=True):
         offset = 'P'
         for elem in delta:
             if elem > 0:
-                offset += str(elem) + ['Y', 'M', 'D'][delta.index(elem)]
+                try:
+                    offset += str(elem) + ['Y', 'M', 'D'][delta.index(elem)]
+                except IndexError:
+                    if 'T' not in offset:
+                        offset += 'T'
+                    offset += str(elem) + ['M', 'H'][delta.index(elem)-4]
 
-        dateinput = '{0:>4}{1:0>2}{2:0>2}T{3:0>2}{4:0>2}'.format(*indate)
-        cmd = 'rose date {} --calendar {} --offset {} ' \
-            '--print-format %Y,%m,%d,%H,%M'.format(dateinput, cal, offset)
-        rcode, output = exec_subproc(cmd, verbose=False)
-
-        if rcode == 0:
-            outdate = map(int, output.split(','))
+        if all(elem == 0 for elem in indate):
+            output = '{0:0>4},{1:0>2},{2:0>2},{3:0>2},{4:0>2}'.format(*delta)
+            rcode = 0
         else:
-            log_msg('`rose date` command failed - ' + error, 3)
-            outdate = None
+            dateinput = '{0:0>4}{1:0>2}{2:0>2}T{3:0>2}{4:0>2}'.format(*indate)
+            if not re.match('^\d{8}T\d{4}$', dateinput):
+                log_msg('add_period_to_date: Invalid date for conversion to '
+                        'ISO 8601 date representation: ' + str(indate), 5)
+            else:
+                cmd = 'rose date {} --calendar {} --offset {} ' \
+                    '--print-format %Y,%m,%d,%H,%M'.format(dateinput,
+                                                           cal, offset)
+                rcode, output = exec_subproc(cmd, verbose=False)
 
     else:
-        # 'Pre Cylc6.0...'
-        outdate = [sum(x) for x in zip(indate, delta)]
+        # 'Pre Rose 2014 (Cylc6.0)'
         if lcal360:
+            outdate = [sum(x) for x in zip(indate, delta)]
             limits = {0: 999999, 1: 12, 2: 30, 3: 24, 4: 60, 5: 60, }
             for elem in reversed(sorted(limits)):
                 try:
@@ -172,37 +211,44 @@ def add_period_to_date(indate, delta, lcal360=True):
                         outdate[elem] = newval
                 except IndexError:
                     pass
-
+            output = ','.join(str(x) for x in outdate)
+            rcode = 0
         else:  # Gregorian
-            offset = 'P{}D'.format(delta[2])
-            cmd = 'rose date {} --offset {} --print-format %Y,%m,%d,%H,*M'.\
-                format(os.environ['CYLC_TASK_CYCLE_TIME'], offset)
+            offset = '{}D'.format((delta[0] * 365) +
+                                  (delta[1] * 12) + delta[2])
+            dateinput = '{0:0>4}{1:0>2}{2:0>2}{3:0>2}'.format(*indate)
+            cmd = 'rose date {} --offset {} --print-format %Y,%m,%d,%H,%M'.\
+                format(dateinput, offset)
             rcode, output = exec_subproc(cmd, verbose=False)
-            if rcode == 0:
-                outdate = map(int, output.split(','))
-            else:
-                log_msg('`rose date` command failed', 3)
-                outdate = None
+
+    if rcode == 0:
+        outdate = map(int, output.split(','))
+    else:
+        log_msg('`rose date` command failed:\n' + output, 3)
+        outdate = None
 
     return outdate
 
 
 def log_msg(msg, level=1):
+    out = sys.stdout
+    err = sys.stderr
+
     output = {
-        0: (sys.stdout, '[DEBUG] '),
-        1: (sys.stdout, '[INFO] '),
-        2: (sys.stdout, '[ OK ] '),
-        3: (sys.stderr, '[WARN] '),
-        4: (sys.stderr, '[ERROR] '),
-        5: (sys.stderr, '[FAIL] '),
+        0: (out, '[DEBUG] '),
+        1: (out, '[INFO] '),
+        2: (out, '[ OK ] '),
+        3: (err, '[WARN] '),
+        4: (err, '[ERROR] '),
+        5: (err, '[FAIL] '),
     }
 
     try:
-        print >> output[level][0], output[level][1], msg
+        output[level][0].write('{} {}\n'.format(output[level][1], msg))
     except KeyError:
         level = 3
-        print >> output[level][0], output[level][1], \
-            'Unknown severity level for log message'
+        msg = 'log_msg: Unknown severity level for log message.'
+        output[level][0].write('{} {}\n'.format(output[level][1], msg))
 
     if level == 5:
-        sys.exit(100)
+        sys.exit(output[level][1] + 'Terminating PostProc...')
