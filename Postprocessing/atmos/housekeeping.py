@@ -26,13 +26,13 @@ import utils
 
 # Constants
 FILETYPE = OrderedDict([
-        ('dump_names',    ([], lambda p:
-                               re.compile(r'^{0}a\.da\d{{8}}'.format(p)))),
-        ('pp_inst_names', ([], lambda p:
-                               re.compile(r'^{0}a\.p[a-k\d]'.format(p)))),
-        ('pp_mean_names', ([], lambda p:
-                               re.compile(r'^{0}a\.p[lmpr-z12345]'.format(p)))),
-        ])
+    ('dump_names',    ([], lambda p:
+                       re.compile(r'^{0}a\.da\d{{8}}'.format(p)))),
+    ('pp_inst_names', ([], lambda p:
+                       re.compile(r'^{0}a\.p[a-k\d]'.format(p)))),
+    ('pp_mean_names', ([], lambda p:
+                       re.compile(r'^{0}a\.p[lmpr-z12345]'.format(p)))),
+    ])
 RTN = 0
 REGEX = 1
 
@@ -60,19 +60,12 @@ def delete_dumps(atmos, dump_names, archived):
         arch_succeeded = sorted([dump for dump, tag in dump_names if tag])
         arch_failed = [dump for dump, tag in dump_names if not tag]
 
-        if 'delete.lock' in os.listdir(atmos.share):
-            msg = 'delete.lock file exists.  Automatic file deletion disabled.'
-            msg += '\n\t -> Please address archiving issues manually and ' \
-                'delete lock file to allow automatic housekeeping to continue'
-            utils.log_msg(msg, 3)
-            return
-
         if arch_succeeded:
             last_file = arch_succeeded[-1]
-            for fn in utils.get_subset(atmos.share, r'{0}a\.da\d{{8}}'.\
-                                           format(atmos.suite.prefix)):
-                if fn <= os.path.basename(last_file) and not \
-                        fn.endswith('.done'):
+            for fn in utils.get_subset(atmos.share, r'{0}a\.da\d{{8}}'.
+                                       format(atmos.suite.prefix)):
+                if fn <= os.path.basename(last_file) and \
+                        not fn.endswith('.done'):
                     to_delete.append(fn)
                 if atmos.final_dumpname:
                     # Final dump should not be deleted as it is not superseded
@@ -81,15 +74,9 @@ def delete_dumps(atmos, dump_names, archived):
                     except ValueError:
                         pass
 
-        if arch_failed:
-            # failure mode, only delete up to the first safely archived dump
-            # first touch our log file so any further runs of the
-            # script will not try and delete any files
-            open(os.path.join(atmos.share, 'delete.lock'), 'a').close()
-
     else:  # Not archiving
-        for fn in utils.get_subset(atmos.share, r'{0}a\.da\d{{8}}'.\
-                                       format(atmos.suite.prefix)):
+        for fn in utils.get_subset(atmos.share, r'{0}a\.da\d{{8}}'.
+                                   format(atmos.suite.prefix)):
             # Delete files upto and including current cycle time
             filetime = re.search('a.da(\d{8})', fn).group(1)
             if filetime <= ''.join(atmos.suite.cyclestring[:3]):
@@ -123,6 +110,14 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, archived):
                 to_delete.append(ppfile)
 
     if to_delete:
-        msg = 'Removing pp files:\n' + '\n '.join([f for f in to_delete])
+        msg = 'Removing pp files:\n ' + '\n '.join([f for f in to_delete])
         utils.log_msg(msg)
         utils.remove_files(to_delete, atmos.share)
+
+        # Remove .arch files from work directory(s)
+        del_dot_arch = [os.path.basename(fn)+".arch" for fn in to_delete]
+        msg = 'Removing .arch files from work directory:\n ' + \
+            '\n '.join([f for f in del_dot_arch])
+        utils.log_msg(msg)
+        for workdir in atmos.work:
+            utils.remove_files(del_dot_arch, workdir, ignoreNonExist=True)

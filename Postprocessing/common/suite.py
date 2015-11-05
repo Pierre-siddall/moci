@@ -58,6 +58,7 @@ class SuiteEnvironment(object):
             self.cylc6 = False
 
         self.sourcedir = sourcedir
+        self.archiveOK = True
 
     @property
     def suitename(self):
@@ -172,9 +173,14 @@ class SuiteEnvironment(object):
             arch_rcode = self.__archive_command(archfile)
             if arch_rcode == 0:
                 log_line = '{} ARCHIVE OK\n'.format(archfile)
+            elif self.nl.archive_command.lower() == 'moose' and \
+                    arch_rcode == 11:
+                log_line = '{} FILE NOT ARCHIVED. File contains no fields\n'.\
+                    format(archfile)
             else:
                 log_line = '{} ARCHIVE FAILED. Archive process error\n'.\
                     format(archfile)
+                self.archiveOK = False
 
         if not logfile:
             logfile = self.logfile

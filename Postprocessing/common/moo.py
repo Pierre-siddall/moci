@@ -66,7 +66,7 @@ class _Moose(object):
         return 'moose:' + self._class + "/" + self._suiteID
 
     def chkset(self):
-        '''Test whether Moose set exists'''    
+        '''Test whether Moose set exists'''
         chkset_cmd = self._moopath + 'moo test -sw ' + self.dataset
         ret_code, output = utils.exec_subproc(chkset_cmd, verbose=False)
 

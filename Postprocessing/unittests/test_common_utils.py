@@ -344,6 +344,14 @@ class fileManipulationTests(unittest.TestCase):
         func.logtest('Attempt to move non-existent file:')
         utils.remove_files(DUMMY[0], self.dir2)
         # Code should catch exception: OSError
+        self.assertIn('does not exist', func.capture(direct='err'))
+        self.assertFalse(os.path.exists(os.path.join(self.dir2, DUMMY[0])))
+
+    def testRemoveNonExistentIgnore(self):
+        '''Test removing non-existent file, ingnoring failure to find'''
+        func.logtest('Attempt to move non-existent file, ignoring failure:')
+        utils.remove_files(DUMMY[0], self.dir2, ignoreNonExist=True)
+        self.assertEqual('', func.capture(direct='err'))
         self.assertFalse(os.path.exists(os.path.join(self.dir2, DUMMY[0])))
 
     def testRemoveFileWithoutOrigin(self):

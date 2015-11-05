@@ -172,6 +172,7 @@ class archiveTests(unittest.TestCase):
             self.assertEqual(rcode, 0)
             self.assertIn('TestFile ARCHIVE OK',
                           open(self.mySuite.logfile, 'r').read())
+            self.assertTrue(self.mySuite.archiveOK)
 
     def testArchiveFileFail(self):
         '''Test failure mode of archive_file command - moo is mocked out'''
@@ -183,6 +184,19 @@ class archiveTests(unittest.TestCase):
             self.assertNotEqual(rcode, 0)
             self.assertIn('TestFile ARCHIVE FAILED',
                           open(self.mySuite.logfile, 'r').read())
+            self.assertFalse(self.mySuite.archiveOK)
+
+    def testArchiveEmptyFile(self):
+        '''Test attempt to archive an empty file - moo is mocked out'''
+        func.logtest('File archiving - Empty file:')
+        with mock.patch('moo.CommandExec') as dummy:
+            moose_arch_inst = dummy.return_value
+            moose_arch_inst.execute.return_value = {'TestFile': 11}
+            rcode = self.mySuite.archive_file('TestFile')
+            self.assertEqual(rcode, 11)
+            self.assertIn('TestFile FILE NOT ARCHIVED',
+                          open(self.mySuite.logfile, 'r').read())
+            self.assertTrue(self.mySuite.archiveOK)
 
     def testArchiveFileDebug(self):
         '''Test debug mode of archive_file command with no file handle'''

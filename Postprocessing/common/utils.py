@@ -125,7 +125,7 @@ def add_path(files, path):
     return map(lambda f: os.path.join(path, f), files)
 
 
-def remove_files(delfiles, path=None):
+def remove_files(delfiles, path=None, ignoreNonExist=False):
     if path:
         path = check_directory(path)
         delfiles = add_path(delfiles, path)
@@ -137,7 +137,8 @@ def remove_files(delfiles, path=None):
         try:
             os.remove(fn)
         except OSError:
-            log_msg('remove_files: File does not exist: ' + fn, 3)
+            if not ignoreNonExist:
+                log_msg('remove_files: File does not exist: ' + fn, 3)
 
 
 def move_files(mvfiles, destination, originpath=None):

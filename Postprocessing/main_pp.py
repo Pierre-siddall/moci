@@ -62,7 +62,10 @@ def main():
                 if model.methods[meth]:
                     utils.log_msg('Running {} for {}...'.format(meth, m))
                     getattr(model, meth)()
+            exitCheck = model.suite.archiveOK
 
+    if not exitCheck:
+        exit(999)
 
 if __name__ == '__main__':
     main()

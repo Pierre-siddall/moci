@@ -65,8 +65,7 @@ class AtmosPostProc(control.runPostProc):
     @property
     def methods(self):
         return OrderedDict([('do_archive', self.nl.archiving.archive_switch),
-                            ('do_delete', self.nl.delete_sc.del_switch),
-                            ('del_dot_arch', True)])
+                            ('do_delete', self.nl.delete_sc.del_switch)])
 
     @property
     def work(self):
@@ -113,8 +112,8 @@ class AtmosPostProc(control.runPostProc):
         # Multiple work directories required for Pre-CYLC-6.0 only
         for datadir in self.work:
             archfiles += utils.get_subset(datadir, r'{}$'.format(suffix))
-            archdumps += utils.get_subset(datadir,
-                                          r'[a-z]{{5}}a.da.*{}$'.format(suffix))
+            archdumps += utils.get_subset(
+                datadir, r'[a-z]{{5}}a.da.*{}$'.format(suffix))
 
         archpp = list(set(archfiles) - set(archdumps))
         return [pp[:-len(suffix)] for pp in archpp]
@@ -144,12 +143,16 @@ class AtmosPostProc(control.runPostProc):
             fn = os.path.join(self.share, fn)
             if os.path.exists(fn):
                 if validation.verify_header(self.nl.atmospp, fn, log_file,
-                                            self.suite.envars.CYLC_TASK_LOG_ROOT):
+                                            self.suite.envars.
+                                            CYLC_TASK_LOG_ROOT):
                     files_to_archive.append(fn)
+                else:
+                    self.suite.archiveOK = False
             else:
                 msg = 'File {} does not exist - cannot archive'.format(fn)
                 utils.log_msg(msg, 3)
-                log_file.write(fn + ' FILE NOT ARCHIVED. File does not exist\n')
+                msg = fn + ' FILE NOT ARCHIVED. File does not exist\n'
+                log_file.write(msg)
 
         # Perform the archiving
         if files_to_archive:
@@ -176,16 +179,6 @@ class AtmosPostProc(control.runPostProc):
 
         housekeeping.delete_dumps(self, dump, archived)
         housekeeping.delete_ppfiles(self, pp_inst, pp_mean, archived)
-
-    def del_dot_arch(self):
-        for workdir in self.work:
-            to_delete = utils.get_subset(workdir, '\.arch$')
-            if to_delete:
-                msg = 'Removing ".arch" from work directory:\n\t ' + workdir
-                utils.log_msg(msg)
-                utils.remove_files(to_delete, workdir)
-            else:
-                utils.log_msg(' -> Nothing to delete')
 
 INSTANCE = ('atmospp.nl', AtmosPostProc)
 

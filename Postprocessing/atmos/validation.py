@@ -95,7 +95,7 @@ def genlist(ppfile, header, pumfpath):
     # to version 9.1 or more recent.
     pumfpatt = re.compile('vn(\d+\.\d+)')
     pumfver = float(pumfpatt.search(pumfpath).groups()[0])
-    #verify that the version of pumf is suitable
+    # Verify that the version of pumf is suitable
     try:
         assert(pumfver >= 9.1)
     except AssertionError:
@@ -133,24 +133,24 @@ def make_dump_name(atmos):
     basisdt = [int(elem) for elem in atmos.envars.MODELBASIS.split(',')]
 
     if cycledt == basisdt[:len(cycledt)]:
-        # this is the first cycle, definitely do not archive any dumps
+        # This is the first cycle, definitely do not archive any dumps
         return []
 
-    #process for yearly archiving to determine which month to archive
+    # Process for yearly archiving to determine which month to archive
     if atmos.nl.archiving.arch_dump_freq == 'Yearly':
-        months={'January':1,'February':2, 'March':3, 'April':4,
-                'May':5, 'June':6, 'July':7, 'August':8, 'September':9,
-                'October':10, 'November':11, 'December':12}
+        months = {'January': 1, 'February': 2, 'March': 3, 'April': 4,
+                  'May': 5, 'June': 6, 'July': 7, 'August': 8, 'September': 9,
+                  'October': 10, 'November': 11, 'December': 12}
         month_for_yearly_archiving = months[atmos.nl.archiving.arch_year_month]
     else:
-        #set a default that mimics existing behaviour
+        # Set a default that mimics existing behaviour
         month_for_yearly_archiving = 1
 
-    #cycledt is a tuple containing integer values (year,month,day) for
-    #the start of a cycle in a cycling model run.
+    # cycledt is a tuple containing integer values (year,month,day) for
+    # the start of a cycle in a cycling model run.
     dumptype = {
-        'Yearly':   cycledt[1] == month_for_yearly_archiving and \
-            cycledt[2] == 1,
+        'Yearly':   cycledt[1] == month_for_yearly_archiving and
+        cycledt[2] == 1,
         'Seasonal': cycledt[1] in (12, 3, 6, 9) and cycledt[2] == 1,
         'Monthly':  cycledt >= utils.add_period_to_date(
             basisdt,
