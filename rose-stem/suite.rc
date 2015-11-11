@@ -67,6 +67,9 @@ export FCM_VERSION={{FCM_VERSION}}
             submission timeout handler = "rose suite-hook"
             execution timeout  =  180 # 3 hours
             execution timeout handler = "rose suite-hook"
+        [[[environment]]]
+	    SOURCE_MOCI_BASE = {{ SOURCE_MOCI_BASE }}
+	    SOURCE_MOCI_REV = {{ SOURCE_MOCI_REV }}
     [[LINUX]]
         [[[job submission]]]
             method = at
