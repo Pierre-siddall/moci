@@ -1,4 +1,17 @@
 #!/usr/bin/env python2.7
+'''
+*****************************COPYRIGHT******************************
+ (C) Crown copyright 2015 Met Office. All rights reserved.
+
+ Use, duplication or disclosure of this code is subject to the restrictions
+ as set forth in the licence. If no licence has been raised with this copy
+ of the code, the use, duplication or disclosure of it is strictly
+ prohibited. Permission to do so must first be obtained in writing from the
+ Met Office Information Asset Owner at the following address:
+
+ Met Office, FitzRoy Road, Exeter, Devon, EX1 3PB, United Kingdom
+*****************************COPYRIGHT******************************
+'''
 from __future__ import print_function
 
 import unittest
