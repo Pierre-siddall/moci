@@ -8,6 +8,7 @@ The scripts here were to written as part of a Rose suite (originally mi-ad949)
 that primarily builds XIOS. In addition to building XIOS, apps in the suite 
 also 
 * build the OASIS3-MCT library
+* run the OSIS3-MCT tutorial application
 * run the XIOS "test_complete" test
 * build the GYRE configuration of NEMO
 * run test GYRE config test
@@ -24,6 +25,8 @@ Source code overview
 ====================
 The scripts are written in Python. The code is structured as follows
 
+* oasisBuild.py - Script to build the oasis3-mct library and create environment modules using the output.
+* oasisTest.py - Script to run the oasis3-mct tutorial to test the build output.
 * xiosBuild.py - Script to build XIOS library and create an environment module for XIOS
 * xiosTest.py - Script to run the "test_complete" test found in the XIOS 
                 repository.
@@ -90,6 +93,7 @@ Alternatively the scripts can be run individually from the command line as
 described in the "Running the scripts" section above. To test all functionality, 
 the following scripts should be run. When running
 * oasisBuild.py
+* oasisTest.py
 * xiosBuild.py
 * xiosTest.py 
 * nemoBuild.py

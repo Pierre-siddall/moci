@@ -14,10 +14,8 @@ export NEMO_EXP_REL_PATH=
 export TasksPerNode=32
 export XiosTasksPerNode=8
 
-
 module load python/v2.7.9
 
-module use /data/d02/shaddad/xiosTest_20150730_oasis/modules/modules
-module load cray-hdf5-parallel/1.8.13
-module load cray-netcdf-hdf5parallel/4.3.2
-module load XIOS/1.0
+module use $PWD/modules/modules
+module load XIOS-PrgEnv/1.0
+

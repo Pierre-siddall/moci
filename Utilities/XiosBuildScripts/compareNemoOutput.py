@@ -16,7 +16,6 @@ def main():
                     shell=True)
 
     print 'comparing NEMO output files'
-
     for fileName1 in nemoTest.TestSystem.OUTPUT_FILE_LIST:
         print 'evaluating file {filename}'.format(filename=fileName1)
         try:

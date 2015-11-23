@@ -13,7 +13,5 @@ export JP_CFG=50
 export BUILD_PATH=$PWD/install
 export NEMO_POST_BUILD_CLEANUP=false
 
-module use /data/d02/shaddad/xiosTest_20150730_oasis/modules/modules
-module load cray-hdf5-parallel/1.8.13
-module load cray-netcdf-hdf5parallel/4.3.2
-module load XIOS/1.0
+module use $PWD/modules/modules
+module load XIOS-PrgEnv/1.0

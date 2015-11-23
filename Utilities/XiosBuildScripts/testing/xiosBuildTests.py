@@ -15,7 +15,8 @@ class XiosBuildCrayTests(unittest.TestCase):
         self.environment['XIOS_POST_BUILD_CLEANUP'] = 'false'
         self.XiosRepoUrl = 'svn://fcm1/xios.xm_svn/XIOS/branchs/xios-1.0'
         self.environment['XIOS_REPO_URL'] = self.XiosRepoUrl
-        self.environment['XIOS_REV'] = 'HEAD'
+        self.XiosRevNo = 'HEAD'
+        self.environment['XIOS_REV'] = self.XiosRevNo 
         self.environment['XIOS'] = 'XIOS'
         self.environment['USE_OASIS'] = 'false'
         self.environment['OASIS_ROOT'] = '/home/d02/shaddad/Projects/GC3Port/r1217_port_mct_xcf/oasis3-mct/crayxc40'
@@ -29,7 +30,11 @@ class XiosBuildCrayTests(unittest.TestCase):
         self.environment['XLCPP_MODULE'] = ''
         self.environment['DEPLOY_AS_MODULE'] = 'true'
         self.environment['MODULE_INSTALL_PATH'] = '{0}/modules'.format(os.getcwd())
-        self.environment['MODULE_VERSION'] = '1.0'
+        self.environment['XIOS_MODULE_VERSION'] = '1.0'
+        self.environment['XIOS_PRGENV_VERSION'] = '1.0'
+        self.environment['OASIS_MODULE_VERSION'] = '1.0'
+        self.environment['OASIS3_MCT'] = "oasis3-mct"
+        
         # NOTE: 
         self.BuildSystem = xiosBuild.XiosCrayBuildSystem(self.environment)
         self.TestScriptDirectory = os.path.dirname(os.path.realpath(__file__))
@@ -64,9 +69,11 @@ class XiosBuildCrayTests(unittest.TestCase):
             self.assertTrue(os.path.exists(filePath1),' file {0} not found'.format(filePath1))   
                 
     def test_WriteModule(self):
-        mw1 = xiosBuild.XiosCrayModuleWriter(self.BuildSystem.ModuleVersion, \
-                                   self.BuildSystem.ModuleRootDir,\
-                                   self.BuildSystem.XiosRevisionNumber)
+        mw1 = xiosBuild.XiosCrayModuleWriter(self.BuildSystem.ModuleVersion,
+                                             self.BuildSystem.ModuleRootDir,
+                                             self.BuildSystem.XiosRepositoryUrl,
+                                             self.BuildSystem.XiosRevisionNumber,
+                                             self.BuildSystem.SYSTEM_NAME)
         mw1.WriteModule()
         
         # check for existence of module
@@ -77,7 +84,8 @@ class XiosBuildCrayTests(unittest.TestCase):
         referenceFilePath='{0}/xiosBuild_cray_moduleFile'.format(self.BuildSystem.workingDir)
         modFileString = '''#%Module1.0####################################################################
 proc ModulesHelp {{ }} {{
-    puts stderr "Sets up XIOS I/O server for use.branch xios-1.0 revision HEAD"
+    puts stderr "Sets up XIOS I/O server for use. Built from source
+branch {XiosRepositoryUrl} revision {XiosRevisionNumber}"
 }}
 
 module-whatis The XIOS I/O server for use with weather/climate models
@@ -94,17 +102,19 @@ prereq cray-hdf5-parallel/1.8.13
 prereq cray-netcdf-hdf5parallel/4.3.2
 
 setenv XIOS_PATH $xiosdir
+setenv xios_path $xiosdir
 setenv XIOS_INC $xiosdir/inc
 setenv XIOS_LIB $xiosdir/lib
 
 prepend-path PATH $xiosdir/bin
 \n'''
         modFileString = modFileString.format(**self.BuildSystem.__dict__)
-        
         with open(referenceFilePath,'w') as refFile:
             refFile.write(modFileString)
-            
+
         self.assertTrue(filecmp.cmp(moduleFilePath, referenceFilePath), 'module file {0} not identical to reference file {1}'.format(moduleFilePath, referenceFilePath))    
+        
+        
     def test_writeBuildScript(self):
         self.BuildSystem.writeBuildScript()
         

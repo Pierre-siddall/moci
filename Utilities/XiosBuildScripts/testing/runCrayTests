@@ -13,6 +13,7 @@ SCRIPT_DIR = os.path.abspath(os.path.join(os.path.realpath(__file__),
 sys.path += [SCRIPT_DIR]
 from xiosBuildTests import XiosBuildCrayTests
 from nemoBuildTests import NemoBuildCrayTests
+from oasisBuildTests import OasisBuildCrayTests
 
 SCRATCH_DIR_NAME='scratch_XBStest_'
 
@@ -35,6 +36,7 @@ def main():
     moduleSuites = []
     moduleSuites += [unittest.TestLoader().loadTestsFromTestCase(XiosBuildCrayTests)]
     moduleSuites += [unittest.TestLoader().loadTestsFromTestCase(NemoBuildCrayTests)]
+    moduleSuites += [unittest.TestLoader().loadTestsFromTestCase(OasisBuildCrayTests)]
     craySuite = unittest.TestSuite(moduleSuites)
     
     unittest.TextTestRunner(verbosity=2).run(craySuite)

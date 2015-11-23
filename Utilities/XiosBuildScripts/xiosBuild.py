@@ -40,14 +40,19 @@ EXTRACT_SCRIPT_FILENAME = 'xiosExtractScript01.sh'
 
 class XiosModuleWriter(SingleModuleWriter):
     
-    def __init__(self, version, modulePath, prerequisites, revNo):
+    def __init__(self, version, modulePath, prerequisites, srcUrl, revNo, parents, platform):
         SingleModuleWriter.__init__(self)
         self.ModuleName = 'XIOS'
         self.ModuleVersion = version
         self.ModuleHomePath = modulePath
-        self.ParentModules=''
+        self.ParentModules=parents
+        self.XiosRepositoryUrl = srcUrl
         self.XiosRevisionNumber = revNo
-        self.HelpMsg = 'Sets up XIOS I/O server for use.branch xios-1.0 revision {0}'.format(self.XiosRevisionNumber)
+        self.Platform = platform
+        self.HelpMsg = '''Sets up XIOS I/O server for use. Built from source
+branch {srcUrl} revision {revNo}'''
+        self.HelpMsg = self.HelpMsg.format(srcUrl=self.XiosRepositoryUrl,
+                                           revNo=self.XiosRevisionNumber)
         self.WhatIsMsg = 'The XIOS I/O server for use with weather/climate models'
 
 
@@ -62,9 +67,25 @@ class XiosModuleWriter(SingleModuleWriter):
 
         self.SetEnvList = []
         self.SetEnvList += [('XIOS_PATH','$xiosdir')]
+        self.SetEnvList += [('xios_path','$xiosdir')]
         self.SetEnvList += [('XIOS_INC','$xiosdir/inc')]
         self.SetEnvList += [('XIOS_LIB','$xiosdir/lib')]
         
+
+class XiosPrgEnvWriter(PrgEnvModuleWriter):
+    def __init__(self, version, modulePath,parents, platform):
+        PrgEnvModuleWriter.__init__(self)
+        self.ModuleName = 'XIOS-PrgEnv'
+        self.ModuleVersion = version
+        self.ModuleHomePath = modulePath
+        self.ParentModules = parents
+        self.Platform = platform
+        self.HelpMsg = 'Sets up the programming environment for XIOS and Oasis3-mct (if required)'
+        self.WhatIsMsg = 'The XIOS I/O server for use with weather/climate models '
+        
+        self.LocalVariablesList = []
+        self.PrependPathList = []
+        self.ModulesToLoad = []
 
 class XiosBuildSystem(object):
     '''
@@ -103,8 +124,16 @@ class XiosBuildSystem(object):
         except:
             self.CopyPrebuild = False
             self.PrebuildDirectory = ''
+            
+        if self.CopyPrebuild:
+            self.LibraryDir = self.PrebuildDirectory
+        else:
+            self.LibraryDir = self.workingDir + '/' + self.LibraryName
                 
-        self.UseOasis = settingsDict['USE_OASIS'] =='true'
+        try:
+            self.UseOasis = settingsDict['USE_OASIS'] =='true'
+        except:
+            self.UseOasis = False
         if self.UseOasis: 
             if settingsDict.has_key('OASIS_ROOT'):
                 self.OasisRoot = settingsDict['OASIS_ROOT']
@@ -121,11 +150,21 @@ class XiosBuildSystem(object):
         try:
             self.DeployXiosAsModule = settingsDict['DEPLOY_AS_MODULE'] == 'true'
             self.ModuleRootDir = settingsDict['MODULE_INSTALL_PATH']
-            self.ModuleVersion = settingsDict['MODULE_VERSION']
+            self.ModuleVersion = settingsDict['XIOS_MODULE_VERSION']
+            self.PrgEnvVersion = settingsDict['XIOS_PRGENV_VERSION']
+            if self.UseOasis:
+                self.OasisModuleName = settingsDict['OASIS3_MCT']
+                self.OasisModuleVersion = settingsDict['OASIS_MODULE_VERSION']
+            else:
+                self.OasisModuleName = ''
+                self.OasisModuleVersion = ''
         except:
             self.DeployXiosAsModule = False
             self.ModuleRootDir = ''
             self.ModuleVersion = ''
+            self.PrgEnvVersion = ''
+            self.OasisModuleName = ''
+            self.OasisModuleVersion = ''
 
     def RunBuild(self):
         if self.CopyPrebuild:
@@ -152,13 +191,7 @@ class XiosBuildSystem(object):
         self.copyXiosFilesFromSourceToDest(sourceBase, destBase)
         
         if self.DeployXiosAsModule:
-            moduleFileDirectory='{0}/modules/{1}'.format(self.ModuleRootDir,self.LibraryName)
-#            moduleFilePath =  '{0}/{1}'.format(moduleFileDirectory,self.ModuleVersion)
-            if not os.path.exists(moduleFileDirectory):
-                os.makedirs(moduleFileDirectory)
-            self.WriteModuleFile()
-            modulePackageDirectory = '{0}/packages/{1}/{2}'.format(self.ModuleRootDir,self.LibraryName, self.ModuleVersion)
-            self.copyXiosFilesFromSourceToDest(sourceBase, modulePackageDirectory)   
+            self.CreateModule()   
 
 
     def writeBuildConf(self):
@@ -323,7 +356,7 @@ class XiosBuildSystem(object):
         self.copyFilesToDir(destBase)
         
     def copyFilesToDir(self,destBase):
-        sourceBase = self.workingDir + '/' + self.LibraryName
+        sourceBase = self.LibraryDir
         self.copyXiosFilesFromSourceToDest(sourceBase, destBase)
         self.writeBuildConf()
         
@@ -449,10 +482,15 @@ class XiosIBMPW7BuildSystem(XiosBuildSystem):
             pathFile.write('HDF5_LIBDIR=""\n')
             pathFile.write('HDF5_LIB="-lhdf5_hl -lhdf5 -lhdf5 -lz"\n')
     
-            pathFile.write('OASIS_INCDIR="-I$OASIS_INC_DIR/lib/psmile.MPI1"\n')
-            pathFile.write('OASIS_LIBDIR="-L$OASIS_LIB_DIR"\n')
-            pathFile.write('OASIS_LIB="-lpsmile.MPI1 -lscrip -lmct -lmpeu"\n')
-    
+            if self.UseOasis:
+                pathFile.write('OASIS_INCDIR="-I$OASIS_INC_DIR/lib/psmile.MPI1"\n')
+                pathFile.write('OASIS_LIBDIR="-L$OASIS_LIB_DIR"\n')
+                pathFile.write('OASIS_LIB="-lpsmile.MPI1 -lscrip -lmct -lmpeu"\n')
+            else:
+                pathFile.write('OASIS_INCDIR=""\n')
+                pathFile.write('OASIS_LIBDIR=""\n')
+                pathFile.write('OASIS_LIB=""\n')
+       
     def setupArchFcmFile(self, fileName):
         with open(fileName,'w') as fcmFile:
             fcmFile.write('################################################################################\n')
@@ -515,13 +553,56 @@ class XiosIBMPW7BuildSystem(XiosBuildSystem):
             raise Exception('Error compiling XIOS: build failed!')
 
 class XiosCrayModuleWriter(XiosModuleWriter):
-    def __init__(self, version, modulePath, revNo):
+    def __init__(self, version, modulePath, srcUrl, revNo,platform):
         prereq = []
         prereq += ['PrgEnv-cray/5.2.40']
         prereq += ['cray-mpich/7.0.4']
         prereq += ['cray-hdf5-parallel/1.8.13']
         prereq += ['cray-netcdf-hdf5parallel/4.3.2']        
-        XiosModuleWriter.__init__(self, version, modulePath, prereq, revNo)
+        XiosModuleWriter.__init__(self, 
+                                  version, 
+                                  modulePath, 
+                                  prereq,
+                                  srcUrl, 
+                                  revNo,
+                                  '',
+                                  platform)
+        
+class XiosCrayPrgEnvWriter(XiosPrgEnvWriter):
+    def __init__(self, version, modulePath, moduleList, platform):
+        XiosPrgEnvWriter.__init__(self, 
+                                  version, 
+                                  modulePath,
+                                  '',
+                                  platform)
+        self.ModulesToLoad += ['PrgEnv-cray/5.2.40']
+        self.ModulesToLoad += ['cray-mpich/7.0.4']
+        self.ModulesToLoad += ['cray-hdf5-parallel/1.8.13']
+        self.ModulesToLoad += ['cray-netcdf-hdf5parallel/4.3.2']     
+        for mod1 in moduleList:
+            self.ModulesToLoad += [mod1] 
+
+class XiosCrayRemoteModuleWriter(XiosModuleWriter):
+    def __init__(self, version, modulePath, srcUrl,revNo, platform):
+        prereq = []
+        XiosModuleWriter.__init__(self, 
+                                  version, 
+                                  modulePath, 
+                                  prereq, 
+                                  srcUrl,
+                                  revNo,
+                                  'remote/{0}'.format(platform),
+                                  platform)
+        
+class XiosCrayRemotePrgEnvWriter(XiosPrgEnvWriter):
+    def __init__(self, version, modulePath, moduleList,platform):
+        XiosPrgEnvWriter.__init__(self, 
+                                  version, 
+                                  modulePath,
+                                  'remote/{0}'.format(platform),
+                                  platform)
+        for mod1 in moduleList:
+            self.ModulesToLoad += [mod1] 
         
 class XiosCrayBuildSystem(XiosBuildSystem):
     '''
@@ -624,19 +705,73 @@ class XiosCrayBuildSystem(XiosBuildSystem):
             envFile.write('export NETCDF_LIB_DIR=""\n')
             
     def CreateModule(self):
+        print 'creating modules with root {0}'.format(self.ModuleRootDir)
         if not os.path.exists(self.ModuleRootDir): 
             os.makedirs(self.ModuleRootDir)
         elif not os.path.isdir(self.ModuleRootDir):
             raise Exception('Module install directory {0} not found, module not deployed.\n'.format(self.ModuleRootDir))
         
         modulePackageDirectory='{0}/packages/{1}/{2}'.format(self.ModuleRootDir,self.LibraryName,self.ModuleVersion)
+        print 'Copying files {0}'.format(modulePackageDirectory)
+        self.createLocalModuleFiles(modulePackageDirectory)
         
-        modWriter1 = XiosCrayModuleWriter(self.ModuleVersion, self.ModuleRootDir, self.XiosRevisionNumber)
+        self.createRemoteModuleFiles()
+        
+
+    def createLocalModuleFiles(self, modulePackageDirectory):
+        print 'Creating XIOS module'
+        modWriter1 = XiosCrayModuleWriter(self.ModuleVersion, 
+                                          self.ModuleRootDir,
+                                          self.XiosRepositoryUrl, 
+                                          self.XiosRevisionNumber,
+                                          self.SYSTEM_NAME)
         modWriter1.WriteModule()
         
         self.copyFilesToDir(modulePackageDirectory)
         
+        #XIOS Prg-Env module
+        modulesToLoad = []
+        if self.UseOasis:
+            str1='{oasisModName}/{oasisModVersion}'
+            modulesToLoad += [str1.format(oasisModName=self.OasisModuleName,
+                                          oasisModVersion=self.OasisModuleVersion)]
+        str1='{xiosModName}/{xiosModVersion}'
+        modulesToLoad += [str1.format(xiosModName=self.LibraryName,
+                                    xiosModVersion=self.ModuleVersion)]
         
+        prgEnvWriter1 = XiosCrayPrgEnvWriter(version=self.PrgEnvVersion, 
+                                             modulePath=self.ModuleRootDir, 
+                                             moduleList=modulesToLoad,
+                                             platform=self.SYSTEM_NAME)
+        prgEnvWriter1.WriteModule()
+        print 'Creating XIOS PrgEnv'
+
+        
+    def createRemoteModuleFiles(self):
+        remoteModWriter1 = XiosCrayRemoteModuleWriter(self.ModuleVersion, 
+                                                      self.ModuleRootDir,
+                                                      self.XiosRepositoryUrl,
+                                                      self.XiosRevisionNumber,
+                                                      self.SYSTEM_NAME)
+        remoteModWriter1.WriteModule()
+        
+        modulesToLoad = []
+        if self.UseOasis:
+            str1='remote/{sysName}/{oasisModName}/{oasisModVersion}'
+            modulesToLoad += [str1.format(oasisModName=self.OasisModuleName,
+                                          oasisModVersion=self.OasisModuleVersion,
+                                          sysName=self.SYSTEM_NAME)]
+        str1='remote/{sysName}/{xiosModName}/{xiosModVersion}'
+        modulesToLoad += [str1.format(xiosModName=self.LibraryName,
+                                      xiosModVersion=self.ModuleVersion,
+                                      sysName=self.SYSTEM_NAME)]
+
+        remotePrgEnvWriter1 = XiosCrayRemotePrgEnvWriter(self.PrgEnvVersion,
+                                                        self.ModuleRootDir,
+                                                        modulesToLoad,
+                                                        self.SYSTEM_NAME)
+        remotePrgEnvWriter1.WriteModule()
+
         
     def WriteModuleFile(self):
         moduleFileDirectory='{0}/modules/{1}'.format(self.ModuleRootDir,self.LibraryName)
@@ -670,14 +805,21 @@ class XiosCrayBuildSystem(XiosBuildSystem):
             moduleFile.write('\n')        
         
 class XiosLinuxIntelModuleWriter(XiosModuleWriter):
-    def __init__(self, version, modulePath, revNo):
+    def __init__(self, version, modulePath, srcUrl, revNo, platform):
         prereq = []
         prereq += ['fortran/intel/15.0.0']
         prereq += ['mpi/mpich/3.1.2/ifort/15.0.0']
         prereq += ['hdf5/1.8.12/ifort/15.0.0']
         prereq += ['netcdf/4.3.3-rc1/ifort/15.0.0']
         
-        XiosModuleWriter.__init__(self, version, modulePath, prereq, revNo)
+        XiosModuleWriter.__init__(self, 
+                                  version, 
+                                  modulePath, 
+                                  prereq,
+                                  srcUrl, 
+                                  revNo,
+                                  '',
+                                  platform)
             
 
 class XiosLinuxIntelSystem(XiosBuildSystem):

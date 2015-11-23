@@ -240,9 +240,15 @@ class NemoCrayXC40BuildSystem(NemoBuildSystem):
             archFile.write('%XIOS_INC            -I%XIOS_HOME/inc\n')
             archFile.write('%XIOS_LIB            -L%XIOS_HOME/lib -lxios\n')
             archFile.write('\n')
-            archFile.write('%OASIS_INC           -I%OASIS_HOME/build/lib/mct -I%OASIS_HOME/build/lib/psmile.MPI1\n')
-            archFile.write('%OASIS_LIBDIR        -L%OASIS_HOME/lib\n')
-            archFile.write('%OASIS_LIB           -lpsmile.MPI1 -lmct -lmpeu -lscrip\n')
+            if self.UseOasis:
+                archFile.write('%OASIS_INC           -I%OASIS_HOME/build/lib/mct -I%OASIS_HOME/build/lib/psmile.MPI1\n')
+                archFile.write('%OASIS_LIBDIR        -L%OASIS_HOME/lib\n')
+                archFile.write('%OASIS_LIB           -lpsmile.MPI1 -lmct -lmpeu -lscrip\n')
+            else:
+                archFile.write('%OASIS_INC  \n')
+                archFile.write('%OASIS_LIBDIR  \n')
+                archFile.write('%OASIS_LIB \n')
+                
             archFile.write('%CPP                 cpp\n')
             archFile.write('%FC                  ftn\n')
             archFile.write('\n')
@@ -255,8 +261,12 @@ class NemoCrayXC40BuildSystem(NemoBuildSystem):
             archFile.write('%ARFLAGS             -r\n')
             archFile.write('%MK                  gmake\n')
             archFile.write('\n')
-            archFile.write('%USER_INC            %NCDF_INC %OASIS_INC %XIOS_INC  \n')
-            archFile.write('%USER_LIB            %NCDF_LIB %OASIS_LIBDIR %OASIS_LIB %XIOS_LIB %OASIS_LIB\n')
+            if self.UseOasis:
+                archFile.write('%USER_INC            %NCDF_INC %OASIS_INC %XIOS_INC  \n')
+                archFile.write('%USER_LIB            %NCDF_LIB %OASIS_LIBDIR %OASIS_LIB %XIOS_LIB %OASIS_LIB\n')
+            else:
+                archFile.write('%USER_INC            %NCDF_INC %XIOS_INC  \n')
+                archFile.write('%USER_LIB            %NCDF_LIB %XIOS_LIB \n')
             archFile.write('\n')
 
     def setupConfigFiles(self):
