@@ -17,15 +17,20 @@ class UpgradeError(Exception):
 
 
 
-class vn103_tXXXX(rose.upgrade.MacroUpgrade):
+class vn103_GO5(rose.upgrade.MacroUpgrade):
 
-    """Upgrade macro for ticket #XXXX by <author>."""
+    """Upgrade macro for ticket #34 by Harry Shepherd."""
 
     BEFORE_TAG = "vn10.3"
-    AFTER_TAG = "vn10.3_tXXXX"
+    AFTER_TAG = "GO5"
 
     def upgrade(self, config, meta_config=None):
         """Upgrade a NEMO-CICE fcm-make app configuration."""
         # Input your macro commands here
+        self.change_setting_value(config, ['env', 'config_root_path'],
+                                  "'fcm:moci.xm_tr'", forced=True)
+        self.change_setting_value(config, ['env', 'config_revision'],
+                                  "@209", forced=True)
+        
         return config, self.reports
 
