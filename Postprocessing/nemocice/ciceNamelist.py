@@ -17,19 +17,20 @@ NAME
 DESCRIPTION
     Default namelists for CICE post processing control
 '''
+import os
 
 
 class ciceNamelist:
     pp_run = False
-    restart_directory = '$DATAM'
+    restart_directory = os.environ['DATAM']
     archive_restarts = False
     archive_timestamps = '06-01', '12-01'
     buffer_archive = 5
-    means_directory = '$CYLC_TASK_WORK_DIR/../coupled'
+    means_directory = os.environ['CYLC_TASK_WORK_DIR'] + '/../coupled'
     means_cmd = '/projects/ocean/hadgem3/nco/nco-3.9.5_clean/bin/ncra --64bit -O'
     create_means = False
     archive_means = False
-    archive_set = '$CYLC_SUITE_NAME'
+    archive_set = os.environ['CYLC_SUITE_NAME']
     debug = False
 
 NAMELISTS = {'cicepostproc': ciceNamelist}

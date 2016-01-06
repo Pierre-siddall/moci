@@ -67,7 +67,7 @@ class SuiteEnvironment(object):
         try:
             return self.nl.archive_set
         except AttributeError:
-            utils.log_msg('Suitename not available - Cannnot archive', 3)
+            utils.log_msg('Suitename not available - Cannot archive', 3)
 
     @property
     def umtask(self):
@@ -200,14 +200,14 @@ class SuiteEnvironment(object):
 
 class suitePostProc(object):
     ''' Default namelist for model independent properties '''
-    prefix = '$RUNID'
+    prefix = os.environ['RUNID']
     umtask_name = 'atmos'
     tasks_per_cycle = 1
     cycleperiod = 0, 1, 0, 0, 0
     archive_command = 'Moose'
-    archive_set = '$CYLC_SUITE_REG_NAME'
+    archive_set = os.environ['CYLC_SUITE_REG_NAME']
     dataclass = 'crum'
-    moopath = '/critical/opt/ukmo/mass/moose-batch-node-client/bin/ibm-cn/'
+    moopath = ''
     mooproject = ''
 
 NAMELISTS = {'suitegen': suitePostProc}

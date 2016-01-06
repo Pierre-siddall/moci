@@ -17,11 +17,12 @@ NAME
 DESCRIPTION
     Default namelists for NEMO post processing control
 '''
+import os
 
 
 class nemoNamelist:
     pp_run = False
-    restart_directory = '$DATAM'
+    restart_directory = os.environ['DATAM']
     exec_rebuild = '/projects/ocean/hadgem3/scripts/GC2.0/rebuild_nemo.exe'
     rebuild_timestamps = '05-30', '11-30', '06-01', '12-01'
     buffer_rebuild_rst = 5
@@ -30,10 +31,10 @@ class nemoNamelist:
     archive_timestamps = '05-30', '11-30', '06-01', '12-01'
     buffer_archive = 0
     means_cmd = '/projects/ocean/hadgem3/scripts/GC2.0/mean_nemo.exe'
-    means_directory = '$CYLC_TASK_WORK_DIR/../coupled'
+    means_directory = os.environ['CYLC_TASK_WORK_DIR'] + '/../coupled'
     create_means = False
     archive_means = False
-    archive_set = '$CYLC_SUITE_NAME'
+    archive_set = os.environ['CYLC_SUITE_NAME']
     debug = False
 
 NAMELISTS = {'nemopostproc': nemoNamelist}

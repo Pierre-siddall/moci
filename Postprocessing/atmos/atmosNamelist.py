@@ -24,7 +24,7 @@ import os
 class atmosNamelist:
     pp_run = False
     share_directory = os.environ['PWD']
-    pumf_path = '/projects/um1/vn*.*/ibm/utilities/um-pumf'
+    pumf_path = '/projects/um1/vn10.3/xc40/utilities/um-pumf'
     debug = False
 
 
@@ -36,7 +36,6 @@ class archiving:
     archive_dumps = False
     archive_pp = False
     arch_year_month = 1
-    moose_data_set = ''
 
 
 class delete_sc:
