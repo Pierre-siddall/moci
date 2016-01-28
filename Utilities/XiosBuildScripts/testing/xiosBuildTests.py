@@ -1,3 +1,4 @@
+#!/usr/bin/env python2.7
 import unittest
 import subprocess
 import os
@@ -62,7 +63,15 @@ class XiosBuildCrayTests(unittest.TestCase):
                                                fileName=xiosBuild.EXTRACT_SCRIPT_FILENAME)
         self.assertTrue(os.path.exists(scriptFilePath),'script file {0} not found!'.format(scriptFilePath))
         # compare contents to reference file
-        refFilePath = '{0}/resources/cray_xiosBuild_extractScript.sh'.format(self.TestScriptDirectory)
+        refFilePath = '{0}/cray_xiosBuild_extractScript.sh'.format(self.BuildSystem.workingDir)
+        extractCmdString = '''#!/bin/ksh
+fcm co svn://fcm1/xios.xm_svn/XIOS/branchs/xios-1.0@HEAD XIOS
+cd XIOS
+for i in tools/archive/*.tar.gz; do  tar -xzf $i; done
+'''
+        with open(refFilePath,'w') as extractRefFile:
+            extractRefFile.write(extractCmdString)
+        
         self.assertTrue(filecmp.cmp(scriptFilePath, refFilePath), 'script file {0} not identical to reference file {1}'.format(scriptFilePath, refFilePath))
         
         # check extracted source code for existence of some files
@@ -212,6 +221,14 @@ class XiosBuildLinuxIntelTests(unittest.TestCase):
 
         # compare contents to reference file
         refFilePath = '{0}/resources/linuxIntel_xiosBuild_extractScript.sh'.format(self.TestScriptDirectory)
+        extractCmdString = '''#!/bin/ksh
+fcm co svn://fcm1/xios.xm_svn/XIOS/branchs/xios-1.0@HEAD XIOS
+cd XIOS
+for i in tools/archive/*.tar.gz; do  tar -xzf $i; done
+'''
+        with open(refFilePath,'w') as extractRefFile:
+            extractRefFile.write(extractCmdString)        
+        
         self.assertTrue(filecmp.cmp(scriptFilePath, refFilePath), 'script file {0} not identical to reference file {1}'.format(scriptFilePath, refFilePath))
         
         # check extracted source code for existence of some files

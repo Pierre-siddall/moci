@@ -39,7 +39,10 @@ def main():
     moduleSuites += [unittest.TestLoader().loadTestsFromTestCase(OasisBuildCrayTests)]
     craySuite = unittest.TestSuite(moduleSuites)
     
-    unittest.TextTestRunner(verbosity=2).run(craySuite)
+    testResults = unittest.TextTestRunner(verbosity=2).run(craySuite)
+    if len(testResults.errors) > 0 or len(testResults.failures) > 0:
+        exit(1)
+       
 
 if __name__ == '__main__':
     main()  

@@ -13,6 +13,7 @@
 {%- set name_graphs = {
     "test_oasis" :
         "fcm_make_xiosScript_remote => buildOasis
+         fcm_make_xiosScript_remote => xbs_unitTests => buildOasis
          fcm_make_xiosScript_local => validate_oasis
          buildOasis => testOasis => validate_oasis => housekeeping_oasis
          fcm_make_xiosScript_local => validation_prepare => testOasis",
@@ -20,12 +21,14 @@
 
     "test_xios" :  
         "fcm_make_xiosScript_remote => buildOasis => buildXios
+         fcm_make_xiosScript_remote => xbs_unitTests => buildOasis
          buildXios => testXios => validate_xios => housekeeping_xios
          fcm_make_xiosScript_local => validate_xios 
          fcm_make_xiosScript_local => validation_prepare => testXios", 
 
     "test_nemo_gyre" :  
         "fcm_make_xiosScript_remote => buildOasis => buildXios => buildNemo 
+         fcm_make_xiosScript_remote => xbs_unitTests => buildOasis
          buildNemo => testNemo => validate_nemo => housekeeping_nemo
          fcm_make_xiosScript_local => validate_nemo
          fcm_make_xiosScript_local =>validation_prepare => testNemo",
@@ -252,6 +255,18 @@
             SYSTEM_NAME={{TEST_SYSTEM}} 
             OASIS_MODULE_VERSION={{OASIS_MODULE_VERSION}}
      
+     [[xbs_unitTests]]
+        inherit = None, REMOTE_APP
+        [[[directives]]]
+{% if TEST_SYSTEM == "UKMO_CRAY_XC40" %}
+            -l walltime=00:05:00
+            -l ncpus=2
+            -l mem=2000MB
+            -q = shared
+            -P = climate
+{% endif %}
+        
+        
 
      [[buildOasis]]
         inherit = None,REMOTE_APP, OASIS_APP, MODULE_DEPLOYMENT_APP
