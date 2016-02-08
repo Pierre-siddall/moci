@@ -20,13 +20,13 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(
     os.path.dirname(__file__)))+'/common')
 
+import runtimeEnvironment
 import testing_functions as func
 import suite
 
 
 class suiteTests(unittest.TestCase):
     def setUp(self):
-        os.environ['CYLC_TASK_LOG_ROOT'] = os.environ['PWD']
         print(self.id())
         if 'PreCylc6' in self.id():
             os.environ['CYLC_TASK_CYCLE_TIME'] = '1980090100'
@@ -159,7 +159,7 @@ class suiteTests(unittest.TestCase):
     def testLog(self):
         '''Test creation of and access to property "logfile"'''
         func.logtest('Create a log file:')
-        logfile = os.environ['PWD'] + '-archive.log'
+        logfile = os.path.join(os.environ['PWD'],'job-archive.log')
         self.assertEqual(self.mySuite.logfile, logfile)
 
 

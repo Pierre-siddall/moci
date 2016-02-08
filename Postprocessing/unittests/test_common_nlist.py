@@ -21,6 +21,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(
     os.path.dirname(__file__)))+'/common')
 
+import runtimeEnvironment
 import nlist
 import testing_functions as func
 
@@ -98,7 +99,7 @@ class readNamelistTests(unittest.TestCase):
         for line in self.nlvars:
             var, val = line.split('=')
             self.assertEqual(getattr(namelist, var), self.nlvars[line])
-        self.assertEqual(namelist.prefix, '$RUNID')
+        self.assertEqual(namelist.prefix, os.environ['RUNID'])
 
     def testReadNoDefaultNL(self):
         '''Test reading namelist with no defaults'''

@@ -112,7 +112,8 @@ class NemoPostProc(mt.ModelTemplate):
         while len(bldfiles) > buff:
             bldfile = bldfiles.pop(0)
             corename = bldfile.split('_'+SUFFIX)[0]
-            bldset = utils.get_subset(datadir, '^{}.*\.nc$'.format(corename))
+            bldset = utils.get_subset(datadir,
+                                      '^{}_\d{{4}}\.nc$'.format(corename))
 
             year = month = day = None
             for part in reversed(corename.split(filetype)):
@@ -161,14 +162,14 @@ class NemoPostProc(mt.ModelTemplate):
                 'cd {}; {}'.format(datadir, self.rebuild_cmd))
             if icode == 0 and \
                     os.path.isfile(os.path.join(datadir, filebase + '.nc')):
-                utils.log_msg('Successfully rebuilt file:' + filebase, 2)
+                utils.log_msg('Successfully rebuilt file: ' + filebase, 2)
                 utils.remove_files(namelistfile)
             else:
                 utils.log_msg('{}: Error={}'.format(self.rebuild_cmd, icode), 4)
-                utils.log_msg(' -> Failed to rebuild file:' + filebase, 4)
+                utils.log_msg(' -> Failed to rebuild file: ' + filebase, 4)
                 utils.catch_failure(self.nl.debug)
         else:
-            utils.log_msg('Failed to create namelist file:' + namelist, 3)
+            utils.log_msg('Failed to create namelist file: ' + namelist, 3)
             icode = 999
         return icode
 

@@ -19,6 +19,8 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(
                                 os.path.dirname(__file__)))+'/common')
+
+import runtimeEnvironment
 import moo
 import testing_functions as func
 
@@ -114,7 +116,6 @@ class mooseTests(unittest.TestCase):
             'MOOPATH':             '',
             'PROJECT':             ''
         }
-        os.environ['RUNID'] = 'ATMOS'
         os.environ['PREFIX'] = 'PATH/'
         self.inst = moo._Moose(cmd)
 

@@ -37,6 +37,8 @@ def main():
         'nlist':    'test_common_nlist.py',
         'utils':    'test_common_utils.py',
         'moo':      'test_common_moo.py',
+        'nemocice': 'test_nemocice*.py',
+        'nemo':     'test_nemocice_nemo.py',
         }
 
     if args.group:
