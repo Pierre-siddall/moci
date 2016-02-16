@@ -39,6 +39,7 @@ def main():
         'moo':      'test_common_moo.py',
         'nemocice': 'test_nemocice*.py',
         'nemo':     'test_nemocice_nemo.py',
+        'template': 'test_nemocice_template.py',
         }
 
     if args.group:

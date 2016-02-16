@@ -49,7 +49,7 @@ def loadEnv(*envars, **append):
                 msg = noFail[var]
                 level = 1
             else:
-                msg = 'LoadEnv: Unable to find the environment variable: '
+                msg = 'LoadEnv: Unable to find environment variable: ' + var
                 level = 5
             log_msg(msg, level)
 

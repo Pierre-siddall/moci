@@ -21,6 +21,7 @@ os.environ['CYLC_SUITE_NAME'] = os.environ['CYLC_SUITE_REG_NAME']
 os.environ['CYLC_SUITE_SHARE_DIR'] = os.environ['PWD']
 os.environ['CYLC_TASK_WORK_DIR'] = os.environ['PWD']
 os.environ['CYLC_TASK_LOG_ROOT'] = os.environ['PWD']
+os.environ['CYLC_SUITE_INITIAL_CYCLE_POINT'] = '19950821T0000Z'
 
 # Standard UM Setup Environment
 os.environ['RUNID'] = 'testp'

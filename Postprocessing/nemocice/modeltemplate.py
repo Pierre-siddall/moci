@@ -76,11 +76,13 @@ class ModelTemplate(control.runPostProc):
         name = self.__class__.__name__
         self.nl = getattr(nlist.loadNamelist(input_nl), name.lower())
         if self.runpp:
-            msg = '{} SHARE directory: {}'.format(name.upper()[:-8], self.share)
+            msg = '{} SHARE: {}'.format(name.upper()[:-8], self.share)
             utils.log_msg(msg)
-            msg = '{} WORK directory: {}'.format(name.upper()[:-8], self.work)
+            msg = '{} WORK: {}'.format(name.upper()[:-8], self.work)
             utils.log_msg(msg)
             self.suite = suite.SuiteEnvironment(self.share, input_nl)
+            self.suite.envars = utils.loadEnv('CYLC_SUITE_INITIAL_CYCLE_POINT',
+                                              append=self.suite.envars)
 
     @property
     def runpp(self):
@@ -285,11 +287,15 @@ class ModelTemplate(control.runPostProc):
         self.rebuild_means()
 
         for inputs in self.loop_inputs(self.fields):
+            # Loop over set of means which it should be possible to create
+            # from files available.
             for setend in self.periodend(inputs):
                 inputs.date = self.get_date(setend)
                 describe = self.describe_mean(inputs)
                 meanset = self.periodset(inputs)
                 if len(meanset) == (4 if inputs.period == AA else 3):
+                    # Annual means require 3 component files to be available.
+                    # Seasonal and monthly means require 4 components.
                     meanfile = self.meantemplate(inputs)
                     cmd = 'cd {}; {} {} {}'.format(self.share, self.means_cmd,
                                                    (' ').join(meanset),
@@ -314,12 +320,52 @@ class ModelTemplate(control.runPostProc):
                         utils.catch_failure(self.nl.debug)
 
                 else:
-                    msg = '{} not possible as only got {} file(s).'.\
-                        format(describe, len(meanset)), meanset
-                    utils.log_msg(msg)
-                    if inputs.period == MM:
-                        utils.log_msg(' -> Files will be deleted...')
-                        utils.remove_files(meanset, self.share)
+                    # Insuffient component files available to create mean.
+                    msg = '{} not possible as only got {} file(s): \n\t{}'.\
+                        format(describe, len(meanset), ', '.join(meanset))
+                    if self.means_spinup(describe, inputs.date):
+                        # Model in spinup period for the given mean.
+                        # Insufficent component files is expected.
+                        msg = msg + '\n\t -> Means creation in spinup mode.'
+                        utils.log_msg(msg, 1)
+                    else:
+                        utils.log_msg(msg, 4)
+                        utils.catch_failure(self.nl.debug)
+
+    def means_spinup(self, description, meandate):
+        '''
+        A mean cannot be created if the date of the mean is too close the the
+        model start time (in the spinup period) to allow all required
+        components to be available.
+        Returns True if the model is in the spinup period for creation of
+        a given mean.
+        '''
+        initialcycle = self.suite.envars.CYLC_SUITE_INITIAL_CYCLE_POINT
+        first_year = meandate[0] == initialcycle[0:4]
+
+        if first_year:
+            if MM in description:
+                # Spinup during the first model month if initialised
+                # after the first day of a month.
+                spinup = int(initialcycle[4:6]) + 1 == int(meandate[1]) and \
+                    initialcycle[6:8] != '01'
+            elif SS in description:
+                # Spinup during the first model season if initialised
+                # after the first month of a season.
+                mths = [str(int(meandate[1]) - 1).zfill(2),
+                        str(int(meandate[1]) - 2).zfill(2)]
+                spinup = initialcycle[4:6] in mths
+            elif AA in description:
+                spinup = True
+            else:
+                msg = 'means_spinup: unknown meantype requested.\n'
+                msg += '\tUnable to assess whether model is in spin up mode.'
+                utils.log_msg(msg, 3)
+                spinup = False
+        else:
+            spinup = False
+
+        return spinup
 
     # *** ARCHIVING *** #######################################################
     @property
