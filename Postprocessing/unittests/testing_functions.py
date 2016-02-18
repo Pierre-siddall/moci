@@ -16,13 +16,18 @@ import sys
 
 
 def logtest(msg, err=False):
+    '''Print message to standard output stream'''
     if err:
-        print('\n[TEST_ERROR] ' + msg)
+        print '\n[TEST_ERROR] ' + msg
     else:
-        print('\n[TEST] ' + msg)
+        print '\n[TEST] ' + msg
 
 
 def capture(direct='out'):
+    '''
+    Capture the message set to specified output stream.
+    Standard options for direct argument: 'out', 'err'
+    '''
     if 'out' in str(direct).lower():
         stream = sys.stdout
     elif 'err' in str(direct).lower():

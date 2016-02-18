@@ -17,15 +17,14 @@ import mock
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(
-                                os.path.dirname(__file__)))+'/common')
-
 import runtimeEnvironment
-import moo
 import testing_functions as func
+sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
+import moo
 
 
-class commandTests(unittest.TestCase):
+class CommandTests(unittest.TestCase):
+    '''Unit tests relating to the moo.CommandExec() method'''
     def setUp(self):
         self.cmd = {
             'CURRENT_RQST_ACTION': 'ARCHIVE',
@@ -42,59 +41,59 @@ class commandTests(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def testInstanceCommandExec(self):
+    def test_instance_command_exec(self):
         '''Test creation of moose archiving object'''
         func.logtest('Check creation of moose object instance')
         self.assertIsInstance(self.inst, moo.CommandExec)
 
     @mock.patch('moo._Moose.putData')
     @mock.patch('utils.exec_subproc')
-    def testArchive(self, mock_subproc, mock_putData):
+    def test_archive(self, mock_subproc, mock_putdata):
         '''Test archive request'''
         func.logtest('Test archive request:')
         mock_subproc.return_value = (0, '')
-        mock_putData.return_value = 'A'
+        mock_putdata.return_value = 'A'
         self.assertEqual(self.inst.execute(self.cmd),
                          {self.cmd['CURRENT_RQST_NAME']:
-                          mock_putData.return_value})
+                          mock_putdata.return_value})
 
     @mock.patch('moo.os')
-    def testDelete(self, mock_os):
+    def test_delete(self, mock_os):
         '''Test delete request'''
         func.logtest('Test delete request:')
         self.cmd['CURRENT_RQST_ACTION'] = 'DELETE'
-        fn = self.cmd['CURRENT_RQST_NAME']
+        fname = self.cmd['CURRENT_RQST_NAME']
         mock_os.path.exist.return_value = False
-        rc = self.inst.execute(self.cmd)
-        mock_os.path.exist.assert_called_with(fn)
-        mock_os.remove.assert_called_with(fn)
+        retcode = self.inst.execute(self.cmd)
+        mock_os.path.exist.assert_called_with(fname)
+        mock_os.remove.assert_called_with(fname)
         self.assertIn('Deleting', func.capture())
-        self.assertEqual(rc, {'DELETE': 0})
+        self.assertEqual(retcode, {'DELETE': 0})
 
     @mock.patch('moo.os')
-    def testDeleteArchived(self, mock_os):
+    def test_delete_archived(self, mock_os):
         '''Test delete request for archived file'''
         func.logtest('Test delete request for successfully archived file:')
-        fn = self.cmd['CURRENT_RQST_NAME']
+        fname = self.cmd['CURRENT_RQST_NAME']
         mock_os.path.exist.return_value = False
-        rc = self.inst.delete(fn, 0)
-        mock_os.path.exist.assert_called_with(fn)
-        mock_os.remove.assert_called_with(fn)
+        retcode = self.inst.delete(fname, 0)
+        mock_os.path.exist.assert_called_with(fname)
+        mock_os.remove.assert_called_with(fname)
         self.assertIn('Deleting', func.capture())
-        self.assertEqual(rc, 0)
+        self.assertEqual(retcode, 0)
 
     @mock.patch('moo.os')
-    def testDeleteNotArchived(self, mock_os):
+    def test_delete_not_archived(self, mock_os):
         '''Test delete request for un-archived file'''
         func.logtest('Test delete request for failed archive file:')
-        fn = self.cmd['CURRENT_RQST_NAME']
-        rc = self.inst.delete(fn, 20)
-        mock_os.path.exist.assert_called_with(fn)
+        fname = self.cmd['CURRENT_RQST_NAME']
+        retcode = self.inst.delete(fname, 20)
+        mock_os.path.exist.assert_called_with(fname)
         self.assertFalse(mock_os.remove.called)
         self.assertIn('Not deleting', func.capture(direct='err'))
-        self.assertEqual(rc, 1)
+        self.assertEqual(retcode, 1)
 
-    def testExecuteNoAction(self):
+    def test_execute_no_action(self):
         '''Test execute "NO ACTION" request'''
         func.logtest('Test execute "NO ACTION" request:')
         self.cmd['CURRENT_RQST_ACTION'] = 'NA'
@@ -102,7 +101,8 @@ class commandTests(unittest.TestCase):
         self.assertIn('Neither', func.capture(direct='err'))
 
 
-class mooseTests(unittest.TestCase):
+class MooseTests(unittest.TestCase):
+    '''Unit tests relating to Moose archiving functionality'''
     @mock.patch('utils.exec_subproc')
     def setUp(self, mock_subproc):
         mock_subproc.return_value = (0, '')
@@ -123,7 +123,7 @@ class mooseTests(unittest.TestCase):
         pass
 
     @mock.patch('utils.exec_subproc')
-    def testInstanceMoose(self, mock_subproc):
+    def test_instance_moose(self, mock_subproc):
         '''Test creation of a Moose archiving object'''
         func.logtest('test creation of a Moose archiving object:')
         mock_subproc.return_value = (0, 'true')
@@ -132,7 +132,7 @@ class mooseTests(unittest.TestCase):
         self.assertTrue(self.inst.chkset())
 
     @mock.patch('utils.exec_subproc')
-    def testCreateSet(self, mock_subproc):
+    def test_create_set(self, mock_subproc):
         '''Test creation of a Moose data set'''
         func.logtest('test creation of a Moose set:')
         mock_subproc.return_value = (0, 'false')
@@ -140,7 +140,7 @@ class mooseTests(unittest.TestCase):
         self.assertIn('mkset:', func.capture())
 
     @mock.patch('utils.exec_subproc')
-    def testMksetProject(self, mock_subproc):
+    def test_mkset_project(self, mock_subproc):
         '''Test mkset function with project'''
         func.logtest('test mkset function, with project:')
         mock_subproc.return_value = (0, '')
@@ -151,7 +151,7 @@ class mooseTests(unittest.TestCase):
         self.assertIn('created set', func.capture())
 
     @mock.patch('utils.exec_subproc')
-    def testMksetCategoryFail(self, mock_subproc):
+    def test_mkset_category_fail(self, mock_subproc):
         '''Test mkset function with category - Failed operation'''
         func.logtest('test mkset with category - Failed operation:')
         mock_subproc.return_value = (-1, '')
@@ -162,7 +162,7 @@ class mooseTests(unittest.TestCase):
         self.assertIn('Unable to create', func.capture(direct='err'))
 
     @mock.patch('utils.exec_subproc')
-    def testMksetPreExisting(self, mock_subproc):
+    def test_mkset_pre_existing(self, mock_subproc):
         '''Test mkset function with pre-existing set'''
         func.logtest('test mkset function, with pre-existing set:')
         mock_subproc.return_value = (10, '')
@@ -171,14 +171,14 @@ class mooseTests(unittest.TestCase):
                                         verbose=False)
         self.assertIn('already exists', func.capture())
 
-    def testCollectionAtmosDump(self):
+    def test_collection_atmos_dump(self):
         '''Test formation of collection name - atmosphere dump'''
         func.logtest('test foramtion of collection name with atmos dump:')
         collection = self.inst._collection()
         self.assertEqual(collection, 'ada.file')
         self.assertFalse(self.inst._fl_pp)
 
-    def testCollectionAtmosPP(self):
+    def test_collection_atmos_pp(self):
         '''Test formation of collection name - atmosphere mean'''
         func.logtest('test foramtion of collection name with atmos mean:')
         self.inst._modelID = 'a'
@@ -187,7 +187,7 @@ class mooseTests(unittest.TestCase):
         self.assertEqual(collection, 'apm.pp')
         self.assertTrue(self.inst._fl_pp)
 
-    def testCollectionOceanRestart(self):
+    def test_collection_ocean_restart(self):
         '''Test formation of collection name - NEMO restart'''
         func.logtest('test foramtion of collection name with NEMO restart:')
         self.inst._modelID = 'o'
@@ -196,7 +196,7 @@ class mooseTests(unittest.TestCase):
         self.assertEqual(collection, 'oda.file')
         self.assertFalse(self.inst._fl_pp)
 
-    def testCollectionIceMean(self):
+    def test_collection_ice_mean(self):
         '''Test formation of collection name - CICE mean'''
         func.logtest('test foramtion of collection name with CICE mean:')
         self.inst._modelID = 'i'
@@ -207,7 +207,7 @@ class mooseTests(unittest.TestCase):
 
     @mock.patch('utils.exec_subproc')
     @mock.patch('os.path.exists')
-    def testPutDataPrefix(self, mock_exist, mock_subproc):
+    def test_putdata_prefix(self, mock_exist, mock_subproc):
         '''Test putData function with $PREFIX$RUNID crn'''
         func.logtest('test putData function with $PREFIX$RUNID crn:')
         self.inst._rqst_name = '$PREFIX$RUNID.daTestfile'
@@ -220,7 +220,7 @@ class mooseTests(unittest.TestCase):
 
     @mock.patch('utils.exec_subproc')
     @mock.patch('os.path.exists')
-    def testPutDataPP(self, mock_exist, mock_subproc):
+    def test_putdata_pp(self, mock_exist, mock_subproc):
         '''Test putData function with fieldsfile'''
         func.logtest('test putData function with fieldsfile:')
         self.inst._rqst_name = 'RUNIDa.pmTestfile'
@@ -236,7 +236,7 @@ class mooseTests(unittest.TestCase):
             src + ' ' + dest))
 
     @mock.patch('utils.exec_subproc')
-    def testPutDataNonExistant(self, mock_subproc):
+    def test_putdata_non_existant(self, mock_subproc):
         '''Test putData with non-existant file'''
         func.logtest('test putData function with non-existant file:')
         rtn = self.inst.putData()
@@ -245,7 +245,7 @@ class mooseTests(unittest.TestCase):
         self.assertEqual(rtn, 99)
 
     @mock.patch('os.path.exists')
-    def testPutDataJOBTEMP(self, mock_exist):
+    def test_putdata_jobtemp(self, mock_exist):
         '''Test putData function with JOBTEMP'''
         func.logtest('test putData function with JOBTEMP:')
         os.environ['JOBTEMP'] = 'jobtemp'
@@ -254,7 +254,7 @@ class mooseTests(unittest.TestCase):
         self.assertEqual(os.environ['UM_TMPDIR'], 'jobtemp')
 
     @mock.patch('os.path.exists')
-    def testPutDataJOBTEMPempty(self, mock_exist):
+    def test_putdata_jobtemp_empty(self, mock_exist):
         '''Test putData function with empty JOBTEMP'''
         func.logtest('test putData function with empty JOBTEMP:')
         os.environ['JOBTEMP'] = ''
@@ -264,6 +264,7 @@ class mooseTests(unittest.TestCase):
 
 
 def main():
+    '''Main function'''
     unittest.main(buffer=True)
 
 

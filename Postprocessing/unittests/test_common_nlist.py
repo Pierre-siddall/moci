@@ -12,21 +12,19 @@
  Met Office, FitzRoy Road, Exeter, Devon, EX1 3PB, United Kingdom
 *****************************COPYRIGHT******************************
 '''
-from __future__ import print_function
-
 import unittest
 import mock
 import os
 import sys
-sys.path.append(os.path.dirname(os.path.abspath(
-    os.path.dirname(__file__)))+'/common')
 
 import runtimeEnvironment
-import nlist
 import testing_functions as func
+sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
+import nlist
 
 
-class namelistFileTests(unittest.TestCase):
+class NamelistFileTests(unittest.TestCase):
+    '''Unit tests relating to namelist files'''
     def setUp(self):
         self.nlfile = 'pp.nl'
         open(self.nlfile, 'w').close()
@@ -41,11 +39,11 @@ test_variable="Blue",
             self.fail(msg)
 
     def tearDown(self):
-        for fn in [self.nlfile, self.newnlfile]:
-            if os.path.exists(fn):
-                os.remove(fn)
+        for fname in [self.nlfile, self.newnlfile]:
+            if os.path.exists(fname):
+                os.remove(fname)
 
-    def testLoadOneFile(self):
+    def test_load_one_file(self):
         '''Test load one namelist file'''
         func.logtest('Load single namelist file:')
         with open(self.nlfile, 'w') as handle:
@@ -53,7 +51,7 @@ test_variable="Blue",
         namelists = nlist.loadNamelist(self.nlfile)
         self.assertEqual(namelists.testnl.test_variable, 'Blue')
 
-    def testLoadTwoFiles(self):
+    def test_load_two_files(self):
         '''Test load two namelists - one blank, one non-existent'''
         func.logtest('Load two namelists - one blank, one non-existent:')
         namelists = nlist.loadNamelist(self.nlfile, self.newnlfile)
@@ -64,21 +62,22 @@ test_variable="Blue",
                          msg='Failed to load default &suitegen '
                          '(archive_command=Moose)')
 
-    def testLoadBlankFile(self):
+    def test_load_blank_file(self):
         '''Test load one blank file'''
         func.logtest('Load single blank namelist file:')
         namelists = nlist.loadNamelist(self.nlfile)
         attributes = [a for a in dir(namelists) if not a.startswith('__')]
         self.assertListEqual(attributes, [])
 
-    def testCreateUnwritableFile(self):
+    def test_create_unwritable_file(self):
         '''Test attempt to create a file in unwritable location'''
         func.logtest('Attempt to create a file in an unwritable location:')
         with self.assertRaises(SystemExit):
             nlist.create_example_nl('NoDir/' + self.newnlfile)
 
 
-class readNamelistTests(unittest.TestCase):
+class ReadNamelistTests(unittest.TestCase):
+    '''Unit tests relating to reading namelists'''
     def setUp(self):
         self.nlvars = {
             'integerVar=1': 1,
@@ -92,32 +91,32 @@ class readNamelistTests(unittest.TestCase):
             msg = 'This test requires buffered mode to run (buffer=True)'
             self.fail(msg)
 
-    def testReadNamlist(self):
+    def test_read_namlist(self):
         '''Test reading suitegen namelist'''
         func.logtest('Read in namelist with defaults available (suitegen):')
         namelist = nlist.ReadNamelist('suitegen', self.nlvars.keys())
         for line in self.nlvars:
-            var, val = line.split('=')
+            var, _ = line.split('=')
             self.assertEqual(getattr(namelist, var), self.nlvars[line])
         self.assertEqual(namelist.prefix, os.environ['RUNID'])
 
-    def testReadNoDefaultNL(self):
+    def test_read_no_default_nl(self):
         '''Test reading namelist with no defaults'''
         func.logtest('Attempt to read in namelist with no defaults:')
-        namelist = nlist.ReadNamelist('noDefault', self.nlvars.keys())
+        nlist.ReadNamelist('noDefault', self.nlvars.keys())
         self.assertIn('[WARN]', func.capture(direct='err'))
 
-    def testTypeCasting(self):
+    def test_type_casting(self):
         '''Test type casting functionality of _testVal - single values only'''
         func.logtest('Type casting in _testVal (single values only):')
         for line in self.nlvars:
-            if type(self.nlvars[line]) == list:
+            if isinstance(self.nlvars[line], list):
                 continue
-            var, val = line.split("=")
+            _, val = line.split("=")
             self.assertEqual(type(nlist.ReadNamelist._testVal(val)),
                              type(self.nlvars[line]))
 
-    def testReadVariablesSingleLine(self):
+    def test_read_variables_single_line(self):
         '''Test reading a single line array'''
         func.logtest('Read in array length of one:')
         mymock = mock.Mock(nlist.ReadNamelist)
@@ -128,6 +127,7 @@ class readNamelistTests(unittest.TestCase):
 
 
 def main():
+    '''Main function'''
     unittest.main(buffer=True)
 
 if __name__ == '__main__':
