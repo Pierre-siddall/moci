@@ -16,7 +16,6 @@
 #    XIOS_REV
 #    XIOS
 #    BUILD_PATH
-#    MTOOLS
 #    XIOS_NUM_CORES
 #    USE_OASIS
 #    OASIS_ROOT
@@ -178,7 +177,7 @@ class XiosBuildSystem(object):
         self.LibraryName = settingsDict['XIOS']
         self.XiosRepositoryUrl = settingsDict['XIOS_REPO_URL']
         self.XiosRevisionNumber = settingsDict['XIOS_REV']
-        self.ThirdPartyLibs = settingsDict['MTOOLS']
+        #TODO: remove obsolete env var retrievals. Move to IBM class where appropriate
 
         try:
             self.NumberOfBuildTasks = int(settingsDict['XIOS_NUM_CORES'])
@@ -294,9 +293,6 @@ class XiosBuildSystem(object):
         conf1.set(DEPENDENCIES_SECTION_TITLE, 'useOasis', self.UseOasis)
         conf1.set(DEPENDENCIES_SECTION_TITLE, 'oasisRoot', self.OasisRoot)
 
-        conf1.set(
-            DEPENDENCIES_SECTION_TITLE, 'mtoolsPath', self.ThirdPartyLibs)
-
         buildPathRoot = self.BuildPath + '/' + self.LibraryName
         confFileName1 = buildPathRoot + '/build.conf'
         with open(confFileName1, 'w') as confFile1:
@@ -373,12 +369,6 @@ class XiosBuildSystem(object):
                 self.buildRequired = True
                 self.preBuildClean = True
 
-            old_mtoolsPath = conf1.get(
-                DEPENDENCIES_SECTION_TITLE, 'mtoolsPath')
-            new_mtoolsPath = self.ThirdPartyLibs
-            if old_mtoolsPath != new_mtoolsPath:
-                self.buildRequired = True
-                self.preBuildClean = True
         except:
             # an exception will generated if any of the settings are missing
             # from the conf file, in which case rebuild
@@ -496,7 +486,6 @@ class XiosBuildSystem(object):
         '''
 
         archPath = '{0}/{1}/arch'.format(self.workingDir, self.LibraryName)
-        mtoolsPath = self.ThirdPartyLibs
         try:
             oasisRootPath = self.OasisRoot
         except:
@@ -505,7 +494,7 @@ class XiosBuildSystem(object):
         fileNameEnv = archPath + '/' + self.fileNameBase + '.env'
         if os.path.isfile(fileNameEnv):
             os.remove(fileNameEnv)
-        self.setupArchEnvFile(fileNameEnv, mtoolsPath, oasisRootPath)
+        self.setupArchEnvFile(fileNameEnv, oasisRootPath)
         print 'writing out arch file {0}'.format(fileNameEnv)
 
         fileNamePath = archPath + '/' + self.fileNameBase + '.path'
@@ -525,7 +514,7 @@ class XiosBuildSystem(object):
         pass
 
     @abstractmethod
-    def setupArchEnvFile(self, fileName, mtoolsPath, oasisRootPath):
+    def setupArchEnvFile(self, fileName, oasisRootPath):
         pass
 
     @abstractmethod
@@ -564,16 +553,17 @@ class XiosIBMPW7BuildSystem(XiosBuildSystem):
         self.TarCommand = '/opt/freeware/bin/tar'
         self.XlfModule = settingsDict['XLF_MODULE']
         self.XlcppModule = settingsDict['XLCPP_MODULE']
+        self.ThirdPartyLibs = settingsDict['MTOOLS']
 
-    def setupArchEnvFile(self, fileName, mtoolsPath, oasisRootPath):
+    def setupArchEnvFile(self, fileName, oasisRootPath):
         with open(fileName, 'w') as envFile:
             envFile.write(
-                'export HDF5_INC_DIR={0}/include\n'.format(mtoolsPath))
-            envFile.write('export HDF5_LIB_DIR={0}/lib\n\n'.format(mtoolsPath))
+                'export HDF5_INC_DIR={0}/include\n'.format(self.ThirdPartyLibs))
+            envFile.write('export HDF5_LIB_DIR={0}/lib\n\n'.format(self.ThirdPartyLibs))
             envFile.write(
-                'export NETCDF_INC_DIR={0}/include\n'.format(mtoolsPath))
+                'export NETCDF_INC_DIR={0}/include\n'.format(self.ThirdPartyLibs))
             envFile.write(
-                'export NETCDF_LIB_DIR={0}/lib\n\n'.format(mtoolsPath))
+                'export NETCDF_LIB_DIR={0}/lib\n\n'.format(self.ThirdPartyLibs))
             if oasisRootPath is None or oasisRootPath == '':
                 envFile.write('export OASIS_INC_DIR=\n')
                 envFile.write('export OASIS_LIB_DIR=\n\n')
@@ -876,7 +866,7 @@ class XiosCrayBuildSystem(XiosBuildSystem):
 
             pathFile.write('\n')
 
-    def setupArchEnvFile(self, fileName, mtoolsPath, oasisRootPath):
+    def setupArchEnvFile(self, fileName, oasisRootPath):
         with open(fileName, 'w') as envFile:
             envFile.write('export HDF5_INC_DIR=""\n')
             envFile.write('export HDF5_LIB_DIR=""\n')
@@ -1123,7 +1113,7 @@ class XiosLinuxIntelSystem(XiosBuildSystem):
                 pathFile.write('OASIS_LIBDIR=""\n')
                 pathFile.write('OASIS_LIB=""\n')
 
-    def setupArchEnvFile(self, fileName, mtoolsPath, oasisRootPath):
+    def setupArchEnvFile(self, fileName, oasisRootPath):
         # no arch.env needed for desktop system
         return
 

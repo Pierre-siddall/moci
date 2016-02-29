@@ -13,6 +13,24 @@
 {%- set name_graphs = {
     "build_ocean34_safe" : "fcm_make_ocean_34_16x32_safe => fcm_make2_ocean_34_16x32_safe => nemo_cice_34_16x32_safe => rose_ana_nemo_cice_34_16x32_safe => housekeep_nemo_cice_34_safe",
     "build_ocean34_high" : "fcm_make_ocean_34_16x32_high => fcm_make2_ocean_34_16x32_high => nemo_cice_34_16x32_high => rose_ana_nemo_cice_34_16x32_high => housekeep_nemo_cice_34_high",
+    "test_oasis" :
+        "fcm_make_xiosScript_remote => fcm_make2_xiosScript_remote=> buildOasis
+         fcm_make_xiosScript_local => validate_oasis
+         buildOasis => testOasis => validate_oasis => housekeeping_oasis
+         fcm_make_xiosScript_local => validation_prepare => testOasis",
+
+
+    "test_xios" :  
+        "fcm_make_xiosScript_remote => fcm_make2_xiosScript_remote => buildXios
+         buildXios => testXios => validate_xios => housekeeping_xios
+         fcm_make_xiosScript_local => validate_xios 
+         fcm_make_xiosScript_local => validation_prepare => testXios", 
+
+    "test_nemo_gyre" :  
+        "fcm_make_xiosScript_remote => fcm_make2_xiosScript_remote => buildOasis => buildXios => buildNemo 
+         buildNemo => testNemo => validate_nemo => housekeeping_nemo
+         fcm_make_xiosScript_local => validate_nemo
+         fcm_make_xiosScript_local =>validation_prepare => testNemo",    
     "default" : "default_task"
     }
 -%}
@@ -21,7 +39,11 @@
 {# groups contains group_option-trigger_list key-value pairs. -#}
 {# If a group option is set, each group or task in the trigger list will be set. -#}
 {%- set groups = {
-    "NEMO_BUILD" : ["build_ocean34_safe","build_ocean34_high"]
+    "NEMO_BUILD"    : ["build_ocean34_safe","build_ocean34_high"],
+    "XBS_ALL"       : ["test_oasis", "test_xios",  "test_nemo_gyre"],
+    "xios_and_nemo" : ["test_xios",  "test_nemo_gyre"],
+    "ALL"           : ["XBS_ALL","NEMO_BUILD"]
+    
     }
 %}
 
@@ -188,4 +210,298 @@ export FCM_VERSION={{FCM_VERSION}}
         inherit = XC40_serial,housekeeping
         [[[environment]]]
             RUNDIR=../nemo_cice_34_16x32_high
+            
+    [[XBS]]
+        environment scripting = "eval $(rose task-env)"
+        [[[environment]]]
+            TasksPerNode={{TasksPerNode}}
+            XIOS={{XIOS}}
+            NEMO={{NEMO}} 
+            TEST_SYSTEM={{TEST_SYSTEM}}
+{% if USE_OASIS %}
+  {% if BUILD_OASIS %}
+      {% if DEPLOY_AS_MODULE == false %}
+              OASIS_ROOT=$CYLC_SUITE_SHARE_DIR/{{OASIS3_MCT}}
+      {% endif %}
+              BUILD_OASIS=true
+  {% else %}
+            OASIS_ROOT={{OASIS_ROOT}}
+            BUILD_OASIS=false
+  {% endif %}
+            USE_OASIS=true
+{% else %}
+            USE_OASIS=false
+            BUILD_OASIS=false
+{% endif %}
+	    ROSE_SUITE_URL={{ROSE_SUITE_URL}}
+	    ROSE_SUITE_REV_NO={{ROSE_SUITE_REV_NO}}
+            
+
+    [[MODULE_DEPLOYMENT_APP]]
+        [[[environment]]]
+            {% if DEPLOY_AS_MODULE %}
+                DEPLOY_AS_MODULE=true
+            {% else %}
+                DEPLOY_AS_MODULE=false
+            {% endif %}
+            MODULE_INSTALL_PATH={{MODULE_INSTALL_PATH}}
+        
+     [[OASIS_SRC]]
+         [[[environment]]]
+            OASIS_REPO_URL={{OASIS_REPO_URL}}
+            OASIS_REV_NO={{OASIS_REV_NO}}
+            
+     [[OASIS_APP]]
+        inherit = OASIS_SRC
+        [[[environment]]]
+            OASIS_DIR=$CYLC_SUITE_SHARE_DIR/{{OASIS3_MCT}}
+            OASIS3_MCT={{OASIS3_MCT}}
+            OASIS_PLATFORM_NAME={{OASIS_PLATFORM_NAME}}  
+            SYSTEM_NAME={{TEST_SYSTEM}} 
+            OASIS_MODULE_VERSION={{OASIS_MODULE_VERSION}}
+
+    [[XIOS_APP]]
+        [[[environment]]]
+{% if XIOS_USE_PREBUILT_LIB %}
+            XIOS_USE_PREBUILT_LIB=true
+            XIOS_PREBUILT_DIR={{XIOS_PREBUILT_DIR}}
+{% else %}
+            XIOS_USE_PREBUILT_LIB=false
+{% endif %}
+            BUILD_PATH=$CYLC_SUITE_SHARE_DIR
+            XIOS_REPO_URL={{XIOS_REPO_URL}}
+            XIOS_REV={{XIOS_REV}}
+
+    [[NEMO_APP]]
+        [[[environment]]]
+            JP_CFG = '50'
+            NEMO_PATH=$CYLC_SUITE_SHARE_DIR/{{NEMO}}
+
+    [[fcm_make_xiosScript_remote]]
+        inherit = None, XBS, LINUX
+        [[[environment]]]
+            SOURCE_MOCI={{SOURCE_MOCI}}
+
+    [[fcm_make2_xiosScript_remote]]
+        inherit = None,XC40_serial
+        [[[environment]]]
+             SOURCE_MOCI={{SOURCE_MOCI}}
+            
+     [[buildOasis]]
+        inherit = None, XBS, XC40_serial, MODULE_DEPLOYMENT_APP, OASIS_APP
+	pre-command scripting = """module swap PrgEnv-cray/5.2.40
+module load cray-hdf5-parallel/1.8.13
+module load cray-netcdf-hdf5parallel/4.3.2
+"""
+        [[[directives]]]
+{% if TEST_SYSTEM == "UKMO_CRAY_XC40" %}
+            -l walltime=00:10:00
+            -l ncpus={{XIOS_NUM_CORES}}
+            -l mem=2000MB
+            -q = shared
+            -P = climate
+{% endif %}
+        [[[environment]]]
+        {% if OASIS_BUILD_TUTORIAL %}
+            OASIS_BUILD_TUTORIAL=true
+        {% else %}
+            OASIS_BUILD_TUTORIAL=false
+        {% endif %}            
+    
+     [[testOasis]]
+        inherit = None, XBS, XC40, OASIS_APP
+{% if TEST_SYSTEM == "UKMO_CRAY_XC40" %}
+        pre-command scripting = """
+module swap PrgEnv-cray/5.2.40
+module load cray-hdf5-parallel/1.8.13
+module load cray-netcdf-hdf5parallel/4.3.2
+{% if DEPLOY_AS_MODULE %}
+module use {{MODULE_INSTALL_PATH}}/modules; 
+module load {{OASIS3_MCT}}/{{OASIS_MODULE_VERSION}}
+{% endif %}
+"""
+{% endif %}
+        [[[directives]]]
+{% if TEST_SYSTEM == "UKMO_CRAY_XC40" %}
+            -l walltime=00:10:00
+            -l select=2
+            -q = normal
+            -P = climate
+{% endif %}
+        [[[environment]]]
+        OASIS_RESULT_DIR=$ROSE_DATA/{{OASIS3_MCT}}
+        OASIS_TEST_NAME={{OASIS_TEST_NAME}}
+        
+        
+        
+     [[buildXios]]
+        inherit = None, XBS, XC40_serial, XIOS_APP, MODULE_DEPLOYMENT_APP, OASIS_SRC
+{% if TEST_SYSTEM == "UKMO_CRAY_XC40" %}
+        pre-command scripting = """
+module swap PrgEnv-cray/5.2.40
+module load cray-hdf5-parallel/1.8.13
+module load cray-netcdf-hdf5parallel/4.3.2
+{% if DEPLOY_AS_MODULE %}
+module use {{MODULE_INSTALL_PATH}}/modules; 
+{% if USE_OASIS %}
+module load {{OASIS3_MCT}}/{{OASIS_MODULE_VERSION}}
+{% endif %}
+{% endif %}
+
+"""
+{% endif %}
+
+        [[[environment]]]
+{% if XIOS_USE_PREBUILT_LIB == false %}
+            XIOS_NUM_CORES={{XIOS_NUM_CORES}}
+{% endif %}
+            XIOS_MODULE_VERSION={{XIOS_MODULE_VERSION}}
+            XIOS_PRGENV_VERSION={{XIOS_PRGENV_VERSION}}
+
+        [[[directives]]]
+{% if TEST_SYSTEM == "UKMO_CRAY_XC40" %}
+            -l walltime=00:50:00
+    {% if XIOS_USE_PREBUILT_LIB == false %}
+            -l ncpus={{XIOS_NUM_CORES}}
+    {% else %}
+            -l ncpus=1
+    {% endif %}
+            -l mem=2000MB
+            -q = shared
+            -P = climate
+{% endif %}
+
+    [[testXios]]
+        inherit = None, XBS, XC40, XIOS_APP
+{% if TEST_SYSTEM == "UKMO_CRAY_XC40" %}
+        pre-command scripting = """
+{% if DEPLOY_AS_MODULE %}
+module use {{MODULE_INSTALL_PATH}}/modules; 
+module load XIOS-PrgEnv/{{XIOS_PRGENV_VERSION}}
+{% endif %}
+"""
+{% endif %}
+        [[[directives]]]
+{% if TEST_SYSTEM == "UKMO_CRAY_XC40" %}
+            -l walltime=00:10:00
+            -l select=2
+            -q = normal
+            -P = climate
+{% endif %}
+        [[[environment]]]
+        XIOS_RESULT_DIR=$ROSE_DATA/{{XIOS}}
+        
+    [[buildNemo]]
+        inherit = None, XBS, XC40, XIOS_APP, NEMO_APP, 
+{% if TEST_SYSTEM == "UKMO_CRAY_XC40" %}
+        pre-command scripting = """module load cray-hdf5-parallel/1.8.13
+{% if DEPLOY_AS_MODULE %} 
+module use {{MODULE_INSTALL_PATH}}/modules; 
+module load XIOS-PrgEnv/{{XIOS_PRGENV_VERSION}}
+{% endif %}
+
+"""
+{% endif %}
+        [[[environment]]]
+            NEMO_REPO_URL = {{NEMO_REPO_URL}}
+            NEMO_REV = {{NEMO_REV}}
+        [[[directives]]]
+{% if TEST_SYSTEM == "UKMO_CRAY_XC40" %}
+            -q = shared
+            -l select=1:ncpus=8
+            -l walltime=00:20:00
+{% endif %}
+
+    [[testNemo]]
+        inherit=None, XBS, XC40, NEMO_APP, XIOS_APP
+{% if TEST_SYSTEM == "UKMO_CRAY_XC40" %}
+        pre-command scripting = """module load cray-hdf5-parallel/1.8.13
+{% if DEPLOY_AS_MODULE %}
+module use {{MODULE_INSTALL_PATH}}/modules; 
+module load XIOS-PrgEnv/1.0
+{% endif %}
+"""
+
+{% endif %}
+        [[[directives]]]
+{% if TEST_SYSTEM == "UKMO_CRAY_XC40" %}
+            -q = normal
+    {% if (nemoTasksJpi*nemoTasksJpj)%TasksPerNode == 0 %}
+        {% if (xiosTasks % XiosTasksPerNode == 0) %}
+            -l select={{(nemoTasksJpi*nemoTasksJpj)//TasksPerNode + (xiosTasks//XiosTasksPerNode) }}
+        {% else %}
+            -l select={{(nemoTasksJpi*nemoTasksJpj)//TasksPerNode + (xiosTasks//XiosTasksPerNode) + 1 }}
+        {% endif %}
+    {% else %}
+        {% if (xiosTasks % XiosTasksPerNode == 0) %}
+            -l select={{(nemoTasksJpi*nemoTasksJpj)//TasksPerNode + (xiosTasks//XiosTasksPerNode) + 1}}
+        {% else %}
+            -l select={{(nemoTasksJpi*nemoTasksJpj)//TasksPerNode + (xiosTasks//XiosTasksPerNode) + 2 }}
+        {% endif %}
+    {% endif %}
+            -l walltime={{NEMO_TEST_TIME_LIMIT}}
+            -P = climate
+{% endif %}
+        [[[environment]]]
+            nemoTasksJpi={{nemoTasksJpi}}
+            nemoTasksJpj={{nemoTasksJpj}}
+            xiosTasks={{xiosTasks}}
+            XiosTasksPerNode={{XiosTasksPerNode}}
+            NEMO_TEST_TIME_LIMIT={{NEMO_TEST_TIME_LIMIT}}
+            NEMO_RESULT_DIR=$ROSE_DATA/{{NEMO}}
+
+
+    [[fcm_make_xiosScript_local]]
+        inherit = None, XBS, LINUX
+        [[[environment]]]
+            SOURCE_MOCI={{SOURCE_MOCI}}
+
+    [[validation_prepare]]
+        inherit=None, XBS, LINUX
+        [[[environment]]]
+            XIOS_RESULT_DIR=$ROSE_DATA/{{XIOS}}/
+            NEMO_RESULT_DIR=$ROSE_DATA/{{NEMO}}/
+            OASIS_RESULT_DIR=$ROSE_DATA/{{OASIS3_MCT}}/
+
+    [[validate_oasis]]
+        inherit=None, XBS, LINUX
+        [[[environment]]]
+            OASIS_KGO_DIR={{KGO_DIR}}/{{OASIS3_MCT}}
+            OASIS_RESULT_DIR=$ROSE_DATA/{{OASIS3_MCT}}
+            OASIS_REMOTE_RESULT_DIR=$(rose host-select {{HOST_XC40}} ):cylc-run/$CYLC_SUITE_NAME/share/data/{{OASIS3_MCT}}
+
+    [[validate_xios]]
+        inherit=None, XBS, LINUX
+        [[[environment]]]
+            XIOS_KGO_DIR={{KGO_DIR}}/{{XIOS}}
+            XIOS_RESULT_DIR=$ROSE_DATA/{{XIOS}}
+            XIOS_REMOTE_RESULT_DIR=$(rose host-select {{HOST_XC40}} ):cylc-run/$CYLC_SUITE_NAME/share/data/{{XIOS}}
+    
+    [[validate_nemo]]
+        inherit=None, XBS, LINUX
+        [[[environment]]]
+            NEMO_KGO_DIR={{KGO_DIR}}/{{NEMO}}
+            NEMO_RESULT_DIR=$ROSE_DATA/{{NEMO}}
+            NEMO_REMOTE_RESULT_DIR=$(rose host-select {{HOST_XC40}} ):cylc-run/$CYLC_SUITE_NAME/share/data/{{NEMO}}
+
+    [[housekeeping_xios]]
+        inherit=None, XBS, XC40_serial, housekeeping, 
+        [[[environment]]]
+            RUNDIR=../testXios
+
+    [[housekeeping_nemo]]
+        inherit=None, XBS, XC40_serial, housekeeping, 
+        [[[environment]]]
+            RUNDIR=../testNemo
+
+    [[housekeeping_oasis]]
+        inherit=None, XBS, XC40_serial, housekeeping, 
+        [[[environment]]]
+            RUNDIR=../testOasis
+    
+
+        
+
+            
+     
     

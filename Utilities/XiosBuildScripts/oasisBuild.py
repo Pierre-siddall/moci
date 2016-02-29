@@ -309,16 +309,24 @@ class OasisBuildSystem(object):
         '''
         Extract source code from the repository using FCM. 
         '''
-        extractString1 = 'fcm co {OasisRepositoryUrl}@{OasisRevisionNumber} '
-        extractString1 += '{OasisSrcDir}'
-        extractString1 = extractString1.format(**self.__dict__)
-        if self.Verbose:
-            extractScriptPath = '{0}/{1}'.format(self.WorkingDir,
-                                                 EXTRACT_SCRIPT_FILE_NAME)
-            with open(extractScriptPath, 'w') as extractScript:
-                extractScript.write(extractString1 + '\n')
+        if os.path.exists(self.OasisSrcDir):
+            print 'source directory found, running update command'
+            extractString1 = 'fcm update --non-interactive '\
+                             ' {OasisSrcDir} -r {OasisRevisionNumber}'
+            extractString1 = extractString1.format(**self.__dict__)
+        else:
+            print 'source directory not found, running checkout command'
+            extractString1 = \
+                'fcm co {OasisRepositoryUrl}@{OasisRevisionNumber} '\
+                '{OasisSrcDir}'.format(**self.__dict__)
+            if self.Verbose:
+                extractScriptPath = '{0}/{1}'.format(self.WorkingDir,
+                                                     EXTRACT_SCRIPT_FILE_NAME)
+                with open(extractScriptPath, 'w') as extractScript:
+                    extractScript.write(extractString1 + '\n')
 
         subprocess.call(extractString1, shell=True)
+        
 
     def WriteIncludeFile(self):
         '''

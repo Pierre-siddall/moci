@@ -94,12 +94,19 @@ class ModuleWriterBase(object):
          Usage:
          writer.SetupFilePath()
         '''
-        if (self.ModuleHomePath == ''
-                or self.ModuleName == ''
-                or self.ModuleVersion == ''
-                or self.RevisionNumber == ''):
-            errMsg1 = 'Information required to create ' \
-                      'the module file(s) is missing '
+        errMsgBase = '{0} field required to create the '\
+                        'module file(s) is missing '
+        if self.ModuleHomePath == '':
+            errMsg1 = errMsgBase.format('Module home path')
+            raise ModuleMissingInformationError(errMsg1)
+        if self.ModuleName == '':
+            errMsg1 = errMsgBase.format('Module Name')
+            raise ModuleMissingInformationError(errMsg1)
+        if self.ModuleVersion == '':
+            errMsg1 = errMsgBase.format('Module Version')
+            raise ModuleMissingInformationError(errMsg1)
+        if self.RevisionNumber == '':
+            errMsg1 = errMsgBase.format('Revision Number')
             raise ModuleMissingInformationError(errMsg1)
 
         if self.ParentModules is None or self.ParentModules == '':

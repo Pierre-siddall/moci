@@ -22,9 +22,6 @@ class XiosBuildCrayTests(unittest.TestCase):
         self.environment['USE_OASIS'] = 'false'
         self.environment['OASIS_ROOT'] = '/home/d02/shaddad/Projects/GC3Port/r1217_port_mct_xcf/oasis3-mct/crayxc40'
         self.environment['BUILD_PATH'] = '{0}/install'.format(os.getcwd())
-        self.NetCdfDirStr = subprocess.check_output('module load cray-netcdf-hdf5parallel/4.3.2; echo $NETCDF_DIR',shell=True)
-        self.NetCdfDirStr = self.NetCdfDirStr.strip('\n')
-        self.environment['MTOOLS'] = self.NetCdfDirStr
         self.NumCores = 4
         self.environment['XIOS_NUM_CORES'] = str(self.NumCores)
         self.environment['XLF_MODULE'] = ''
@@ -52,7 +49,6 @@ class XiosBuildCrayTests(unittest.TestCase):
         self.assertEqual(self.BuildSystem.NumberOfBuildTasks, self.NumCores)
         self.assertEqual(self.BuildSystem.TestSystem, self.SystemName)
         self.assertEqual(self.BuildSystem.XiosRepositoryUrl, self.XiosRepoUrl)
-        self.assertEqual(self.NetCdfDirStr, self.BuildSystem.ThirdPartyLibs)
         self.assertEqual(self.ExternalRepoUrl,
                          self.BuildSystem.XiosExternalUrl)
         
@@ -187,9 +183,6 @@ class XiosBuildLinuxIntelTests(unittest.TestCase):
         self.environment['USE_OASIS'] = 'false'
         self.environment['OASIS_ROOT'] = ''
         self.environment['BUILD_PATH'] = '{0}/install'.format(os.getcwd())
-        self.NetCdfDirStr = subprocess.check_output('. /data/cr1/mhambley/modules/setup; module load environment/dynamo/compiler/intelfortran/15.0.0; echo $NETCDF_ROOT',shell=True)
-        self.NetCdfDirStr = self.NetCdfDirStr.strip('\n')
-        self.environment['MTOOLS'] = self.NetCdfDirStr
         self.NumCores = 4
         self.environment['XIOS_NUM_CORES'] = str(self.NumCores)
         self.environment['XLF_MODULE'] = ''
@@ -210,7 +203,6 @@ class XiosBuildLinuxIntelTests(unittest.TestCase):
         self.assertEqual(self.BuildSystem.NumberOfBuildTasks, self.NumCores)
         self.assertEqual(self.BuildSystem.TestSystem, self.SystemName)
         self.assertEqual(self.BuildSystem.XiosRepositoryUrl, self.XiosRepoUrl)
-        self.assertEqual(self.NetCdfDirStr, self.BuildSystem.ThirdPartyLibs)
         
     def test_ExtractionScript(self):
         self.BuildSystem.extractXiosSourceCode()
