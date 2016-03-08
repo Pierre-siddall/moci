@@ -316,20 +316,20 @@ class FileManipulationTests(unittest.TestCase):
     def test_move_one_file(self):
         '''Test moving one file'''
         func.logtest('Move single file:')
-        utils.move_files(DUMMY[0], self.dir2, self.dir1)
+        utils.move_files(DUMMY[0], self.dir2, originpath=self.dir1)
         self.assertTrue(os.path.exists(os.path.join(self.dir2, DUMMY[0])))
 
     def test_move_multi_files(self):
         '''Test moving multiple files'''
         func.logtest('Move multiple files:')
-        utils.move_files(DUMMY, self.dir2, self.dir1)
+        utils.move_files(DUMMY, self.dir2, originpath=self.dir1)
         for fname in DUMMY:
             self.assertTrue(os.path.exists(os.path.join(self.dir2, fname)))
 
     def test_move_non_existent(self):
         '''Test moving non-existent file'''
         func.logtest('Move non-existent files:')
-        utils.move_files(DUMMY, os.environ['PWD'], self.dir2)
+        utils.move_files(DUMMY, os.environ['PWD'], originpath=self.dir2)
         for fname in DUMMY:
             self.assertFalse(os.path.exists(os.path.join(self.dir2, fname)))
             # Code should catch exception: IOError
@@ -339,17 +339,18 @@ class FileManipulationTests(unittest.TestCase):
     def test_move_overwrite(self):
         '''Test overwriting existing file'''
         func.logtest('Overwrite existing file:')
-        utils.move_files(DUMMY[0], self.dir1, self.dir1)
+        utils.move_files(DUMMY[0], self.dir1, originpath=self.dir1)
         # Code should catch exception: shutil.Error
         self.assertTrue(os.path.exists(os.path.join(self.dir1, DUMMY[0])))
+        self.assertIn('Attempted to overwrite', func.capture('err'))
 
-    def test_move_without_origin(self):
-        '''Test moving file without origin'''
-        func.logtest('Move file without origin:')
-        utils.move_files(DUMMY[0], self.dir2)
-        # Code should catch exception: IOError
-        self.assertFalse(os.path.exists(DUMMY[0]))
-        self.assertFalse(os.path.exists(os.path.join(self.dir2, DUMMY[0])))
+    def test_move_overwrite_fail(self):
+        '''Test attempt to overwrite file with system exit'''
+        func.logtest('Attempt to overwrite with system exit:')
+        with self.assertRaises(SystemExit):
+            utils.move_files(DUMMY[0], self.dir1, originpath=self.dir1,
+                             fail_on_err=True)
+        self.assertIn('Attempted to overwrite', func.capture('err'))
 
     def test_remove_one_file(self):
         '''Test removing single file'''

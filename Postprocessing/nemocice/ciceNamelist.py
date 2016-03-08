@@ -20,17 +20,26 @@ DESCRIPTION
 import os
 
 
-class ciceNamelist:
+class CiceNamelist:
+    '''Default Values for cicepostproc namelist'''
+
+    def __init__(self):
+        pass
+
     pp_run = False
     restart_directory = os.environ['DATAM']
     archive_restarts = False
     archive_timestamps = '06-01', '12-01'
     buffer_archive = 5
     means_directory = os.environ['CYLC_TASK_WORK_DIR'] + '/../coupled'
-    means_cmd = '/projects/ocean/hadgem3/nco/nco-3.9.5_clean/bin/ncra --64bit -O'
+    means_cmd = \
+        '/projects/ocean/hadgem3/nco/nco-3.9.5_clean/bin/ncra --64bit -O'
     create_means = False
     archive_means = False
     archive_set = os.environ['CYLC_SUITE_NAME']
     debug = False
+    compress_means = 'nccopy'
+    compression_level = 0
+    chunking_arguments = 'time/1,nc/1,ni/288,nj/204'
 
-NAMELISTS = {'cicepostproc': ciceNamelist}
+NAMELISTS = {'cicepostproc': CiceNamelist}

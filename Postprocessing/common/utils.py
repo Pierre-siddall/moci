@@ -154,22 +154,28 @@ def remove_files(delfiles, path=None, ignoreNonExist=False):
                 log_msg('remove_files: File does not exist: ' + fn, 3)
 
 
-def move_files(mvfiles, destination, originpath=None):
+def move_files(mvfiles, destination, originpath=None, fail_on_err=False):
+    '''
+    Move a single file or list of files to a given directory.
+    Optionally a directory of origin may be specified.
+    '''
+    msglevel = 5 if fail_on_err else 3
     destination = check_directory(destination)
 
     if originpath:
         mvfiles = add_path(mvfiles, originpath)
 
-    if type(mvfiles) != list:
+    if not isinstance(mvfiles, list):
         mvfiles = [mvfiles]
 
-    for fn in mvfiles:
+    for fname in mvfiles:
         try:
-            shutil.move(fn, destination)
+            shutil.move(fname, destination)
         except IOError:
-            log_msg('move_files: File does not exist: ' + fn, 3)
+            log_msg('move_files: File does not exist: ' + fname, msglevel)
         except shutil.Error:
-            log_msg('move_files: Destination already exists?: ' + fn, 3)
+            msg = 'move_files: Attempted to overwrite original file?: ' + fname
+            log_msg(msg, msglevel)
 
 
 def add_period_to_date(indate, delta, lcal360=True):

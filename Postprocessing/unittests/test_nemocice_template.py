@@ -40,6 +40,91 @@ class RestartTests(unittest.TestCase):
         func.logtest('Assert ability to archive restart files:')
 
 
+class PeriodTests(unittest.TestCase):
+    '''Unit tests relating to the "get period files" methods'''
+
+    def setUp(self):
+        with mock.patch('nlist.loadNamelist'):
+            with mock.patch('suite.SuiteEnvironment'):
+                self.model = modeltemplate.ModelTemplate()
+        self.inputs = modeltemplate.RegexArgs(period=modeltemplate.RR,
+                                              field='FIELD')
+        self.model.nl.restart_directory = os.environ['PWD']
+
+    def tearDown(self):
+        pass
+
+    def test_periodset(self):
+        '''Test function of the periodset method'''
+        func.logtest('Assert pattern produced by periodset method:')
+        with mock.patch('modeltemplate.ModelTemplate.set_stencil') as mock_set:
+            mock_set['PERIOD'].__get__ = \
+                lambda y, m, s, f: '^yr{}_mth_{}ssn{}_field{}.nc$'.format(
+                    y, m, s, f)
+            with mock.patch('utils.get_subset') as mock_subset:
+                self.model.periodset(self.inputs)
+            mock_set['PERIOD'].assert_called_with(self.inputs.date[0],
+                                                  self.inputs.date[1],
+                                                  None,
+                                                  'FIELD')
+            mock_subset.assert_called_with(os.environ['PWD'],
+                                           mock_set.__getitem__()())
+
+    def test_periodset_datadir(self):
+        '''Test function of the periodset method with datadir'''
+        func.logtest('Assert periodset method pattern with datadir:')
+        with mock.patch('modeltemplate.ModelTemplate.set_stencil') as mock_set:
+            mock_set['PERIOD'].__get__ = \
+                lambda y, m, s, f: '^yr{}_mth_{}ssn{}_field{}.nc$'.format(
+                    y, m, s, f)
+            with mock.patch('utils.get_subset') as mock_subset:
+                self.model.periodset(self.inputs, datadir='TestDir')
+            mock_subset.assert_called_with('TestDir', mock_set.__getitem__()())
+
+    def test_periodset_arch_annual(self):
+        '''Test function of the periodset method for annual archive'''
+        func.logtest('Assert periodset method pattern for annual archive:')
+        self.inputs.period = 'Annual'
+        with mock.patch('modeltemplate.ModelTemplate.mean_stencil') as \
+                mock_mean:
+            mock_mean['PERIOD'].__get__ = \
+                lambda y, m, s, f: '^yr{}_mth_{}ssn{}_field{}.nc$'.format(
+                    y, m, s, f)
+            with mock.patch('utils.get_subset'):
+                self.model.periodset(self.inputs, archive=True)
+            mock_mean['PERIOD'].assert_called_with('.*', '.*', '.*', 'FIELD')
+
+    def test_periodend(self):
+        '''Test function of the periodend method'''
+        func.logtest('Assert pattern produced by periodend method:')
+        with mock.patch('modeltemplate.ModelTemplate.end_stencil') as mock_end:
+            mock_end['PERIOD'].__get__ = \
+                lambda y, m, s, f: '^season{}_field{}\.nc$'.format(s, f)
+            with mock.patch('utils.get_subset') as mock_subset:
+                self.model.periodend(self.inputs)
+            mock_end['PERIOD'].assert_called_with(None, 'FIELD')
+            mock_subset.assert_called_with(os.environ['PWD'],
+                                           mock_end.__getitem__()())
+
+    def test_periodend_datadir(self):
+        '''Test function of the periodend method with datadir'''
+        func.logtest('Assert periodend method pattern with datadir:')
+        with mock.patch('modeltemplate.ModelTemplate.end_stencil') as mock_end:
+            mock_end['PERIOD'].__get__ = \
+                lambda y, m, s, f: '^season{}_field{}\.nc$'.format(s, f)
+            with mock.patch('utils.get_subset') as mock_subset:
+                self.model.periodend(self.inputs, datadir='TestDir')
+            mock_end['PERIOD'].assert_called_with(None, 'FIELD')
+            mock_subset.assert_called_with('TestDir', mock_end.__getitem__()())
+
+    def test_periodend_arch_annual(self):
+        '''Test function of the periodend method for annual archive'''
+        func.logtest('Assert periodend method pattern for annual archive:')
+        self.inputs.period = 'Annual'
+        rtnval = self.model.periodend(self.inputs, archive=True)
+        self.assertEqual(rtnval, [None, ])
+
+
 class MeansTests(unittest.TestCase):
     '''Unit tests relating to creation of means'''
 
@@ -196,6 +281,7 @@ class ArchiveTests(unittest.TestCase):
         self.model.nl.debug = False
         self.model.nl.restart_directory = os.environ['PWD']
         self.model.nl.buffer_archive = None
+        self.model.nl.compression_level = 0
 
         self.model.suite = mock.Mock()
         self.model.suite.archive_file.return_value = 0
@@ -228,12 +314,29 @@ class ArchiveTests(unittest.TestCase):
             'file1': 'SUCCESS',
             'file2': 'SUCCESS'
             }
-        print 'hello'
         with mock.patch('utils.remove_files') as mock_rm:
             self.model.archive_means()
             mock_rm.assert_called_with(['file1', 'file2'],
                                        os.environ['PWD'])
         self.model.archive_files.assert_called_with(['file1', 'file2'])
+
+    def test_archive_means_compress(self):
+        '''Test archive means with compression'''
+        func.logtest('Assert compression of archived means:')
+        self.model.archive_files = mock.Mock()
+        self.model.archive_files.return_value = {
+            'file1': 'SUCCESS',
+            'file2': 'SUCCESS'
+            }
+        self.model.nl.compression_level = 5
+        self.model.compress_file = mock.Mock(return_value=0)
+        with mock.patch('utils.remove_files') as mock_rm:
+            self.model.archive_means()
+            mock_rm.assert_called_with(['file1', 'file2'],
+                                       os.environ['PWD'])
+        self.model.archive_files.assert_called_with(['file1', 'file2'])
+        self.model.compress_file.assert_called_with(
+            'file2', self.model.nl.compress_means)
 
     def test_archive_means_partial_fail(self):
         '''Test archive means function with partial failure'''
@@ -318,6 +421,42 @@ class ArchiveTests(unittest.TestCase):
     def test_archive_partial_fail(self):
         '''Test partially successful archive list of files'''
         func.logtest('Assert partial success archiving multiple files')
+
+
+class PreprocessTests(unittest.TestCase):
+    '''Unit tests relating to pre-processing of files prior to archive'''
+
+    def setUp(self):
+        with mock.patch('nlist.loadNamelist'):
+            with mock.patch('suite.SuiteEnvironment'):
+                self.model = modeltemplate.ModelTemplate()
+
+    def tearDown(self):
+        pass
+
+    def test_compress_file_nccopy(self):
+        '''Test call to file compression method - nccopy'''
+        func.logtest('Assert call to file compression method nccopy:')
+        self.model.nl.restart_directory = os.environ['PWD']
+        self.model.nl.compression_level = 5
+        self.model.nl.chunking_arguments = ['a/1', 'b/2', 'c/3']
+        self.model.compress_file('meanfile', 'nccopy')
+        self.model.suite.preprocess_file.assert_called_with(
+            'nccopy',
+            os.path.join(os.environ['PWD'], 'meanfile'),
+            compression=5,
+            chunking=['a/1', 'b/2', 'c/3']
+            )
+
+    def test_compress_file_unknown(self):
+        '''Test call to file compression method - failure'''
+        func.logtest('Assert call to file compression method - fail:')
+        self.model.nl.restart_directory = os.environ['PWD']
+        self.model.nl.compression_level = 5
+        self.model.nl.chunking_arguments = ['a/1', 'b/2', 'c/3']
+        with self.assertRaises(SystemExit):
+            self.model.compress_file('meanfile', 'utility')
+        self.assertIn('command not yet implemented', func.capture('err'))
 
 
 def main():

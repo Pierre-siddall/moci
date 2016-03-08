@@ -21,7 +21,11 @@ import os
 
 
 class NemoNamelist:
-    '''Default values for the nemopostproc namelist'''
+    '''Default Values for nemopostproc namelist'''
+
+    def __init__(self):
+        pass
+
     pp_run = False
     restart_directory = os.environ['DATAM']
     exec_rebuild = '/projects/ocean/hadgem3/scripts/GC2.0/rebuild_nemo.exe'
@@ -39,5 +43,8 @@ class NemoNamelist:
     archive_means = False
     archive_set = os.environ['CYLC_SUITE_NAME']
     debug = False
+    compress_means = 'nccopy'
+    compression_level = 0
+    chunking_arguments = 'time_counter/1,y/205,x/289'
 
 NAMELISTS = {'nemopostproc': NemoNamelist}

@@ -86,10 +86,18 @@ class ModelTemplate(control.runPostProc):
 
     @property
     def runpp(self):
+        '''
+        Logical - Run postprocessing for given model
+        Set via the [model]postproc namelist
+        '''
         return self.nl.pp_run
 
     @property
     def methods(self):
+        '''
+        Returns a dictionary of methods available for this model to the
+        main program
+        '''
         return OrderedDict([('archive_restarts', self.nl.archive_restarts),
                             ('create_means', self.nl.create_means),
                             ('archive_means', self.nl.archive_means)])
@@ -149,6 +157,7 @@ class ModelTemplate(control.runPostProc):
 
     @property
     def fields(self):
+        ''' Returns a tuple of means fields availlable'''
         return ('',)
 
     @property
@@ -157,6 +166,11 @@ class ModelTemplate(control.runPostProc):
 
     @abc.abstractproperty
     def set_stencil(self):
+        '''
+        Returns the dictionary of regular expressions for matching a set of
+        restart files or means files
+        Overriding method in the calling model is required
+        '''
         msg = 'SET_STENCIL not implemented. Required return:\n\t'
         msg += 'dict={"period": lambda y,m,s,f: "^{}{}{}{}\.nc$".'\
             'format(y,m,s,f)}'
@@ -165,6 +179,11 @@ class ModelTemplate(control.runPostProc):
 
     @abc.abstractproperty
     def end_stencil(self):
+        '''
+        Returns the dictionary of regular expressions for matching files at the
+        end of a month, season or year
+        Overriding method in the calling model is required
+        '''
         msg = 'END_STENCIL not implemented. Required return:\n\t'
         msg += 'dict={"period": lambda s,f: "^{}{}\.nc$".format(s,f)}'
         utils.log_msg(msg, 4)
@@ -172,6 +191,11 @@ class ModelTemplate(control.runPostProc):
 
     @abc.abstractproperty
     def mean_stencil(self):
+        '''
+        Returns the dictionary of regular expressions for matching means files
+        available
+        Overriding method in the calling model is required
+        '''
         msg = 'MEAN_STENCIL not implemented. Required return:\n\t'
         msg += 'dict={"period": lambda p,y,m,s,f: "^{}{}{}{}{}\.nc$"' \
             '.format(p,y,m,s,f)}'
@@ -180,12 +204,25 @@ class ModelTemplate(control.runPostProc):
 
     @abc.abstractmethod
     def get_date(self, filename):
+        '''
+        Returns a tuple representing the date extracted from a filename
+        Overriding method in the calling model is required
+        '''
         msg = 'Model specific get_date method not implemented.\n\t'
         msg += 'return (year, month, day)'
         utils.log_msg(msg, 4)
         raise NotImplementedError
 
     def periodset(self, inputs, datadir=None, archive=False):
+        '''
+        Returns the files available to create a given set:
+           RR = all restart files
+           MM/SS/AA = 3 or 4 files belonging to a given month, season or year.
+        If archiving:
+           Period index is incremented to return the pattern for files
+           belonging to a period rather than the pattern for filenames for
+           creating a period .
+        '''
         if not datadir:
             datadir = self.share
         try:
@@ -197,13 +234,23 @@ class ModelTemplate(control.runPostProc):
             pattern = self.set_stencil[period](*args)
         except IndexError:
             period = inputs.period
-            args = ('.*',)*4
+            args = ('.*', '.*', '.*', inputs.field)
             pattern = self.mean_stencil[period](*args)
             pattern = pattern.replace('.', '\.').replace('\.*', '.*')
 
         return utils.get_subset(datadir, pattern)
 
     def periodend(self, inputs, datadir=None, archive=False):
+        '''
+        Returns the files available belonging to the end of a given period:
+           RR = all restart files
+           MM/SS/AA = Files available which represent the 3rd (4th for annual)
+           file of a given month, season or year.
+        If archiving:
+           Period index is incremented to return the pattern for files
+           belonging to a period rather than the pattern for filenames for
+           creating a period
+        '''
         if not datadir:
             datadir = self.share
         try:
@@ -241,9 +288,17 @@ class ModelTemplate(control.runPostProc):
 
     # *** REBUILD *** #########################################################
     def rebuild_restarts(self):
+        '''
+        Method for rebuilding restart files - if required it is overridden
+        in the calling model
+        '''
         pass
 
     def rebuild_means(self):
+        '''
+        Method for rebuilding means files - if required it is overridden
+        in the calling model
+        '''
         pass
 
     # *** MEANING *** #########################################################
@@ -259,6 +314,7 @@ class ModelTemplate(control.runPostProc):
             raise UserWarning('[FAIL] MEANS exectuable not defined for model.')
 
     def meantemplate(self, inputs):
+        '''Return the mean template filename for the given inputs'''
         season = [val[0] for val in inputs.spvals] if inputs.spvals else None
         args = (inputs.date[0], inputs.date[1], season, inputs.field)
         return self.mean_stencil[inputs.period](*args)
@@ -302,7 +358,7 @@ class ModelTemplate(control.runPostProc):
                     cmd = 'cd {}; {} {} {}'.format(self.share, self.means_cmd,
                                                    (' ').join(meanset),
                                                    meanfile)
-                    icode, _ = utils.exec_subproc(cmd)
+                    icode, output = utils.exec_subproc(cmd)
                     if icode == 0 and os.path.isfile(os.path.join(self.share,
                                                                   meanfile)):
                         msg = 'Created {}: {}'.format(describe, meanfile)
@@ -314,7 +370,8 @@ class ModelTemplate(control.runPostProc):
                             utils.remove_files(meanset, self.share)
 
                     else:
-                        msg = '{}: Error={}'.format(self.means_cmd, icode)
+                        msg = '{}: Error={}\n{}'.format(self.means_cmd,
+                                                        icode, output)
                         utils.log_msg(msg, 4)
                         msg = 'Failed to create {}: {}'.format(describe,
                                                                meanfile)
@@ -388,7 +445,10 @@ class ModelTemplate(control.runPostProc):
             for setend in self.periodend(inputs, archive=True):
                 inputs.date = self.get_date(setend) if setend else (None,)*3
                 for mean in self.periodset(inputs, archive=True):
-                     to_archive.append(mean)
+                    if self.nl.compression_level > 0 and \
+                            inputs.field != 'diaptr':
+                        self.compress_file(mean, self.nl.compress_means)
+                    to_archive.append(mean)
 
         if to_archive:
             arch_files = self.archive_files(to_archive)
@@ -455,3 +515,13 @@ class ModelTemplate(control.runPostProc):
                 utils.log_msg(msg, 3)
 
         return returnfiles
+
+    def compress_file(self, fname, utility):
+        '''Create command to compress NetCDF file'''
+        if utility == 'nccopy':
+            self.suite.preprocess_file(utility,
+                                       os.path.join(self.share, fname),
+                                       compression=self.nl.compression_level,
+                                       chunking=self.nl.chunking_arguments)
+        else:
+            utils.log_msg('Preprocessing command not yet implemented', 5)

@@ -197,8 +197,53 @@ class SuiteEnvironment(object):
 
         return arch_rcode
 
+    def preprocess_file(self, cmd, filename, **kwargs):
+        '''
+        Invoke the appropriate pre-processing method prior to archiving
+        '''
+        icode = 0
+        try:
+            icode = getattr(self, 'preproc_' + cmd)(filename, **kwargs)
+        except AttributeError:
+            utils.log_msg('preprocess command not yet implemented: ' + cmd, 5)
 
-class suitePostProc(object):
+        return icode
+
+    def preproc_nccopy(self, filename, compression=0, chunking=None):
+        '''
+        Compression of standard NetCDF file output prior to archive
+        '''
+        tmpfile = filename + '.tmp'
+        cmd_path = self.nl.nccopy_path
+        if not os.path.basename(cmd_path) == 'nccopy':
+            cmd_path = os.path.join(cmd_path, 'nccopy')
+
+        # Compress the file (outputting to a new file)
+        chunks = '-c {}'.format(','.join(chunking)) if chunking else ''
+        compress_cmd = ' '.join([cmd_path, '-d', str(compression),
+                                 chunks, filename, tmpfile])
+        utils.log_msg('Compressing file using command: ' + compress_cmd)
+        ret_code, output = utils.exec_subproc(compress_cmd)
+        level = 2
+        if ret_code == 0:
+            msg = 'nccopy: Compression successful of file {}'.format(filename)
+        else:
+            msg = 'nccopy: Compression failed of file {}\n{}'.format(filename,
+                                                                     output)
+            level = 5
+
+        # Move the compressed file so it overwrites the original
+        try:
+            os.rename(tmpfile, filename)
+        except OSError:
+            msg = msg + '\n -> Failed to rename compressed file'
+            level = 5
+        utils.log_msg(msg, level)
+
+        return ret_code
+
+
+class SuitePostProc(object):
     ''' Default namelist for model independent properties '''
     prefix = os.environ['RUNID']
     umtask_name = 'atmos'
@@ -209,8 +254,9 @@ class suitePostProc(object):
     dataclass = 'crum'
     moopath = ''
     mooproject = ''
+    nccopy_path = ''
 
-NAMELISTS = {'suitegen': suitePostProc}
+NAMELISTS = {'suitegen': SuitePostProc}
 
 
 if __name__ == '__main__':

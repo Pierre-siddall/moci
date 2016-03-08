@@ -238,6 +238,87 @@ class ArchiveTests(unittest.TestCase):
             self.mysuite.archive_file('TestFile')
 
 
+class PreProcessTests(unittest.TestCase):
+    '''Unit tests for the model-independent pre-processing methods'''
+    def setUp(self):
+        os.environ['CYLC_TASK_LOG_ROOT'] = os.environ['PWD'] + '/job'
+        os.environ['CYLC_TASK_CYCLE_POINT'] = '19800901T0000Z'
+        self.mysuite = suite.SuiteEnvironment('somePath/directory', 'input.nl')
+
+    def tearDown(self):
+        pass
+
+    def test_preprocess_file_nccopy(self):
+        '''Test preprocess_file command'''
+        func.logtest('File pre-processing - select nccopy:')
+        with mock.patch('suite.SuiteEnvironment.preproc_nccopy') as mock_cmd:
+            # self.mysuite.preprocess_file('nccopy', arg1='ARG1', arg2='ARG2')
+            self.mysuite.preprocess_file('nccopy', 'File',
+                                         arg1='ARG1', arg2='ARG2')
+        mock_cmd.assert_called_with('File', arg1='ARG1', arg2='ARG2')
+
+    def test_preproc_file_select_fail(self):
+        '''Test preprocess_file command failure mode'''
+        func.logtest('File pre-processing - selection failure:')
+        with self.assertRaises(SystemExit):
+            self.mysuite.preprocess_file('utility', 'File', arg1='ARG1')
+
+    def test_nccopy(self):
+        '''Test file compression with nccopy'''
+        func.logtest('Assert function of file compression with nccopy:')
+        infile = 'TestDir/myMean'
+        cmd = ' '.join(['nccopy -d 5 -c a/1,b/2,c/3',
+                        infile, infile + '.tmp'])
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            with mock.patch('os.rename') as mock_mv:
+                mock_exec.return_value = (0, '')
+                self.mysuite.preproc_nccopy(infile, compression=5,
+                                            chunking=['a/1', 'b/2', 'c/3'])
+        mock_mv.assert_called_with(infile + '.tmp', infile)
+        mock_exec.assert_called_with(cmd)
+
+    def test_nccopy_complete_path(self):
+        '''Test file compression with nccopy (complete path given)'''
+        func.logtest('Assert function of nccopy method given full path:')
+        infile = 'TestDir/myMean'
+        cmd = ' '.join(['PATH/nccopy -d 5 -c a/1,b/2,c/3',
+                        infile, infile + '.tmp'])
+        self.mysuite.nl.nccopy_path = 'PATH/nccopy'
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            with mock.patch('os.rename') as mock_mv:
+                mock_exec.return_value = (0, '')
+                self.mysuite.preproc_nccopy(infile, compression=5,
+                                            chunking=['a/1', 'b/2', 'c/3'])
+        mock_mv.assert_called_with(infile + '.tmp', infile)
+        mock_exec.assert_called_with(cmd)
+
+    def test_nccopy_fail(self):
+        '''Test file compression with nccopy'''
+        func.logtest('Assert function of file compression with nccopy:')
+        infile = 'TestDir/myMean'
+        cmd = ' '.join(['nccopy -d 5 -c a/1,b/2,c/3',
+                        infile, infile + '.tmp'])
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            mock_exec.return_value = (1, '')
+            with self.assertRaises(SystemExit):
+                self.mysuite.preproc_nccopy(infile, compression=5,
+                                            chunking=['a/1', 'b/2', 'c/3'])
+        mock_exec.assert_called_with(cmd)
+
+    def test_nccopy_rename_fail(self):
+        '''Test file compression with nccopy'''
+        func.logtest('Assert function of file compression with nccopy:')
+        infile = 'TestDir/myMean'
+        cmd = ' '.join(['nccopy -d 5 -c a/1,b/2,c/3',
+                        infile, infile + '.tmp'])
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            mock_exec.return_value = (0, '')
+            with self.assertRaises(SystemExit):
+                self.mysuite.preproc_nccopy(infile, compression=5,
+                                            chunking=['a/1', 'b/2', 'c/3'])
+        mock_exec.assert_called_with(cmd)
+
+
 def main():
     '''Main function'''
     unittest.main(buffer=True)
