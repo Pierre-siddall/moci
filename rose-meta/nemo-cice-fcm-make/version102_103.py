@@ -17,22 +17,9 @@ class UpgradeError(Exception):
 
 
 
-class vn102_tXXXX(rose.upgrade.MacroUpgrade):
-
-    """Upgrade macro for ticket #XXXX by <author>."""
-
-    BEFORE_TAG = "vn10.2"
-    AFTER_TAG = "vn10.2_tXXXX"
-
-    def upgrade(self, config, meta_config=None):
-        """Upgrade a NEMO-CICE fcm-make app configuration."""
-        # Input your macro commands here
-        return config, self.reports
-
-
 class vn103_t1119(rose.upgrade.MacroUpgrade):
 
-    BEFORE_TAG = "vn10.2_tXXXX"
+    BEFORE_TAG = "vn10.2"
     AFTER_TAG = "vn10.3"
 
     def upgrade(self, config, meta_config=None):
