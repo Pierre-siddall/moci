@@ -20,7 +20,7 @@ class vn10_tXXXX(rose.upgrade.MacroUpgrade):
 
     """Upgrade macro for ticket #XXXX by <author>."""
     BEFORE_TAG = "postproc_1.0"
-    AFTER_TAG = "postproc_tXXXX"
+    AFTER_TAG = "postproc_1.1"
 
     def upgrade(self, config, meta_config=None):
         """Upgrade a Postproc make app configuration."""
