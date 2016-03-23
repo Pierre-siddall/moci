@@ -53,6 +53,7 @@ class _Moose(object):
         except KeyError:
             self._cat = 'UNCATEGORISED'
         self._class = comms['DATACLASS']
+        self._ens_id = comms['ENSEMBLEID']
         self._moopath = comms['MOOPATH']
         self._project = comms['PROJECT']
 
@@ -143,7 +144,7 @@ class _Moose(object):
         self._fl_pp = True if ext == '.pp' else False
         return modelID + fileID + ext
 
-    def putData(self):
+    def put_data(self):
         """ Archive the data using moose """
         collection_name = self._collection()
         crn = self._rqst_name
@@ -160,10 +161,12 @@ class _Moose(object):
         moo_cmd = os.path.join(self._moopath, 'moo') + ' put -f -vv '
         if self._fl_pp and not crn.endswith('.pp'):
             crn_pp = os.path.basename(crn) + '.pp'
-            filepath = os.path.join(self.dataset, collection_name, crn_pp)
+            filepath = os.path.join(self.dataset, self._ens_id,
+                                    collection_name, crn_pp)
             moo_cmd += '-c=umpp {} {}'.format(crn, filepath)
         else:
-            filepath = os.path.join(self.dataset, collection_name)
+            filepath = os.path.join(self.dataset, self._ens_id,
+                                    collection_name)
             moo_cmd += '{} {}'.format(crn, filepath)
 
         if os.path.exists(crn):
@@ -226,7 +229,7 @@ class CommandExec(object):
     def archive(self, comms):
         """ Carry out the archiving """
         mooInstance = _Moose(comms)
-        return mooInstance.putData()
+        return mooInstance.put_data()
 
     def delete(self, fn, prior_code=None):
         """ Carry out the delete command """
@@ -239,7 +242,7 @@ class CommandExec(object):
                 utils.log_msg('moo.py: Deleting file: ' + fn, 1)
         else:
             utils.log_msg('moo.py: Not deleting un-archived file: ' + fn, 3)
-        return 1 if os.path.exist(fn) else 0
+        return 1 if os.path.exists(fn) else 0
 
     def execute(self, commands):
         ''' Run the archiving and deletion as required '''
@@ -263,6 +266,16 @@ class CommandExec(object):
 
         return ret_code
 
+
+class MooseArch(object):
+    '''Default namelist for Moose archiving'''
+    archive_set = os.environ['CYLC_SUITE_REG_NAME']
+    dataclass = 'crum'
+    ensembleid = ''
+    moopath = ''
+    mooproject = ''
+    
+NAMELISTS = {'moose_arch': MooseArch}
 
 if __name__ == '__main__':
     pass

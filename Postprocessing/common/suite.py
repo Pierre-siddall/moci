@@ -45,7 +45,15 @@ class SuiteEnvironment(object):
         except AttributeError:
             msg = 'SuiteEnvironment: Failed to load ' \
                 '&suitegen namelist from namelist file: ' + input_nl
-            utils.log_msg(msg, 5)
+            utils.log_msg(msg, level=5)
+
+        if self.nl.archive_command.lower() == 'moose':
+            try:
+                self.nl_arch = loadNamelist(input_nl).moose_arch
+            except AttributeError:
+                msg = 'SuiteEnvironment: Failed to load ' \
+                    '&moose_arch namelist from namelist file: ' + input_nl
+                utils.log_msg(msg, level=5)           
 
         self.envars = utils.loadEnv('CYLC_TASK_LOG_ROOT')
 
@@ -63,11 +71,13 @@ class SuiteEnvironment(object):
         self.archiveOK = True
 
     @property
-    def suitename(self):
+    def arch_setname(self):
+        '''Returns the archiving set name (Moose system)'''
         try:
-            return self.nl.archive_set
+            return self.nl_arch.archive_set
         except AttributeError:
-            utils.log_msg('Suitename not available - Cannot archive', 3)
+            msg = 'Archive set name not available - Cannot archive to Moose'
+            utils.log_msg(msg, level=3)
 
     @property
     def umtask(self):
@@ -100,7 +110,7 @@ class SuiteEnvironment(object):
             if match:
                 self._cyclestring = match.groups()
             else:
-                utils.log_msg('Unable to determine cycletime', 5)
+                utils.log_msg('Unable to determine cycletime', level=5)
 
         return self._cyclestring
 
@@ -150,18 +160,19 @@ class SuiteEnvironment(object):
                 'CURRENT_RQST_ACTION': 'ARCHIVE',
                 'CURRENT_RQST_NAME':   filename,
                 'DATAM':               self.sourcedir,
-                'RUNID':               self.suitename,
+                'RUNID':               self.arch_setname,
                 'CATEGORY':            'UNCATEGORISED',
-                'DATACLASS':           self.nl.dataclass,
-                'MOOPATH':             self.nl.moopath,
-                'PROJECT':             self.nl.mooproject
+                'DATACLASS':           self.nl_arch.dataclass,
+                'ENSEMBLEID':          self.nl_arch.ensembleid,
+                'MOOPATH':             self.nl_arch.moopath,
+                'PROJECT':             self.nl_arch.mooproject
             }
 
             moose_arch_inst = moo.CommandExec()
             rcode = moose_arch_inst.execute(cmd)[filename]
 
         else:
-            utils.log_msg('Archive command not yet implemented', 5)
+            utils.log_msg('Archive command not yet implemented', level=5)
 
         return rcode
 
@@ -276,10 +287,6 @@ class SuitePostProc(object):
     tasks_per_cycle = 1
     cycleperiod = 0, 1, 0, 0, 0
     archive_command = 'Moose'
-    archive_set = os.environ['CYLC_SUITE_REG_NAME']
-    dataclass = 'crum'
-    moopath = ''
-    mooproject = ''
     nccopy_path = ''
     ncdump_path = ''
 

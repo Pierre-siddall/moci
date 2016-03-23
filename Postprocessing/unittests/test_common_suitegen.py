@@ -33,13 +33,14 @@ class SuiteTests(unittest.TestCase):
             os.environ['CYLC_TASK_CYCLE_POINT'] = '19800901T0000Z'
         self.inputnl = OrderedDict([
             ('&suitegen', None),
-            ('archive_set="SUITENAME"', 'suitename'),
             ('umtask_name="atmos"', 'umtask'),
             ('prefix="RUNID"', 'prefix'),
             ('cycleperiod=0, 1, 10, 0, 0', 'cycleperiod'),
             ('tasks_per_cycle=2', 'tasks_per_cycle'),
             ('archive_command="Moose"', None),
             ('/', None),
+            ('&moose_arch', None),
+            ('archive_set="SUITENAME"\n/', 'arch_setname'),
             ])
         self.myfile = 'input.nl'
         open(self.myfile, 'w').write('\n'.join(self.inputnl.keys()))
@@ -84,7 +85,7 @@ class SuiteTests(unittest.TestCase):
     def test_properties(self):
         '''Test access to suite properties'''
         func.logtest('Assert suite properties:')
-        names = {x.split('=')[0]: [x.split('=')[1].strip('"\''),
+        names = {x.split('=')[0]: [x.split('=')[1].strip('\n/').strip('"\''),
                                    self.inputnl[x]]
                  for x in self.inputnl.keys() if self.inputnl[x]}
         for key in names:

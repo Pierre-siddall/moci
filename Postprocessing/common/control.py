@@ -46,7 +46,7 @@ class runPostProc(object):
 
 NL = {}
 
-input_modules = ['suite', 'atmosNamelist', 'nemoNamelist', 'ciceNamelist']
+input_modules = ['suite', 'atmosNamelist', 'nemoNamelist', 'ciceNamelist', 'moo']
 
 for mod in input_modules:
     try:

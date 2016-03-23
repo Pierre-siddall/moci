@@ -144,4 +144,29 @@ class pp10_t79(rose.upgrade.MacroUpgrade):
                   self.change_setting_value(config, ["command", "default"],
                                             ' '.join(args))
 
-        return config, self.reports        
+        return config, self.reports
+
+
+class pp10_t44(rose.upgrade.MacroUpgrade):
+
+    """Upgrade macro for ticket #44 by Erica Neininger."""
+    BEFORE_TAG = "postproc_1.0"
+    AFTER_TAG = "pp10_t44"
+
+    def upgrade(self, config, meta_config=None):
+        """Upgrade a Postproc app configuration."""
+        # Move Moose namelist variables to new &moose_arch namelist
+        for var in ['archive_set', 'dataclass', 'moopath', 'mooproject']:
+              val = self.get_setting_value(config, ["namelist:suitegen", var])
+              if not val == None:
+                    self.add_setting(config, ["namelist:moose_arch", var], val)
+                    self.remove_setting(config, ["namelist:suitegen", var])
+
+        for fname in ['atmospp.nl', 'nemocicepp.nl']:
+              source = self.get_setting_value(config,
+                                              ["file:" + fname, "source"])
+              source = ' '.join([source, "namelist:moose_arch"])
+              self.change_setting_value(config, ["file:" + fname, "source"],
+                                        source)
+        
+        return config, self.reports
