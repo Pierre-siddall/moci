@@ -26,23 +26,33 @@ sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'atmos'))
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'nemocice'))
 import main_pp
 
+
 class PostprocTests(unittest.TestCase):
     '''Unit tests relating to main postprocessing control'''
     def setUp(self):
         self.methods = OrderedDict([('method1', True),
                                     ('method2', False)])
+        self.mock_atmos = mock.Mock()
+        self.mock_atmos().runpp = True
+        self.mock_atmos().methods = self.methods
+        self.mock_nemo = mock.Mock()
+        self.mock_nemo().runpp = True
+        self.mock_nemo().methods = self.methods
+        self.mock_cice = mock.Mock()
+        self.mock_cice().runpp = True
+        self.mock_cice().methods = self.methods
+        self.modules = {'atmos': self.mock_atmos,
+                        'nemo': self.mock_nemo,
+                        'cice': self.mock_cice}
+        self.modules['atmos'].INSTANCE = ('nl_atmos', self.modules['atmos'])
+        self.modules['nemo'].INSTANCE = ('nl_nemo', self.modules['nemo'])
+        self.modules['cice'].INSTANCE = ('nl_cice', self.modules['cice'])
 
     def tearDown(self):
         for fname in ['atmospp.nl', 'nemocicepp.nl']:        
             try:
                 os.remove(fname)
             except OSError:
-                pass
-        # Tidy up imported modules to prevent interference between tests
-        for mod in ['atmos', 'nemo', 'cice']:
-            try:
-                del sys.modules[mod]
-            except KeyError:
                 pass
 
     def test_import_failure(self):
@@ -61,9 +71,7 @@ class PostprocTests(unittest.TestCase):
         '''Test instantiation of atmos model only'''
         func.logtest('Assert successful instantiation of atmos model:')
         sys.argv = ('script', 'atmos')
-        with mock.patch('control.runPostProc') as mock_atmos:
-            mock_atmos.runpp = True
-            mock_atmos.methods = self.methods
+        with mock.patch('sys.modules', {'atmos': self.mock_atmos}):
             main_pp.main()
         self.assertIn('Running method1 for atmos', func.capture())
         self.assertNotIn('Running method2 for atmos', func.capture())
@@ -74,9 +82,7 @@ class PostprocTests(unittest.TestCase):
         '''Test instantiation of nemo model only'''
         func.logtest('Assert successful instantiation of nemo model:')
         sys.argv = ('script', 'nemo')
-        with mock.patch('modeltemplate.ModelTemplate') as mock_nemo:
-            mock_nemo.runpp = True
-            mock_nemo.methods = self.methods
+        with mock.patch('sys.modules', {'nemo': self.mock_nemo}):
             main_pp.main()
         self.assertIn('Running method1 for nemo', func.capture())
         self.assertNotIn('Running method1 for atmos', func.capture())
@@ -86,9 +92,7 @@ class PostprocTests(unittest.TestCase):
         '''Test instantiation of cice model only'''
         func.logtest('Assert successful instantiation of cice model:')
         sys.argv = ('script', 'cice')
-        with mock.patch('modeltemplate.ModelTemplate') as mock_nemo:
-            mock_nemo.runpp = True
-            mock_nemo.methods = self.methods
+        with mock.patch('sys.modules', {'cice': self.mock_cice}):
             main_pp.main()
         self.assertIn('Running method1 for cice', func.capture())
         self.assertNotIn('Running method1 for atmos', func.capture())
@@ -98,10 +102,9 @@ class PostprocTests(unittest.TestCase):
         '''Test instantiation of nemocice models only'''
         func.logtest('Assert successful instantiation of nemocice model:')
         sys.argv = ('script', 'cice', 'nemo')
-        with mock.patch('modeltemplate.ModelTemplate') as mock_nc:
-            print 'mock_nc=', mock_nc
-            mock_nc.runpp = True
-            mock_nc.methods = self.methods
+        modules = self.modules
+        del modules['atmos']
+        with mock.patch('sys.modules', modules):
             main_pp.main()
         self.assertIn('Running method1 for cice', func.capture())
         self.assertIn('Running method1 for nemo', func.capture())
@@ -128,33 +131,38 @@ class PostprocTests(unittest.TestCase):
         '''Test runtime failure of atmos model'''
         func.logtest('Assert runtime failure of atmos model:')
         sys.argv = ('script',)
-        with mock.patch('control.runPostProc') as mock_atmos:
-            mock_atmos.runpp = True
-            mock_atmos.suite.archiveOK = False
-            with mock.patch('modeltemplate.ModelTemplate') as mock_nemo:
-                mock_nemo.runpp = True
-                mock_nemo.suite.archiveOK = True
-                with self.assertRaises(SystemExit):
-                    main_pp.main()
+        with mock.patch.dict('sys.modules', self.modules):
+            self.mock_atmos().suite.archiveOK = False
+            with self.assertRaises(SystemExit):
+                main_pp.main()
         self.assertIn('Exiting with errors in atmos', func.capture('err'))
         self.assertNotIn('nemo', func.capture('err'))
         self.assertNotIn('cice', func.capture('err'))
+        self.assertIn('Running method1 for nemo', func.capture())
+        self.assertIn('Running method1 for cice', func.capture())
 
-    def test_nemocice_failure(self):
-        '''Test runtime failure of atmos model'''
-        func.logtest('Assert runtime failure of atmos model:')
+    def test_nemo_failure(self):
+        '''Test runtime failure of nemo model'''
+        func.logtest('Assert runtime failure of nemo model:')
         sys.argv = ('script',)
-        with mock.patch('control.runPostProc') as mock_atmos:
-            mock_atmos.runpp = True
-            mock_atmos.suite.archiveOK = True
-            with mock.patch('modeltemplate.ModelTemplate') as mock_nemo:
-                mock_nemo.runpp = True
-                mock_nemo.suite.archiveOK = False
-                with self.assertRaises(SystemExit):
-                    main_pp.main()
-        self.assertIn('Exiting with errors in', func.capture('err'))
-        self.assertIn('nemo', func.capture('err'))
-        self.assertIn('cice', func.capture('err'))
+        with mock.patch.dict('sys.modules', self.modules):
+            self.mock_nemo().suite.archiveOK = False
+            with self.assertRaises(SystemExit):
+                main_pp.main()
+        self.assertIn('Exiting with errors in nemo', func.capture('err'))
+        self.assertNotIn('cice', func.capture('err'))
+        self.assertNotIn('atmos', func.capture('err'))
+
+    def test_cice_failure(self):
+        '''Test runtime failure of cice model'''
+        func.logtest('Assert runtime failure of cice model:')
+        sys.argv = ('script',)
+        with mock.patch.dict('sys.modules', self.modules):
+            self.mock_cice().suite.archiveOK = False
+            with self.assertRaises(SystemExit):
+                main_pp.main()
+        self.assertIn('Exiting with errors in cice', func.capture('err'))
+        self.assertNotIn('nemo', func.capture('err'))
         self.assertNotIn('atmos', func.capture('err'))
 
 
