@@ -38,6 +38,7 @@ def main():
         'atmutils': 'test_atmos_atmutils.py',
         'nemocice': 'test_nemocice*.py',
         'nemo':     'test_nemocice_nemo.py',
+        'cice':     'test_nemocice_cice.py',
         'template': 'test_nemocice_template.py',
         }
 
