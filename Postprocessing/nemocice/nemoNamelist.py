@@ -31,12 +31,15 @@ class NemoNamelist:
     exec_rebuild = '/projects/ocean/hadgem3/scripts/GC2.0/rebuild_nemo.exe'
     exec_rebuild_icebergs = os.environ['CYLC_SUITE_SHARE_DIR'] + \
         '/fcm_make_pp/build/bin/icb_combrest.py'
+    exec_rebuild_iceberg_trajectory = os.environ['CYLC_SUITE_SHARE_DIR'] + \
+        '/fcm_make_pp/build/bin/icb_pp.py'
     rebuild_timestamps = '05-30', '11-30', '06-01', '12-01'
     buffer_rebuild_rst = 5
     buffer_rebuild_mean = 1
     archive_restarts = False
     archive_timestamps = '05-30', '11-30', '06-01', '12-01'
     buffer_archive = 0
+    archive_iceberg_trajectory = False
     means_cmd = '/projects/ocean/hadgem3/scripts/GC2.0/mean_nemo.exe'
     means_directory = os.environ['CYLC_TASK_WORK_DIR'] + '/../coupled'
     ncatted_cmd = '/projects/ocean/hadgem3/nco/nco-4.4.7/bin/ncatted'

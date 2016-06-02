@@ -112,9 +112,23 @@ class NemoPostProc(mt.ModelTemplate):
         return self.nl.exec_rebuild_icebergs
 
     @property
+    def rebuild_iberg_traj_cmd(self):
+        '''Returns the namelist value path for the icb_pp.py script'''
+        return self.nl.exec_rebuild_iceberg_trajectory
+
+    @property
     def ncatted_cmd(self):
         '''Command: Exec + Args upto but not including filename(s)'''
         return self.nl.ncatted_cmd
+
+    @property
+    def archive_types(self):
+        '''
+        Additional archiving methods to call for files
+        other than restarts and means.
+        Returns a list of tuples: (method_name, bool)
+        '''
+        return [('iceberg_trajectory', self.nl.archive_iceberg_trajectory),]
 
     def buffer_rebuild(self, filetype):
         '''Returns the rebuild buffer for the given filetype'''
@@ -364,6 +378,52 @@ class NemoPostProc(mt.ModelTemplate):
                 format(self.prefix, mean_period, date[0], date[1], date[2],
                        mean_day2, field)
             os.rename(inputfile, os.path.join(self.share, template))
+
+    def archive_iceberg_trajectory(self):
+        '''Rebuild and archive iceberg trajectory (diagnostic) files'''
+        fn_stub = r'trajectory_icebergs_\d{6}'
+	# Move to share if necessary
+        if self.work != self.share:
+            pattern = fn_stub + r'_\d{4}.nc'
+            self.move_to_share(pattern)
+
+        # Rebuild each unique set of files we find in share
+        suffix = '_0000.nc'
+        for fname in utils.get_subset(self.share, fn_stub + suffix):
+            corename = fname.split(suffix)[0]
+            bldset = utils.get_subset(self.share,
+                                      r'^{}_\d{{4}}.nc$'.format(corename))
+            outputfile = os.path.join(self.share,
+                                      '{}o_{}.nc'.format(self.prefix,
+                                                         corename))
+            cmd = 'python2.7 {} -t {} -n {} -o {}'.format(
+                self.rebuild_iberg_traj_cmd,
+                os.path.join(self.share, corename + '_'),
+                len(bldset),
+                outputfile,
+                )
+            icode, output = utils.exec_subproc(cmd)
+            if icode != 0:
+                msg = 'icb_pp: Error={}\n\t{}'.format(icode, output)
+                msg = msg + '\n -> Failed to rebuild file: ' + corename
+                utils.log_msg(msg, level=4)
+                utils.catch_failure(self.nl.debug)
+            else:
+                msg = 'icb_pp: Successfully rebuilt iceberg trajectory file: '
+                utils.log_msg(msg + corename, level=1)
+                utils.remove_files(bldset, path=self.share)
+
+        # Archive and delete from local disk
+        arch_files = self.archive_files(
+            utils.get_subset(self.share,
+                             r'^{}o_{}.nc$'.format(self.prefix, fn_stub))
+            )
+        if arch_files:
+            del_files = [fn for fn in arch_files if arch_files[fn] != 'FAILED']
+            if del_files:
+                msg = 'iceberg_trajectory: Deleting archived files: \n\t'
+                utils.log_msg(msg + '\n\t'.join(del_files))
+                utils.remove_files(del_files, self.share)
 
 
 INSTANCE = ('nemocicepp.nl', NemoPostProc)

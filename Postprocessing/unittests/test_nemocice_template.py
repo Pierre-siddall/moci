@@ -460,10 +460,6 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(returnfiles, {'file1': 'FAILED'})
         self.assertIn('Failed to archive file: file1', func.capture('err'))
 
-    def test_archive_partial_fail(self):
-        '''Test partially successful archive list of files'''
-        func.logtest('Assert partial success archiving multiple files')
-
 
 class PreprocessTests(unittest.TestCase):
     '''Unit tests relating to pre-processing of files prior to archive'''

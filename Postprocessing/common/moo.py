@@ -135,6 +135,9 @@ class _Moose(object):
             elif 'restart' in file_id:
                 ext = '.file'
                 file_id = 'da'  # These are restart dumps - reassign ID
+            elif 'trajectory' in file_id:
+                ext = '.nc.file'
+                file_id = 'ni'
             else:
                 msg = 'moo.py - ocean/sea-ice file type not recognised: '
                 utils.log_msg(msg + self._rqst_name, 5)

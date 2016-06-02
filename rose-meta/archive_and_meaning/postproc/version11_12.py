@@ -34,3 +34,16 @@ class pp11_t75(rose.upgrade.MacroUpgrade):
         self.add_setting(config,
                          ["namelist:nemopostproc", "base_component",], '10d')
         return config, self.reports
+
+class pp11_t76(rose.upgrade.MacroUpgrade):
+
+    """Upgrade macro for ticket #76 by EricaNeininger."""
+    BEFORE_TAG = "pp11_t75"
+    AFTER_TAG = "pp11_t76"
+
+    def upgrade(self, config, meta_config=None):
+        """Upgrade a Postproc app configuration."""
+        self.add_setting(config,
+                         ["namelist:nemopostproc",
+                          "archive_iceberg_trajectory",], 'false')
+        return config, self.reports

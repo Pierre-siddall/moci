@@ -65,8 +65,7 @@ class CicePostProc(mt.ModelTemplate):
         '''
         return {
             mt.RR: None,
-            mt.MM: lambda s, f:
-                   r'^{}i\.{}\.\d{{4}}-\d{{2}}-30\.nc$'.
+            mt.MM: lambda s, f: r'^{}i\.{}\.\d{{4}}-\d{{2}}-30\.nc$'.
                    format(self.prefix, self.month_base),
             mt.SS: lambda s, f: r'^{}i\.1m\.\d{{4}}-{}\.nc$'.
                    format(self.prefix, s[2]),

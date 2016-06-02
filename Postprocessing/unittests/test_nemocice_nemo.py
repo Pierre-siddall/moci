@@ -641,6 +641,115 @@ class MeansProcessingTests(unittest.TestCase):
         self.assertIn('DOMAIN_size_global', func.capture('err'))
 
 
+class AdditionalArchiveTests(unittest.TestCase):
+    '''Unit tests relating to the archiving additional file'''
+    def setUp(self):
+        self.nemo = nemo.NemoPostProc()
+        self.nemo.suite = mock.Mock()
+        self.nemo.suite.prefix = 'RUNID'
+        self.nemo.archive_files = mock.Mock(return_value={})
+        self.nemo.nl.exec_rebuild_iceberg_trajectory = 'ICB_PP'
+        self.nemo.nl.restart_directory = 'HERE'
+        self.nemo.nl.means_directory = 'HERE'
+
+    def tearDown(self):
+        for fname in ('nemocicepp.nl', 'nam_rebuild'):
+            try:
+                os.remove(fname)
+            except OSError:
+                pass
+
+    @mock.patch('utils.get_subset')
+    @mock.patch('utils.exec_subproc')
+    @mock.patch('utils.remove_files')
+    def test_arch_iberg_trajectory(self, mock_rm, mock_exec, mock_set):
+        '''Test call to iceberg_trajectory archive method'''
+        func.logtest('Assert call to iceberg_trajectory archive method:')
+        # Mock results for 3 calls to utils.get_subset
+        mock_set.side_effect = [['file1_0000.nc'],
+                                ['file1_0000.nc', 'file1_0001.nc'],
+                                ['arch1.nc']]
+        mock_exec.return_value = (0, '')
+        self.nemo.nl.archive_iceberg_trajectory = True
+        self.nemo.archive_general()
+
+        cmd = 'python2.7 ICB_PP -t HERE/file1_ -n 2 -o HERE/RUNIDo_file1.nc'
+        mock_exec.assert_called_once_with(cmd)
+        mock_rm.assert_called_once_with(['file1_0000.nc', 'file1_0001.nc'],
+                                        path='HERE')
+        self.nemo.archive_files.assert_called_once_with(['arch1.nc'])
+        self.assertIn('Successfully rebuilt iceberg trajectory',
+                      func.capture())
+
+    @mock.patch('utils.exec_subproc')
+    @mock.patch('utils.get_subset')
+    def test_arch_iberg_trajectory_fail(self, mock_set, mock_exec):
+        '''Test call to iceberg_trajectory archive method - fail'''
+        func.logtest('Assert failed call to iceberg_trajectory method:')
+        # Mock results for 3 calls to utils.get_subset
+        mock_set.side_effect = [['file1_0000.nc'],
+                                ['file1_0000.nc', 'file1_0001.nc'],
+                                ['arch1.nc']]
+        mock_exec.return_value = (1, 'ICB_PP failed')
+        self.nemo.nl.archive_iceberg_trajectory = True
+        with self.assertRaises(SystemExit):
+            self.nemo.archive_general()
+        with self.assertRaises(AssertionError):
+            self.nemo.archive_files.assert_called_with(mock.ANY)
+        self.assertIn('Error=1\n\tICB_PP failed', func.capture('err'))
+
+    @mock.patch('utils.exec_subproc')
+    @mock.patch('utils.get_subset')
+    def test_arch_iberg_traj_debug(self, mock_set, mock_exec):
+        '''Test call to iceberg_trajectory archive method - debug'''
+        func.logtest('Assert debug call to archive_iceberg_trajectory method:')
+        # Mock results for 3 calls to utils.get_subset
+        mock_set.side_effect = [['file1_0000.nc'],
+                                ['file1_0000.nc', 'file1_0001.nc'],
+                                ['arch1.nc']]
+        mock_exec.return_value = (1, 'ICB_PP failed')
+        self.nemo.nl.archive_iceberg_trajectory = True
+        self.nemo.nl.debug = True
+        self.nemo.archive_general()
+        self.assertIn('Error=1\n\tICB_PP failed', func.capture('err'))
+        self.nemo.archive_files.assert_called_once_with(['arch1.nc'])
+
+    @mock.patch('modeltemplate.ModelTemplate.move_to_share')
+    def test_arch_iberg_trajectory_move(self, mock_mv):
+        '''Test call to iceberg_trajectory archive method - move files'''
+        func.logtest('Assert call to archive_iceberg_trajectory with move:')
+        self.nemo.nl.archive_iceberg_trajectory = True
+        self.nemo.nl.restart_directory = 'THERE'
+        with mock.patch('utils.get_subset'):
+            self.nemo.archive_general()
+        mock_mv.assert_called_once_with(r'trajectory_icebergs_\d{6}_\d{4}.nc')
+
+    @mock.patch('utils.remove_files')
+    def test_arch_iberg_traj_archpass(self, mock_rm):
+        '''Test call to iceberg_trajectory archive method - arch pass'''
+        func.logtest('Assert call to archive_iceberg_trajectory - arch pass:')
+        self.nemo.nl.archive_iceberg_trajectory = True
+        self.nemo.archive_files.return_value = {'arch1': 'SUCCESS'}
+        with mock.patch('utils.get_subset'):
+            self.nemo.archive_general()
+        self.nemo.archive_files.assert_called_once_with(mock.ANY)
+        mock_rm.assert_called_with(['arch1'], 'HERE')
+
+    @mock.patch('utils.remove_files')
+    def test_arch_iberg_traj_archfail(self, mock_rm):
+        '''Test call to iceberg_trajectory archive method - arch fail'''
+        func.logtest('Assert call to archive_iceberg_trajectory - arch fail:')
+        self.nemo.nl.archive_iceberg_trajectory = True
+        self.nemo.archive_files.return_value = {'arch1': 'FAILED'}
+        with mock.patch('utils.get_subset'):
+            self.nemo.archive_general()
+        self.nemo.archive_files.assert_called_once_with(mock.ANY)
+        with self.assertRaises(AssertionError):
+            mock_rm.assert_called_with(mock.ANY)
+
+
+
+
 def main():
     '''Main function'''
     unittest.main(buffer=True)

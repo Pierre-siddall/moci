@@ -107,11 +107,25 @@ class ModelTemplate(control.runPostProc):
         Returns a dictionary of methods available for this model to the
         main program
         '''
-        return OrderedDict([('archive_restarts', self.nl.archive_restarts),
-                            ('move_to_share',
-                             self.nl.create_means or self.nl.archive_means),
-                            ('create_means', self.nl.create_means),
-                            ('archive_means', self.nl.archive_means)])
+        return OrderedDict(
+            [('archive_restarts', self.nl.archive_restarts),
+             ('move_to_share',
+              self.nl.create_means or self.nl.archive_means),
+             ('create_means', self.nl.create_means),
+             ('archive_means', self.nl.archive_means),
+             ('archive_general',
+              any(ftype[1] for ftype in self.archive_types if
+                  isinstance(ftype[1], bool) and ftype[1]))]
+            )
+
+    @property
+    def archive_types(self):
+        '''
+        Additional namelist logicals controlling the archive of files
+        other than restarts and means.
+        Returns a list of tuples: (method_name, bool)
+        '''
+        return []
 
     @property
     def share(self):
@@ -559,13 +573,23 @@ class ModelTemplate(control.runPostProc):
                                self.buffer_archive)
             utils.log_msg(msg)
 
+    def archive_general(self):
+        '''Call archive methods for additional model file types'''
+        for method, archive in self.archive_types:
+            if archive:
+                try:
+                    getattr(self, 'archive_' + method)()
+                except AttributeError:
+                    msg = 'Archive method not implemented: archive_' + method
+                    utils.log_msg('archive_general: ' + msg, level=5)
+
     def archive_files(self, filenames):
         '''
         Archive a one or more files.
         Returns a dictionary of requested files reporting success or failure.
         '''
         returnfiles = {}
-        if type(filenames) != list:
+        if not isinstance(filenames, list):
             filenames = [filenames]
 
         for fname in filenames:
