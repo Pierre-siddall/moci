@@ -44,7 +44,7 @@ class DatasetTests(unittest.TestCase):
             dataset = netcdf_utils.get_dataset('Filename')
             mock_dataset.assert_called_with('Filename', 'r')
             self.assertEqual(dataset, mock_dataset.return_value)
-            
+
     def test_get_dataset_fail(self):
         '''Test get_dataset method - failure'''
         func.logtest('Assert failure return from get_dataset method:')
@@ -77,7 +77,7 @@ class DatasetTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             _ = netcdf_utils.get_vardata(mock_data, 'timevar')
         self.assertIn('"timevar" not found in dataset', func.capture('err'))
-    
+
 
 class FixTimeTests(unittest.TestCase):
     '''Unit tests of functions used by fix_times'''
@@ -93,7 +93,7 @@ class FixTimeTests(unittest.TestCase):
         with mock.patch('netcdf_utils.get_dataset') as mock_data:
             mock_data().__enter__().variables[''].units = \
                 'seconds since 1950-01-01 00:00:00'
-            mock_data().__enter__().variables[''].calendar = 'noleap'
+            mock_data().__enter__().variables[''].calendar = 'NoLeap'
             mock_data().__enter__().variables[''].__getitem__.side_effect = \
                 [numpy.array([0., 86400])]
             date = netcdf_utils.time_bounds_var_to_date('fname', 'timevar')
@@ -131,8 +131,8 @@ class FixTimeTests(unittest.TestCase):
             dates, 'seconds since 2000-01-01 00:00:00', '360_day')
         self.assertEqual(values[0], -25920000.)
         self.assertEqual(values[1], 2592000.)
-                
-    def test_fix_times_calls(self):
+
+    def test_fix_times_calls_gregorian(self):
         '''Test of error handling if variable doesn't exist in mean file'''
         func.logtest('Assert correct_time called correctly:')
         with mock.patch('netcdf_utils.Dataset') as mock_dataset:
@@ -141,14 +141,30 @@ class FixTimeTests(unittest.TestCase):
             mock_dataset().variables[''].calendar = 'gregorian'
             with mock.patch('netcdf_utils.correct_time') as mock_time:
                 with mock.patch('netcdf_utils.correct_bounds'):
-                    netcdf_utils.fix_times('meanset', 'meanfile', 
+                    netcdf_utils.fix_times('meanset', 'meanfile',
                                            'time_counter',
                                            'time_counter_bounds')
                 mock_time.assert_called_with(
-                    'meanset', 'time_counter', 
+                    'meanset', 'time_counter',
                     'seconds since 1950-01-01 00:00:00',
                     'gregorian')
 
+    def test_fix_times_calls_noleap(self):
+        '''Test call to fix_times with the 365cal'''
+        func.logtest('Assert correct_time called correctly (365cal):')
+        with mock.patch('netcdf_utils.Dataset') as mock_dataset:
+            mock_dataset().variables[''].units = \
+                'seconds since 1950-01-01 00:00:00'
+            mock_dataset().variables[''].calendar = 'NoLeap'
+            with mock.patch('netcdf_utils.correct_time') as mock_time:
+                with mock.patch('netcdf_utils.correct_bounds'):
+                    netcdf_utils.fix_times('meanset', 'meanfile',
+                                           'time_counter',
+                                           'time_counter_bounds')
+                mock_time.assert_called_with(
+                    'meanset', 'time_counter',
+                    'seconds since 1950-01-01 00:00:00',
+                    'noleap')
 
 def main():
     '''Main function'''

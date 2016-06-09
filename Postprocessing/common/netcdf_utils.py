@@ -59,7 +59,7 @@ def time_bounds_var_to_date(fname, time_var):
     '''
     with get_dataset(fname) as ncid:
         units = get_vardata(ncid, time_var, attribute='units')
-        calendar = get_vardata(ncid, time_var, attribute='calendar')
+        calendar = get_vardata(ncid, time_var, attribute='calendar').lower()
         bounds_var = get_vardata(ncid, time_var, attribute='bounds')
         bounds = get_vardata(ncid, bounds_var)[:]
         date = [num2date(bound, units, calendar) for bound in bounds]
@@ -86,7 +86,7 @@ def time_var_to_date(fname, time_var):
     with get_dataset(fname) as ncid:
         time = get_vardata(ncid, time_var)
         time_units = get_vardata(ncid, time_var, attribute='units')
-        time_cal = get_vardata(ncid, time_var, attribute='calendar')
+        time_cal = get_vardata(ncid, time_var, attribute='calendar').lower()
         date = num2date(time[:], time_units, time_cal)
     return date
 
@@ -111,7 +111,7 @@ def fix_times(meanset, meanfile, time_var, do_time=False, do_bounds=False):
     '''
     ncid = get_dataset(meanfile, action='r+')
     units = get_vardata(ncid, time_var, attribute='units')
-    calendar = get_vardata(ncid, time_var, attribute='calendar')
+    calendar = get_vardata(ncid, time_var, attribute='calendar').lower()
 
     rmsg = ''
     if do_time:
