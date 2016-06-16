@@ -164,7 +164,8 @@ def make_dump_name(atmos):
         'Seasonal': cycledt[1] in (12, 3, 6, 9) and cycledt[2] == 1,
         'Monthly':  cycledt >= utils.add_period_to_date(
             basisdt,
-            [0, atmos.nl.archiving.arch_dump_offset + 1])[:len(cycledt)]
+            [0, atmos.nl.archiving.arch_dump_offset + 1])[:len(cycledt)] and \
+            cycledt[2] == 1
     }
 
     dumps_to_archive = []

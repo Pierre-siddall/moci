@@ -130,6 +130,125 @@ class HeaderTests(unittest.TestCase):
         self.assertIn('ARCHIVE FAILED', open('logfile', 'r').read())
 
 
+class DumpnameTests(unittest.TestCase):
+    '''Unit tests covering the make_dump_name method'''
+
+    def setUp(self):
+        self.atmos = atmos.AtmosPostProc()
+        atmos.AtmosPostProc.dumpname = mock.Mock(return_value='CYCLEDUMP')
+        self.atmos.suite = mock.Mock()
+        self.atmos.envars = mock.Mock()
+        self.atmos.envars.MODELBASIS = '1980,09,01,00,00,00'
+        self.atmos.final_dumpname = None
+        if 'monthly' in self.id():
+            self.atmos.nl.archiving.arch_dump_freq = 'Monthly'
+        elif 'seasonal' in self.id():
+            self.atmos.nl.archiving.arch_dump_freq = 'Seasonal'
+        elif 'annual' in self.id():
+            self.atmos.nl.archiving.arch_dump_freq = 'Yearly'
+
+    def tearDown(self):
+        pass
+
+    @mock.patch('utils.add_period_to_date')
+    def test_monthly_dumpname(self, mock_adddate):
+        '''Test creation of a dumpname for monthly archive'''
+        func.logtest('Assert creation of dumpname for monthly archive')
+        mock_adddate.return_value = [1980, 10, 1, 0, 0, 0]
+        self.atmos.suite.cycledt = [1980, 10, 1, 0, 0, 0]
+        dumps = validation.make_dump_name(self.atmos)
+        self.assertEqual(dumps, ['CYCLEDUMP'])
+        mock_adddate.assert_called_with([1980, 9, 1, 0, 0, 0], [0, 1])
+
+    @mock.patch('utils.add_period_to_date')
+    def test_monthly_offset_dumpname(self, mock_adddate):
+        '''Test creation of a dumpname for monthly archive - offset'''
+        func.logtest('Assert creation of dumpname for monthly archive')
+        mock_adddate.return_value = [1980, 10, 1, 0, 0, 0]
+        self.atmos.suite.cycledt = [1980, 10, 1, 0, 0, 0]
+        self.atmos.nl.archiving.arch_dump_offset = 6
+        dumps = validation.make_dump_name(self.atmos)
+        self.assertEqual(dumps, ['CYCLEDUMP'])
+        mock_adddate.assert_called_with([1980, 9, 1, 0, 0, 0], [0, 7])
+
+    @mock.patch('utils.add_period_to_date')
+    def test_monthly_dump_finalcycle(self, mock_adddate):
+        '''Test creation of dumpnames for monthly archive - final cycle'''
+        func.logtest('Assert dumpname creation for monthly archive - final')
+        mock_adddate.return_value = [1980, 10, 1, 0, 0, 0]
+        self.atmos.final_dumpname = 'FINALDUMP'
+        self.atmos.suite.cycledt = [1980, 10, 1, 0, 0, 0]
+        dumps = validation.make_dump_name(self.atmos)
+        self.assertEqual(dumps, ['CYCLEDUMP', 'FINALDUMP'])
+        mock_adddate.assert_called_with([1980, 9, 1, 0, 0, 0], [0, 1])
+
+    @mock.patch('utils.add_period_to_date')
+    def test_monthly_dump_firstcycle(self, mock_adddate):
+        '''Test creation of dumpnames for monthly archive - first cycle'''
+        func.logtest('Assert dumpname creation for monthly archive - first')
+        self.atmos.final_dumpname = 'FINALDUMP'
+        self.atmos.suite.cycledt = [1980, 9, 1, 0, 0, 0]
+        dumps = validation.make_dump_name(self.atmos)
+        self.assertEqual(dumps, [])
+        self.assertEqual(mock_adddate.mock_calls, [])
+
+    @mock.patch('utils.add_period_to_date')
+    def test_monthly_dump_mid_month(self, mock_adddate):
+        '''Test creation of no dumpnames for monthly archive (mid month)'''
+        func.logtest('Assert dumpname creation for monthly arch - mid month')
+        mock_adddate.return_value = [1980, 10, 1, 0, 0, 0]
+        self.atmos.suite.cycledt = [1980, 10, 15, 0, 0, 0]
+        dumps = validation.make_dump_name(self.atmos)
+        self.assertEqual(dumps, [])
+
+    @mock.patch('utils.add_period_to_date')
+    def test_monthly_dump_before_basis(self, mock_adddate):
+        '''Test creation of no dumpnames for monthly archive (before basis)'''
+        func.logtest('Assert dumpname creation for monthly arch - early')
+        mock_adddate.return_value = [1980, 11, 1, 0, 0, 0]
+        self.atmos.suite.cycledt = [1980, 10, 1, 0, 0, 0]
+        dumps = validation.make_dump_name(self.atmos)
+        self.assertEqual(dumps, [])
+
+    def test_seasonal_dumpname(self):
+        '''Test creation of a dumpname for seasonal archive'''
+        func.logtest('Assert creation of dumpname for seasonal archive')
+        self.atmos.suite.cycledt = [1980, 12, 1, 0, 0, 0]
+        dumps = validation.make_dump_name(self.atmos)
+        self.assertEqual(dumps, ['CYCLEDUMP'])
+
+    def test_seasonal_dumpname_none(self):
+        '''Test creation of no dumpnames for seasonal archive'''
+        func.logtest('Assert creation of no dumpnames for seasonal archive')
+        self.atmos.suite.cycledt = [1980, 10, 1, 0, 0, 0]
+        dumps = validation.make_dump_name(self.atmos)
+        self.assertEqual(dumps, [])
+
+    def test_annual_jan_dumpname(self):
+        '''Test creation of a dumpname for annual archive'''
+        func.logtest('Assert creation of dumpname for annual archive (Jan)')
+        self.atmos.suite.cycledt = [1981, 1, 1, 0, 0, 0]
+        self.atmos.nl.archiving.arch_year_month = 'January'
+        dumps = validation.make_dump_name(self.atmos)
+        self.assertEqual(dumps, ['CYCLEDUMP'])
+
+    def test_annual_july_dumpname(self):
+        '''Test creation of a dumpname for annual archive'''
+        func.logtest('Assert creation of dumpname for annual archive (Jan)')
+        self.atmos.suite.cycledt = [1981, 7, 1, 0, 0, 0]
+        self.atmos.nl.archiving.arch_year_month = 'July'
+        dumps = validation.make_dump_name(self.atmos)
+        self.assertEqual(dumps, ['CYCLEDUMP'])
+
+    def test_annual_dumpname_none(self):
+        '''Test creation of no dumpnames for annual archive'''
+        func.logtest('Assert creation of no dumpnames for annual archive')
+        self.atmos.suite.cycledt = [1980, 10, 1, 0, 0, 0]
+        self.atmos.nl.archiving.arch_year_month = 'January'
+        dumps = validation.make_dump_name(self.atmos)
+        self.assertEqual(dumps, [])
+
+
 def main():
     '''Main function'''
     unittest.main(buffer=True)
