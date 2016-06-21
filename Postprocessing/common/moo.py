@@ -80,6 +80,7 @@ class _Moose(object):
         runid, rqst = re.split('[._]', os.path.basename(self._rqst_name), 1)
         self._model_id = runid[-1]
         self._file_id = rqst
+        self.fl_pp = False
         if not self.chkset():
             self.mkset()  # Create a set
 
@@ -167,17 +168,15 @@ class _Moose(object):
                 utils.log_msg(msg + self._rqst_name, level=5)
 
         else:
-            msg += 'moo.py - Model id "{}" in filename  not recognised.'.\
+            msg = 'moo.py - Model id "{}" in filename  not recognised.'.\
                 format(model_id)
-
-        if msg or not ext:
-            msg += 'moo.py - Stream ID "{}" does not'.format(file_id)
-            msg += 'meet Moose restrictions for data collection names'
             msg += '\n -> Please contact crum@metoffice.gov.uk ' \
                 'if your requirements are not being met by this script.'
-            utils.log_msg(msg, level=5)
+            utils.log_msg(msg, 5)
 
-        self.fl_pp = True if ext == '.pp' else False
+        if ext == '.pp':
+            self.fl_pp = True
+
         return model_id + file_id + ext
 
     def put_data(self):

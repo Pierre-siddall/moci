@@ -31,11 +31,18 @@ class NemoPostProc(mt.ModelTemplate):
     '''
     @property
     def fields(self):
-        return ('grid_T', 'grid_U', 'grid_V', 'grid_W', 'diaptr', 'trnd3d',)
+        '''Diagnostic fields - Filetype tag in filename'''
+        return ('grid_T', 'grid_U', 'grid_V', 'grid_W',
+                'ptrc_T', 'diad_T', 'diaptr', 'trnd3d',)
 
     @property
     def rsttypes(self):
-        return ('', 'icebergs')
+        '''
+        Restart file types.
+        Tuple( Filetype tag immediately following "RUNIDo_" in filename,
+               Filetype tag immediately following "restart" in filename )
+        '''
+        return (('', ''), ('icebergs', ''), ('', '_trc'))
 
     @property
     def set_stencil(self):
@@ -49,8 +56,8 @@ class NemoPostProc(mt.ModelTemplate):
         '''
         return {
             mt.RR: lambda y, m, s, f:
-                   r'^{P}o_{F}_?\d{{8}}_restart(\.nc)?$'.
-                   format(P=self.prefix, F=f),
+                   r'^{P}o_{F1}_?\d{{8}}_restart{F2}(\.nc)?$'.
+                   format(P=self.prefix, F1=f[0], F2=f[1]),
             mt.MM: lambda y, m, s, f:
                    r'^{P}o_{B}_\d{{8}}_{Y}{M}\d{{2}}_{F}\.nc$'.
                    format(P=self.prefix, B=self.month_base, Y=y, M=m, F=f),
@@ -178,7 +185,7 @@ class NemoPostProc(mt.ModelTemplate):
                         rebuildall=False):
         '''Rebuild partial files for given filetype'''
         bldfiles = utils.get_subset(datadir,
-                                    r'^.*{}.*{}$'.format(filetype, suffix))
+                                    r'^.*{}{}$'.format(filetype, suffix))
         buff = self.buffer_rebuild('rst') if \
             'restart' in filetype else self.buffer_rebuild('mean')
         rebuild_required = len(bldfiles) > buff
@@ -191,7 +198,7 @@ class NemoPostProc(mt.ModelTemplate):
             year = month = day = None
             for part in corename.split('_'):
                 # Retrieve the data start-date from the filename
-                if re.search('^\d{8}$', part):
+                if re.search(r'^\d{8}$', part):
                     year, month, day = self.get_date(part)
                     break
 

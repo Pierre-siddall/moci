@@ -36,6 +36,7 @@ class StencilTests(unittest.TestCase):
         self.files = [
             'RUNIDo_19951130_restart.nc',
             'RUNIDo_icebergs_19951130_restart.nc',
+            'RUNIDo_19951130_restart_trc.nc',
             'RUNIDo_6h_1995090101_1995091006_FIELD.nc',
             'RUNIDo_2d_19950905_19950906_FIELD.nc',
             'RUNIDo_2d_19950929_19950930_FIELD.nc',
@@ -66,20 +67,29 @@ class StencilTests(unittest.TestCase):
     def test_set_stencil_restarts(self):
         '''Test the regular expressions of the set_stencil method - restarts'''
         func.logtest('Assert restart pattern matching of set_stencil:')
-        patt = re.compile(self.setstencil['Restarts']('', None, None, ''))
+        patt = re.compile(self.setstencil['Restarts']('', None, None, ('', '')))
         nemo_rst = [fname for fname in self.files if patt.search(fname)]
         self.assertEqual(nemo_rst,
                          [fname for fname in self.files if 'restart' in fname
-                          and 'ice' not in fname])
+                          and 'iceberg' not in fname and '_trc' not in fname])
 
     def test_set_stencil_iceberg_rsts(self):
         '''Test the regex of the set_stencil method - iceberg restarts'''
         func.logtest('Assert iceberg restart pattern matching of set_stencil:')
-        args = (None, None, None, 'icebergs')
+        args = (None, None, None, self.nemo.rsttypes[1])
         patt = re.compile(self.setstencil['Restarts'](*args))
         ice_rst = [fname for fname in self.files if patt.search(fname)]
         self.assertEqual(ice_rst,
                          [fname for fname in self.files if 'iceberg' in fname])
+
+    def test_set_stencil_tracer_rsts(self):
+        '''Test the regex of the set_stencil method - tracer restarts'''
+        func.logtest('Assert tracer restart pattern matching of set_stencil:')
+        args = (None, None, None, self.nemo.rsttypes[2])
+        patt = re.compile(self.setstencil['Restarts'](*args))
+        ice_rst = [fname for fname in self.files if patt.search(fname)]
+        self.assertEqual(ice_rst,
+                         [fname for fname in self.files if '_trc' in fname])
 
     def test_set_stencil_monthly_10days(self):
         '''Test the regex of the set_stencil method - monthly (10days)'''
@@ -285,6 +295,7 @@ class RebuildTests(unittest.TestCase):
     def setUp(self):
         self.nemo = nemo.NemoPostProc()
         self.nemo.suite = mock.Mock()
+        self.nemo.suite.prefix = 'RUNID'
         self.nemo.suite.finalcycle = False
         self.defaults = nemoNamelist.NemoNamelist()
         self.buffer_rst = self.nemo.buffer_rebuild('rst')
@@ -301,39 +312,46 @@ class RebuildTests(unittest.TestCase):
         '''Test call to rebuild_restarts method'''
         func.logtest('Assert call to rebuild_fileset from rebuild_restarts:')
         with mock.patch('nemo.NemoPostProc.rebuild_fileset') as mock_fs:
-            with mock.patch.object(nemo.NemoPostProc, 'rsttypes') as mock_rst:
-                mock_rst.__get__ = mock.Mock(return_value=('',))
-                mynemo = nemo.NemoPostProc()
-                mynemo.suite = mock.Mock()
-                mynemo.suite.prefix = os.environ['RUNID']
-                mynemo.rebuild_restarts()
-        mock_fs.assert_called_with(
-            os.environ['PWD'],
-            r'{}o_{}_?\d{{8}}_restart(\.nc)?'.format(os.environ['RUNID'], '')
-            )
+            with mock.patch('nemo.NemoPostProc.rsttypes',
+                            new_callable=mock.PropertyMock,
+                            return_value=(self.nemo.rsttypes[0],)):
+                self.nemo.rebuild_restarts()
+            mock_fs.assert_called_with(os.environ['PWD'],
+                                       r'RUNIDo__?\d{8}_restart(\.nc)?')
 
     def test_call_rebuild_iceberg_rsts(self):
         '''Test call to rebuild_restarts method with iceberg restart files'''
         func.logtest('Assert call to rebuild_fileset from rebuild_restarts:')
-        self.nemo.suite.prefix = os.environ['RUNID']
+        self.assertIn('icebergs', self.nemo.rsttypes[1])
         with mock.patch('nemo.NemoPostProc.rebuild_fileset') as mock_fs:
-            self.nemo.rebuild_restarts()
-        mock_fs.assert_called_with(
-            os.environ['PWD'],
-            r'{}o_{}_?\d{{8}}_restart(\.nc)?'.format(os.environ['RUNID'],
-                                                     self.nemo.rsttypes[-1])
-            )
+            with mock.patch('nemo.NemoPostProc.rsttypes',
+                            new_callable=mock.PropertyMock,
+                            return_value=(self.nemo.rsttypes[1],)):
+                self.nemo.rebuild_restarts()
+            mock_fs.assert_called_with(os.environ['PWD'],
+                                       r'RUNIDo_icebergs_?\d{8}_restart(\.nc)?')
+
+    def test_call_rebuild_tracer_rsts(self):
+        '''Test call to rebuild_restarts method with tracer restart files'''
+        func.logtest('Assert call to rebuild_fileset from rebuild_restarts:')
+        self.assertIn('_trc', self.nemo.rsttypes[2])
+        with mock.patch('nemo.NemoPostProc.rebuild_fileset') as mock_fs:
+            with mock.patch('nemo.NemoPostProc.rsttypes',
+                            new_callable=mock.PropertyMock,
+                            return_value=(self.nemo.rsttypes[2],)):
+                self.nemo.rebuild_restarts()
+            mock_fs.assert_called_with(os.environ['PWD'],
+                                       r'RUNIDo__?\d{8}_restart_trc(\.nc)?')
 
     def test_call_rebuild_means(self):
         '''Test call to rebuild_means method'''
         func.logtest('Assert call to rebuild_fileset from rebuild_means:')
-        self.nemo.suite.prefix = os.environ['RUNID']
         pattern = r'{}o_{}_\d{{8,10}}_\d{{8,10}}_{}(\.nc)?'.format(
-            os.environ['RUNID'], '10d', self.nemo.fields[-1])
+            'RUNID', '10d', self.nemo.fields[-1])
         with mock.patch('nemo.NemoPostProc.rebuild_fileset') as mock_fs:
             self.nemo.rebuild_means()
-        mock_fs.assert_called_with(os.environ['PWD'], pattern,
-                                   rebuildall=True)
+            mock_fs.assert_called_with(os.environ['PWD'], pattern,
+                                       rebuildall=True)
 
     def test_namlist_properties(self):
         '''Test definition of NEMO namelist properties'''
@@ -413,7 +431,8 @@ class RebuildTests(unittest.TestCase):
                    'RUNIDo_19980530_restart_0002.nc',
                    'RUNIDo_19980530_restart.nc',
                    'RUNIDo_19981130_restart_0000.nc',
-                   'RUNIDo_icebergs_19980530_restart_0000.nc']
+                   'RUNIDo_icebergs_19980530_restart_0000.nc',
+                   'RUNIDo_19980530_restart_trc_0000.nc']
         self.nemo.buffer_rebuild = mock.Mock()
         self.nemo.buffer_rebuild.return_value = 0
         for fname in myfiles:
@@ -436,7 +455,8 @@ class RebuildTests(unittest.TestCase):
                    'RUNIDo_19980530_restart_0001.nc',
                    'RUNIDo_19980530_restart_0002.nc',
                    'RUNIDo_icebergs_19980530_restart_0000.nc',
-                   'RUNIDo_icebergs_19980530_restart_0001.nc']
+                   'RUNIDo_icebergs_19980530_restart_0001.nc',
+                   'RUNIDo_19980530_restart_trc_0000.nc']
         self.nemo.buffer_rebuild = mock.Mock()
         self.nemo.buffer_rebuild.return_value = 0
         for fname in myfiles:
@@ -445,6 +465,27 @@ class RebuildTests(unittest.TestCase):
                                   'RUNIDo_icebergs_19980530_restart')
         mock_nl.assert_called_with(os.environ['PWD'],
                                    'RUNIDo_icebergs_19980530_restart',
+                                   2, omp=1)
+        for fname in myfiles:
+            os.remove(fname)
+
+    @mock.patch('nemo.NemoPostProc.rebuild_namelist')
+    def test_rebuild_pattern_tracers(self, mock_nl):
+        '''Test rebuild tracer restarts pattern matching function'''
+        func.logtest('Assert rebuild tracer rsts pattern matching function:')
+        myfiles = ['RUNIDo_19980530_yyyymmdd_field_0000.nc',
+                   'RUNIDo_19980530_restart_0000.nc',
+                   'RUNIDo_19980530_restart_trc_0000.nc',
+                   'RUNIDo_19980530_restart_trc_0001.nc',
+                   'RUNIDo_icebergs_19980530_restart_0000.nc']
+        self.nemo.buffer_rebuild = mock.Mock()
+        self.nemo.buffer_rebuild.return_value = 0
+        for fname in myfiles:
+            open(fname, 'w').close()
+        self.nemo.rebuild_fileset(os.environ['PWD'],
+                                  'RUNIDo_19980530_restart_trc')
+        mock_nl.assert_called_with(os.environ['PWD'],
+                                   'RUNIDo_19980530_restart_trc',
                                    2, omp=1)
         for fname in myfiles:
             os.remove(fname)
@@ -584,7 +625,6 @@ class RebuildTests(unittest.TestCase):
     def test_check_fileformat_10dmean(self):
         '''Test check_fileformat functionality - 10d means'''
         func.logtest('Assert check_fileformat method with 10d means:')
-        self.nemo.suite.prefix = 'RUNID'
         date = ('YYYY', 'MM', '01')
         template = r'RUNIDo_10d_YYYYMM01_YYYYMM10_grid_V.nc'
         with mock.patch('os.rename') as mock_mv:
@@ -598,7 +638,6 @@ class RebuildTests(unittest.TestCase):
     def test_check_fileformat_2dmean(self):
         '''Test check_fileformat functionality - 2d means'''
         func.logtest('Assert check_fileformat method with 2d means:')
-        self.nemo.suite.prefix = 'RUNID'
         date = ('YYYY', 'MM', '05')
         template = r'RUNIDo_2d_YYYYMM05_YYYYMM06_grid_V.nc'
         with mock.patch('os.rename') as mock_mv:
@@ -612,7 +651,6 @@ class RebuildTests(unittest.TestCase):
     def test_check_format_10d_nochange(self):
         '''Test check_fileformat functionality - no change'''
         func.logtest('Assert check_fileformat method with no change:')
-        self.nemo.suite.prefix = 'RUNID'
         with mock.patch('os.rename') as mock_mv:
             self.nemo.check_fileformat('RUNIDo_10d_11112201_11112210_grid_V.nc',
                                        ('1111', '22', '01'), 'type_grid_V')

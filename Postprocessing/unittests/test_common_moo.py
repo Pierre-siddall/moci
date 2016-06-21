@@ -131,6 +131,8 @@ class MooseTests(unittest.TestCase):
             cmd['CURRENT_RQST_NAME'] = 'RUNIDi.restart.YYYY-MM-DD-00000.nc'
         elif 'oi_fail' in self.id():
             cmd['CURRENT_RQST_NAME'] = 'RUNIDo.YYYY-MM-DD-00000.nc'
+        elif 'tracer' in self.id():
+            cmd['CURRENT_RQST_NAME'] = 'RUNIDo_YYYYMMDD_restart_trc.nc'
         os.environ['PREFIX'] = 'PATH/'
         self.inst = moo._Moose(cmd)
 
@@ -236,7 +238,7 @@ class MooseTests(unittest.TestCase):
     def test_collection_oi_fail(self):
         '''Test formation of collection name - invalid ocean/ice file type'''
         func.logtest('test formation of collection name with invalid type:')
-        with self.assertRaises(SystemExit): 
+        with self.assertRaises(SystemExit):
             _ = self.inst._collection()
         self.assertIn('file type not recognised', func.capture('err'))
 
@@ -249,7 +251,14 @@ class MooseTests(unittest.TestCase):
         self.assertEqual(collection, 'onh.nc.file')
         self.assertFalse(self.inst.fl_pp)
 
-    def test_collection_ice_seasonal_mean(self):
+    def test_collection_passive_tracer(self):
+        '''Test formation of collection name - passive tracer'''
+        func.logtest('test formation of collection name with passive tracer:')
+        collection = self.inst._collection()
+        self.assertEqual(collection, 'oda.file')
+        self.assertFalse(self.inst.fl_pp)
+
+    def test_collection_ice_season_mean(self):
         '''Test formation of collection name - CICE seasonal mean'''
         func.logtest('test formation of collection name: CICE seasonal mean:')
         self.inst._model_id = 'i'
@@ -344,6 +353,7 @@ class MooseTests(unittest.TestCase):
 
 
 class PutCommandTests(unittest.TestCase):
+    '''Unit tests relating to the creation of the `moo put` command'''
     @mock.patch('moo._Moose.chkset')
     def setUp(self, mock_chkset):
         cmd = {
