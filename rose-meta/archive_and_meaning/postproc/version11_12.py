@@ -35,6 +35,7 @@ class pp11_t75(rose.upgrade.MacroUpgrade):
                          ["namelist:nemopostproc", "base_component",], '10d')
         return config, self.reports
 
+
 class pp11_t76(rose.upgrade.MacroUpgrade):
 
     """Upgrade macro for ticket #76 by EricaNeininger."""
@@ -46,4 +47,23 @@ class pp11_t76(rose.upgrade.MacroUpgrade):
         self.add_setting(config,
                          ["namelist:nemopostproc",
                           "archive_iceberg_trajectory",], 'false')
+        return config, self.reports
+
+
+class pp11_t37(rose.upgrade.MacroUpgrade):
+
+    """Upgrade macro for ticket #37 by EricaNeininger."""
+    BEFORE_TAG = "pp11_t76"
+    AFTER_TAG = "pp11_t37"
+
+    def upgrade(self, config, meta_config=None):
+        """
+        New options to allow individual fieldsfiles to be converted
+        to pp format at the user's discretion.
+        """
+        self.add_setting(config, ["namelist:archiving",
+                                  "convert_all_streams",], "true")
+        self.add_setting(config, ["namelist:archiving",
+                                  "archive_as_fieldsfiles",], None)
+        
         return config, self.reports

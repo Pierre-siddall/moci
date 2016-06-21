@@ -22,6 +22,11 @@ import os
 
 
 class AtmosNamelist:
+    '''Default Values for atmospostproc namelist'''
+
+    def __init__(self):
+        pass
+
     pp_run = False
     share_directory = os.getcwd()
     debug = False
@@ -33,6 +38,10 @@ class AtmosNamelist:
 
 class Archiving:
     '''UM Atmosphere archiving namelist'''
+
+    def __init__(self):
+        pass
+
     archive_switch = False
     arch_dump_freq = 'Monthly'
     arch_dump_offset = 0
@@ -40,10 +49,16 @@ class Archiving:
     archive_pp = False
     arch_year_month = 1
     convert_pp = True
+    convert_all_streams = True
+    archive_as_fieldsfiles = None
 
 
 class Deletion:
     '''UM Atmosphere file deletion namelist'''
+
+    def __init__(self):
+        pass
+
     del_switch = False
     gcmdel = False
     gpdel = False

@@ -26,7 +26,6 @@ import testing_functions as func
 
 import atmos
 import validation
-import housekeeping
 
 
 class ArchiveDeleteTests(unittest.TestCase):
@@ -35,8 +34,10 @@ class ArchiveDeleteTests(unittest.TestCase):
         self.atmos = atmos.AtmosPostProc()
         self.atmos.suite = mock.Mock()
         self.atmos.suite.logfile = 'logfile'
+        self.atmos.suite.prefix = 'RUNID'
         self.dfiles = ['RUNIDa.YYYYMMDD_00']
-        self.ffiles = ['RUNIDa.paYYYYjan']
+        self.ffiles = ['RUNIDa.paYYYYjan', 'RUNIDa.pb1111jan',
+                       'RUNIDa.pc1111jan', 'RUNIDa.pd1111jan']
 
     def tearDown(self):
         for fname in ['logfile', 'atmospp.nl']:
@@ -55,19 +56,24 @@ class ArchiveDeleteTests(unittest.TestCase):
     def test_do_archive_dump(self):
         '''Test do_archive functionality - dump file'''
         func.logtest('Assert functionality of the do_archive method:')
-#        with mock.patch('atmos.AtmosPostProc.get_marked_files') as mock_mk:
         self.atmos.nl.archiving.archive_dumps = True
         with mock.patch('validation.make_dump_name', return_value=self.dfiles):
             with mock.patch('os.path.exists', return_value=True):
                 with mock.patch('validation.verify_header', return_value=True):
                     self.atmos.do_archive()
-                    validation.make_dump_name.assert_called_once()
-                    validation.verify_header.assert_called_once()
+                    validation.make_dump_name.assert_called_once_with(
+                        self.atmos
+                        )
+                    validation.verify_header.assert_called_once_with(
+                        mock.ANY, os.path.join(os.getcwd(), self.dfiles[0]),
+                        mock.ANY, mock.ANY
+                        )
 
         fnfull = os.path.join(os.getcwd(), self.dfiles[0])
         args, kwargs = self.atmos.suite.archive_file.call_args
         self.assertEqual(args, (fnfull, ))
-        self.assertEqual(sorted(kwargs.keys()), sorted(['debug', 'logfile']))
+        self.assertEqual(sorted(kwargs.keys()),
+                         sorted(['debug', 'preproc', 'logfile']))
 
     def test_do_archive_non_existent(self):
         '''Test do_archive functionality with non-existent dump'''
@@ -81,41 +87,102 @@ class ArchiveDeleteTests(unittest.TestCase):
         self.assertIn('does not exist', func.capture('err'))
         self.assertIn('FILE NOT ARCHIVED', open('logfile', 'r').read())
 
-    def test_do_archive_convert_pp(self):
-        '''Test do_archive functionality - convert fields file to pp format'''
-        func.logtest('Assert functionality of do_archive method - pp file:')
+    @mock.patch('housekeeping.convert_to_pp')
+    def test_do_archive_convertpp_all(self, mock_pp):
+        '''Test do_archive - convert all fields file to pp format'''
+        func.logtest('Assert do_archive conversion to pp - all files:')
+        mock_pp.side_effect = [fn + '.pp' for fn in self.ffiles[1:]]
         self.atmos.nl.archiving.archive_pp = True
-        fnfull = os.path.join(os.getcwd(), self.ffiles[0])
         with mock.patch('atmos.AtmosPostProc.get_marked_files',
-                        return_value=self.ffiles):
+                        return_value=self.ffiles[1:]):
             with mock.patch('os.path.exists', return_value=True):
                 with mock.patch('validation.verify_header', return_value=True):
-                    with mock.patch('housekeeping.convert_to_pp',
-                                    return_value=fnfull + '.pp'):
-                        self.atmos.do_archive()
-                        validation.verify_header.assert_called_once()
-                        self.atmos.get_marked_files.assert_called_once()
+                    self.atmos.do_archive()
 
-        args, _ = self.atmos.suite.archive_file.call_args
-        self.assertEqual(args, (fnfull + '.pp', ))
+        for fname in self.ffiles[1:]:
+            fnfull = os.path.join(os.getcwd(), fname)
+            self.assertIn(mock.call(fnfull, os.getcwd(), mock.ANY),
+                          mock_pp.mock_calls)
+        args, kwargs = self.atmos.suite.archive_file.call_args
+        self.assertEqual(args, (self.ffiles[-1] + '.pp',))
+        self.assertEqual(kwargs['preproc'], True)
 
-    def test_do_archive_no_convert_pp(self):
-        '''Test do_archive functionality - no conversion to pp format'''
-        func.logtest('Assert functionality of do_archive method - pp file:')
+    @mock.patch('housekeeping.convert_to_pp')
+    def test_do_archive_convertpp_sel(self, mock_pp):
+        '''Test do_archive - convert selected fields file to pp format'''
+        func.logtest('Assert do_archive conversion to pp - selected files:')
+        mock_pp.side_effect = [fn + '.pp' for fn in self.ffiles[1:]]
         self.atmos.nl.archiving.archive_pp = True
-        self.atmos.nl.archiving.convert_pp = False
-        fnfull = os.path.join(os.getcwd(), self.ffiles[0])
+        self.atmos.convpp_streams = '^d-f^1'
         with mock.patch('atmos.AtmosPostProc.get_marked_files',
-                        return_value=self.ffiles):
+                        return_value=self.ffiles[1:]):
             with mock.patch('os.path.exists', return_value=True):
                 with mock.patch('validation.verify_header', return_value=True):
-                    with mock.patch('housekeeping.convert_to_pp',
-                                    return_value=fnfull + '.pp'):
-                        self.atmos.do_archive()
-                        housekeeping.convert_to_pp.assert_not_called()
+                    self.atmos.do_archive()
 
+        for fname in self.ffiles[1:]:
+            fnfull = os.path.join(os.getcwd(), fname)
+            if fname == self.ffiles[-1]:
+                self.assertNotIn(mock.call(fnfull, os.getcwd(), mock.ANY),
+                                 mock_pp.mock_calls)
+            else:
+                self.assertIn(mock.call(fnfull, os.getcwd(), mock.ANY),
+                              mock_pp.mock_calls)
         args, _ = self.atmos.suite.archive_file.call_args
-        self.assertEqual(args, (fnfull, ))
+        self.assertEqual(args, (os.path.join(os.getcwd(), self.ffiles[-1]),))
+
+    @mock.patch('housekeeping.convert_to_pp')
+    def test_do_archive_convertpp_none(self, mock_pp):
+        '''Test do_archive - convert all fields file to pp format'''
+        func.logtest('Assert do_archive conversion to pp - all files:')
+        mock_pp.side_effect = [fn + '.pp' for fn in self.ffiles[1:]]
+        self.atmos.nl.archiving.archive_pp = True
+        self.atmos.convpp_streams = '^a-z'
+        with mock.patch('atmos.AtmosPostProc.get_marked_files',
+                        return_value=self.ffiles[1:]):
+            with mock.patch('os.path.exists', return_value=True):
+                with mock.patch('validation.verify_header', return_value=True):
+                    self.atmos.do_archive()
+
+        self.assertEqual(mock_pp.mock_calls, [])
+
+
+class PropertyTests(unittest.TestCase):
+    '''Unit tests relating to the atmosphere property methods'''
+    def setUp(self):
+        self.atmos = atmos.AtmosPostProc()
+        self.atmos.suite = mock.Mock()
+        # self.atmos.suite.logfile = 'logfile'
+        # self.atmos.suite.prefix = 'RUNID'
+        # self.dfiles = ['RUNIDa.YYYYMMDD_00']
+        # self.ffiles = ['RUNIDa.paYYYYjan', 'RUNIDa.pb1111jan',
+        #                'RUNIDa.pc1111jan', 'RUNIDa.pd1111jan']
+
+    def tearDown(self):
+        for fname in ['atmospp.nl']:
+            try:
+                os.remove(fname)
+            except OSError:
+                pass
+
+    def test_convpp_single(self):
+        '''Test _convpp_streams calculation of regular expression - single'''
+        func.logtest('Assert _convpp_streams calculation of regex - single:')
+        self.atmos.nl.archiving.archive_as_fieldsfiles = 'a'
+        self.assertEqual(self.atmos._convpp_streams, '^a')
+
+    def test_convpp_list(self):
+        '''Test _convpp_streams calculation of regular expression - single'''
+        func.logtest('Assert _convpp_streams calculation of regex - single:')
+        self.atmos.nl.archiving.archive_as_fieldsfiles = ['a', '1-2']
+        self.assertEqual(self.atmos._convpp_streams, '^a^1-2')
+
+    def test_convpp_all(self):
+        '''Test _convpp_streams calculation of regular expression - single'''
+        func.logtest('Assert _convpp_streams calculation of regex - single:')
+        for value in [None, '']:
+            self.atmos.nl.archiving.archive_as_fieldsfiles = value
+            self.assertEqual(self.atmos._convpp_streams, 'a-z1-9')
 
 
 def main():

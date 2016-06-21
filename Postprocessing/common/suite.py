@@ -72,15 +72,6 @@ class SuiteEnvironment(object):
         self.archiveOK = True
 
     @property
-    def arch_setname(self):
-        '''Returns the archiving set name (Moose system)'''
-        try:
-            return self.nl_arch.archive_set
-        except AttributeError:
-            msg = 'Archive set name not available - Cannot archive to Moose'
-            utils.log_msg(msg, level=3)
-
-    @property
     def umtask(self):
         return self.nl.umtask_name
 
@@ -165,7 +156,7 @@ class SuiteEnvironment(object):
             msg = 'Calendar not recognised: ' + self.envars.CYLC_CYCLING_MODE
             utils.log_msg('SuiteEnvironment: ' + msg, level=5)
 
-    def __archive_command(self, filename):
+    def __archive_command(self, filename, preproc):
         '''
         Executes the specific archiving system.
         Currently set up only for MOOSE
@@ -175,34 +166,21 @@ class SuiteEnvironment(object):
         if self.nl.archive_command.lower() == 'moose':
             # MOOSE Archiving
             import moo
-            cmd = {
-                'CURRENT_RQST_ACTION': 'ARCHIVE',
-                'CURRENT_RQST_NAME':   filename,
-                'DATAM':               self.sourcedir,
-                'RUNID':               self.arch_setname,
-                'CATEGORY':            'UNCATEGORISED',
-                'DATACLASS':           self.nl_arch.dataclass,
-                'ENSEMBLEID':          self.nl_arch.ensembleid,
-                'MOOPATH':             self.nl_arch.moopath,
-                'PROJECT':             self.nl_arch.mooproject
-            }
-
-            moose_arch_inst = moo.CommandExec()
-            rcode = moose_arch_inst.execute(cmd)[filename]
-
+            rcode = moo.archive_to_moose(filename, self.sourcedir,
+                                         self.nl_arch, preproc)
         else:
             utils.log_msg('Archive command not yet implemented', level=5)
 
         return rcode
 
-    def archive_file(self, archfile, logfile=None, debug=False):
+    def archive_file(self, archfile, logfile=None, preproc=False, debug=False):
         '''Archive file and write to logfile'''
         if debug:
             utils.log_msg('Archiving: ' + archfile, 0)
             log_line = '{} WOULD BE ARCHIVED\n'.format(archfile)
             arch_rcode = 0
         else:
-            arch_rcode = self.__archive_command(archfile)
+            arch_rcode = self.__archive_command(archfile, preproc)
             if arch_rcode == 0:
                 log_line = '{} ARCHIVE OK\n'.format(archfile)
             elif self.nl.archive_command.lower() == 'moose' and \

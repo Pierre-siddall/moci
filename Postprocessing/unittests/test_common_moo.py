@@ -38,7 +38,8 @@ class CommandTests(unittest.TestCase):
             'DATACLASS':           'myclass',
             'ENSEMBLEID':          '',
             'MOOPATH':             '',
-            'PROJECT':             ''
+            'PROJECT':             '',
+            'CONVERTPP':           True
         }
         self.inst = moo.CommandExec()
 
@@ -119,7 +120,8 @@ class MooseTests(unittest.TestCase):
             'DATACLASS':           'myclass',
             'ENSEMBLEID':          '',
             'MOOPATH':             '',
-            'PROJECT':             ''
+            'PROJECT':             '',
+            'CONVERTPP':           True
         }
         if 'iceberg' in self.id():
             cmd['CURRENT_RQST_NAME'] = 'RUNIDo_icebergs_YYYYMMDD_restart.nc'
@@ -192,13 +194,23 @@ class MooseTests(unittest.TestCase):
         self.assertFalse(self.inst.fl_pp)
 
     def test_collection_atmos_pp(self):
-        '''Test formation of collection name - atmosphere mean'''
-        func.logtest('test formation of collection name with atmos mean:')
+        '''Test formation of collection name - atmosphere pp'''
+        func.logtest('test formation of collection name with atmos pp:')
         self.inst._model_id = 'a'
         self.inst._file_id = 'pmYYYYMMDD'
         collection = self.inst._collection()
         self.assertEqual(collection, 'apm.pp')
         self.assertTrue(self.inst.fl_pp)
+
+    def test_collection_atmos_ff(self):
+        '''Test formation of collection name - atmosphere fieldsfile'''
+        func.logtest('test formation of collection name with atmos ffile:')
+        self.inst._model_id = 'a'
+        self.inst._file_id = 'pm'
+        self.inst.convertpp = False
+        collection = self.inst._collection()
+        self.assertEqual(collection, 'apm.file')
+        self.assertFalse(self.inst.fl_pp)
 
     def test_collection_ocean_restart(self):
         '''Test formation of collection name - NEMO restart'''
@@ -277,8 +289,8 @@ class MooseTests(unittest.TestCase):
 
     @mock.patch('utils.exec_subproc')
     def test_putdata_pp_no_convert(self, mock_subproc):
-        '''Test put_data function with fieldsfile'''
-        func.logtest('test put_data function with fieldsfile:')
+        '''Test put_data function with converted fieldsfile'''
+        func.logtest('test put_data function with converted fieldsfile:')
         self.inst._rqst_name = 'RUNIDa.pmTestfile.pp'
         self.inst.fl_pp = True
         mock_subproc.return_value = (0, '')
@@ -287,6 +299,20 @@ class MooseTests(unittest.TestCase):
                 self.inst.put_data()
         cmd = 'moo put -f -vv TestDir/RUNIDa.pmTestfile.pp ' \
             'moose:myclass/runid/apm.pp'
+        mock_subproc.assert_called_with(cmd)
+
+    @mock.patch('utils.exec_subproc')
+    def test_putdata_ff_no_convert(self, mock_subproc):
+        '''Test put_data function with unconverted fieldsfile'''
+        func.logtest('test put_data function with unconverted fieldsfile:')
+        self.inst._rqst_name = 'RUNIDa.pmTestfile'
+        self.inst.fl_pp = False
+        mock_subproc.return_value = (0, '')
+        with mock.patch('moo._Moose._collection', return_value='apm.file'):
+            with mock.patch('os.path.exists', return_value=True):
+                self.inst.put_data()
+        cmd = 'moo put -f -vv TestDir/RUNIDa.pmTestfile ' \
+            'moose:myclass/runid/apm.file'
         mock_subproc.assert_called_with(cmd)
 
     @mock.patch('utils.exec_subproc')
@@ -329,7 +355,8 @@ class PutCommandTests(unittest.TestCase):
             'DATACLASS':           'classname',
             'ENSEMBLEID':          '',
             'MOOPATH':             '',
-            'PROJECT':             ''
+            'PROJECT':             '',
+            'CONVERTPP':           True
             }
         os.environ['PREFIX'] = 'PATH/'
         self.moocmd = 'moo put -f -vv '
@@ -378,6 +405,43 @@ class PutCommandTests(unittest.TestCase):
         archdest = self.archdest.replace('runid/', 'runid/MyEnsemble/')
         outcmd = '{}{} moose:{}'.format(self.moocmd, self.testfile, archdest)
         self.assertIn(outcmd, func.capture())
+
+
+class Utilitytests(unittest.TestCase):
+    '''Tests relating to the moo utility methods'''
+
+    def setUp(self):
+        self.nlist = moo.MooseArch()
+        self.cmd = {
+            'CURRENT_RQST_ACTION': 'ARCHIVE',
+            'CURRENT_RQST_NAME':   'FILE',
+            'DATAM':               'SOURCEDIR',
+            'RUNID':               self.nlist.archive_set,
+            'CATEGORY':            'UNCATEGORISED',
+            'DATACLASS':           self.nlist.dataclass,
+            'ENSEMBLEID':          self.nlist.ensembleid,
+            'MOOPATH':             self.nlist.moopath,
+            'PROJECT':             self.nlist.mooproject,
+            'CONVERTPP':           False
+        }
+
+    def tearDown(self):
+        pass
+
+    @mock.patch('moo.CommandExec.execute')
+    def test_archive_to_moose(self, mock_exec):
+        '''Test call to archive a file to the Moose system'''
+        func.logtest('Assert call to archive file to Moose')
+        moo.archive_to_moose('FILE', 'SOURCEDIR', self.nlist, False)
+        mock_exec.assert_called_with(self.cmd)
+
+    @mock.patch('moo.CommandExec.execute')
+    def test_archive_to_moose_convertpp(self, mock_exec):
+        '''Test call to archive a file to the Moose system'''
+        func.logtest('Assert call to archive file to Moose')
+        self.cmd['CONVERTPP'] = True
+        moo.archive_to_moose('FILE', 'SOURCEDIR', self.nlist, True)
+        mock_exec.assert_called_with(self.cmd)
 
 
 def main():

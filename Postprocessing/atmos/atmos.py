@@ -26,6 +26,7 @@ ENVIRONMENT VARIABLES
     MODELBASIS
 '''
 import os
+import re
 
 from collections import OrderedDict
 
@@ -44,6 +45,7 @@ class AtmosPostProc(control.runPostProc):
     '''
     def __init__(self, input_nl='atmospp.nl'):
         self.nl = nlist.loadNamelist(input_nl)
+        self.convpp_streams = self._convpp_streams
 
         if self.runpp:
             self.suite = suite.SuiteEnvironment(self.share, input_nl)
@@ -101,6 +103,21 @@ class AtmosPostProc(control.runPostProc):
                                                 share_directory)
             return self._share
 
+    @property
+    def _convpp_streams(self):
+        '''
+        Calculate the regular expression required to find files
+        which should be converted to pp format
+        '''
+        fstreams = self.nl.archiving.archive_as_fieldsfiles
+        if fstreams:
+            if isinstance(fstreams, list):
+                fstreams = '^'.join(fstreams)
+            convpp = '^' + fstreams
+        else:
+            convpp = 'a-z1-9'
+        return convpp
+
     def dumpname(self, dumpdate=None):
         if not dumpdate:
             dumpdate = self.suite.cycledt
@@ -138,6 +155,9 @@ class AtmosPostProc(control.runPostProc):
             self.nl.archiving.archive_pp else []
         dumps_to_archive = validation.make_dump_name(self) if \
             self.nl.archiving.archive_dumps else []
+        convert_pattern = re.compile(r'^{}a.[pm][{}]\d{{4}}.*$'.
+                                     format(self.suite.prefix,
+                                            self.convpp_streams))
 
         files_to_archive = []
         for fname in pp_to_archive + dumps_to_archive:
@@ -147,7 +167,8 @@ class AtmosPostProc(control.runPostProc):
                 if validation.verify_header(self.nl.atmospp, fnfull, log_file,
                                             self.suite.envars.
                                             CYLC_TASK_LOG_ROOT):
-                    if self.nl.archiving.convert_pp and fname in pp_to_archive:
+                    if self.nl.archiving.convert_pp and \
+                            convert_pattern.match(fname):
                         # Convert fieldsfiles to pp format
                         fnfull = housekeeping.convert_to_pp(
                             fnfull, self.share, self.nl.atmospp.um_utils
@@ -168,7 +189,12 @@ class AtmosPostProc(control.runPostProc):
             utils.log_msg(msg)
 
             for fname in files_to_archive:
+                if convert_pattern.match(os.path.basename(fname)):
+                    convertpp = True
+                else:
+                    convertpp = False
                 self.suite.archive_file(fname, logfile=log_file,
+                                        preproc=convertpp,
                                         debug=self.nl.atmospp.debug)
         else:
             utils.log_msg(' -> Nothing to archive')

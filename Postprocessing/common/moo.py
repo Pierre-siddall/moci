@@ -38,6 +38,24 @@ import re
 
 import utils
 
+def archive_to_moose(filename, sourcedir, nlist, convertpp):
+    '''Assemble the dictionary of variables required to archive'''
+    cmd = {
+        'CURRENT_RQST_ACTION': 'ARCHIVE',
+        'CURRENT_RQST_NAME':   filename,
+        'DATAM':               sourcedir,
+        'RUNID':               nlist.archive_set,
+        'CATEGORY':            'UNCATEGORISED',
+        'DATACLASS':           nlist.dataclass,
+        'ENSEMBLEID':          nlist.ensembleid,
+        'MOOPATH':             nlist.moopath,
+        'PROJECT':             nlist.mooproject,
+        'CONVERTPP':           convertpp
+        }
+
+    rcode = CommandExec().execute(cmd)[filename]
+    return rcode
+
 
 class _Moose(object):
     """
@@ -46,7 +64,7 @@ class _Moose(object):
     """
     def __init__(self, comms):
         self._rqst_name = comms['CURRENT_RQST_NAME']
-        self._suiteID = comms['RUNID']
+        self._suite_id = comms['RUNID']
         self._sourcedir = comms['DATAM']
         try:
             self._cat = comms['CATEGORY']
@@ -56,6 +74,7 @@ class _Moose(object):
         self._ens_id = comms['ENSEMBLEID']
         self._moopath = comms['MOOPATH']
         self._project = comms['PROJECT']
+        self.convertpp = comms['CONVERTPP']
 
         # Define the collection name
         runid, rqst = re.split('[._]', os.path.basename(self._rqst_name), 1)
@@ -66,7 +85,8 @@ class _Moose(object):
 
     @property
     def dataset(self):
-        return 'moose:' + self._class + "/" + self._suiteID
+        '''Return the path to the Moose dataset'''
+        return 'moose:' + self._class + "/" + self._suite_id
 
     def chkset(self):
         '''Test whether Moose set exists'''
@@ -109,12 +129,16 @@ class _Moose(object):
         the runid in the filename
         """
         ext = ''
+        msg = ''
         model_id = self._model_id
 
         if model_id == 'a':  # Atmosphere output
             file_id = self._file_id[:2]
             if re.search('[mp][1-9|a-m|q|s-z]', file_id):
-                ext = '.pp'
+                if self.convertpp:
+                    ext = '.pp'
+                else:
+                    ext = '.file'
             elif re.search('v[1-5|a-j|lmsvy]', file_id):
                 ext = '.pp'
             elif re.search('n[1-9|a-m|s-z]', file_id):
@@ -140,14 +164,18 @@ class _Moose(object):
                 file_id = 'ni'
             else:
                 msg = 'moo.py - ocean/sea-ice file type not recognised: '
-                utils.log_msg(msg + self._rqst_name, 5)
+                utils.log_msg(msg + self._rqst_name, level=5)
 
         else:
-            msg = 'moo.py - Model id "{}" in filename  not recognised.'.\
+            msg += 'moo.py - Model id "{}" in filename  not recognised.'.\
                 format(model_id)
+
+        if msg or not ext:
+            msg += 'moo.py - Stream ID "{}" does not'.format(file_id)
+            msg += 'meet Moose restrictions for data collection names'
             msg += '\n -> Please contact crum@metoffice.gov.uk ' \
                 'if your requirements are not being met by this script.'
-            utils.log_msg(msg, 5)
+            utils.log_msg(msg, level=5)
 
         self.fl_pp = True if ext == '.pp' else False
         return model_id + file_id + ext

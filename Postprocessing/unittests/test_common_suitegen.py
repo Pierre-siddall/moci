@@ -43,7 +43,7 @@ class SuiteTests(unittest.TestCase):
             ('archive_command="Moose"', None),
             ('/', None),
             ('&moose_arch', None),
-            ('archive_set="SUITENAME"\n/', 'arch_setname'),
+            ('archive_set="SUITENAME"\n/', None),
             ])
         self.myfile = 'input.nl'
         open(self.myfile, 'w').write('\n'.join(self.inputnl.keys()))
@@ -264,7 +264,8 @@ class ArchiveTests(unittest.TestCase):
         func.logtest('File archiving - log using open file:')
         logfile = 'OpenLog'
         with open(logfile, 'w') as fname:
-            rcode = self.mysuite.archive_file('TestFile', fname, True)
+            rcode = self.mysuite.archive_file('TestFile',
+                                              logfile=fname, debug=True)
         self.assertEqual(rcode, 0)
         self.assertIn('TestFile WOULD BE ARCHIVED', open(logfile, 'r').read())
         self.assertFalse(os.path.exists(self.logfile))
