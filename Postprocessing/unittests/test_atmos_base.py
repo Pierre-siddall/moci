@@ -40,7 +40,8 @@ class ArchiveDeleteTests(unittest.TestCase):
                        'RUNIDa.pc1111jan', 'RUNIDa.pd1111jan']
 
     def tearDown(self):
-        for fname in ['logfile', 'atmospp.nl']:
+        for fname in ['logfile', 'atmospp.nl', self.dfiles[0],
+                      self.ffiles[0], self.ffiles[0] + '.pp']:
             try:
                 os.remove(fname)
             except OSError:
@@ -57,17 +58,15 @@ class ArchiveDeleteTests(unittest.TestCase):
         '''Test do_archive functionality - dump file'''
         func.logtest('Assert functionality of the do_archive method:')
         self.atmos.nl.archiving.archive_dumps = True
+        open(self.dfiles[0], 'w').close()
         with mock.patch('validation.make_dump_name', return_value=self.dfiles):
-            with mock.patch('os.path.exists', return_value=True):
-                with mock.patch('validation.verify_header', return_value=True):
-                    self.atmos.do_archive()
-                    validation.make_dump_name.assert_called_once_with(
-                        self.atmos
-                        )
-                    validation.verify_header.assert_called_once_with(
-                        mock.ANY, os.path.join(os.getcwd(), self.dfiles[0]),
-                        mock.ANY, mock.ANY
-                        )
+            with mock.patch('validation.verify_header', return_value=True):
+                self.atmos.do_archive()
+                validation.make_dump_name.assert_called_once_with(self.atmos)
+                validation.verify_header.assert_called_once_with(
+                    mock.ANY, os.path.join(os.getcwd(), self.dfiles[0]),
+                    mock.ANY, mock.ANY
+                    )
 
         fnfull = os.path.join(os.getcwd(), self.dfiles[0])
         args, kwargs = self.atmos.suite.archive_file.call_args
@@ -146,17 +145,26 @@ class ArchiveDeleteTests(unittest.TestCase):
 
         self.assertEqual(mock_pp.mock_calls, [])
 
+    def test_do_archive_tidy_pp(self):
+        '''Test do_archive functionality - tidy up ppfiles left on disk'''
+        func.logtest('Assert do_archive method - tidy left over ppfile:')
+        self.atmos.nl.archiving.archive_pp = True
+        fnfull = os.path.join(os.getcwd(), self.ffiles[0])
+        open(fnfull + '.pp', 'w').close()
+        with mock.patch('atmos.AtmosPostProc.get_marked_files',
+                        return_value=self.ffiles):
+            self.atmos.do_archive()
+            self.assertEqual(len(self.atmos.get_marked_files.mock_calls), 1)
+
+        args, _ = self.atmos.suite.archive_file.call_args
+        self.assertEqual(args, (fnfull + '.pp', ))
+
 
 class PropertyTests(unittest.TestCase):
     '''Unit tests relating to the atmosphere property methods'''
     def setUp(self):
         self.atmos = atmos.AtmosPostProc()
         self.atmos.suite = mock.Mock()
-        # self.atmos.suite.logfile = 'logfile'
-        # self.atmos.suite.prefix = 'RUNID'
-        # self.dfiles = ['RUNIDa.YYYYMMDD_00']
-        # self.ffiles = ['RUNIDa.paYYYYjan', 'RUNIDa.pb1111jan',
-        #                'RUNIDa.pc1111jan', 'RUNIDa.pd1111jan']
 
     def tearDown(self):
         for fname in ['atmospp.nl']:

@@ -176,6 +176,11 @@ class AtmosPostProc(control.runPostProc):
                     files_to_archive.append(fnfull)
                 else:
                     self.suite.archiveOK = False
+
+            elif os.path.exists(fnfull + '.pp'):
+                # Tidy up any ppfiles left from previous failed archive attempts
+                files_to_archive.append(fnfull + '.pp')
+
             else:
                 msg = 'File {} does not exist - cannot archive'.format(fnfull)
                 utils.log_msg(msg, level=3)
