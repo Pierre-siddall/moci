@@ -67,6 +67,7 @@ Available groups: \n\t{}'''.format('\n\t'.join(subgroups)),
     else:
         testgroup = ['all']
 
+    rtn_code = 0
     for grp in testgroup:
         try:
             test_suite = unittest.TestLoader().\
@@ -76,8 +77,10 @@ Available groups: \n\t{}'''.format('\n\t'.join(subgroups)),
             print '[ERROR] UnitTest - Unknown group: {}.  See help'.format(grp)
             continue
         print '[INFO] Running test group: {}'.format(grp)
-        unittest.TextTestRunner(buffer=True).run(test_suite)
+        test_rtn = unittest.TextTestRunner(buffer=True).run(test_suite)
+        rtn_code += len(test_rtn.failures) + len(test_rtn.errors)
 
+    exit(rtn_code)
 
 if __name__ == '__main__':
     main()

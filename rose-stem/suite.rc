@@ -1,6 +1,7 @@
 #!jinja2
 
 {% set TASK_RUN = 'rose task-run --verbose' %}
+{% set PP_CYCLES = range(110,113)|list + range(201,213)|list + [301,]|list %}
 
 [cylc]
     [[event hooks]]
@@ -30,7 +31,31 @@
         "fcm_make_xiosScript_remote => fcm_make2_xiosScript_remote => xbs_unitTests  => buildOasis => buildXios => buildNemo 
          buildNemo => testNemo => validate_nemo => housekeeping_nemo
          fcm_make_xiosScript_local => validate_nemo
-         fcm_make_xiosScript_local =>validation_prepare => testNemo",    
+         fcm_make_xiosScript_local =>validation_prepare => testNemo",
+
+    "test_postproc" :
+        "fcm_make_pp => coupled_dummy_19811001 => postproc_19811001 & coupled_dummy_19811101
+         coupled_dummy_19811101 => postproc_19811101 & coupled_dummy_19811201
+         coupled_dummy_19811201 => postproc_19811201 & coupled_dummy_19820101
+         coupled_dummy_19820101 => postproc_19820101 & coupled_dummy_19820201
+         coupled_dummy_19820201 => postproc_19820201 & coupled_dummy_19820301
+         coupled_dummy_19820301 => postproc_19820301 & coupled_dummy_19820401
+         coupled_dummy_19820401 => postproc_19820401 & coupled_dummy_19820501
+         coupled_dummy_19820501 => postproc_19820501 & coupled_dummy_19820601
+         coupled_dummy_19820601 => postproc_19820601 & coupled_dummy_19820701
+         coupled_dummy_19820701 => postproc_19820701 & coupled_dummy_19820801
+         coupled_dummy_19820801 => postproc_19820801 & coupled_dummy_19820901
+         coupled_dummy_19820901 => postproc_19820901 & coupled_dummy_19821001
+         coupled_dummy_19821001 => postproc_19821001 & coupled_dummy_19821101
+         coupled_dummy_19821101 => postproc_19821101 & coupled_dummy_19821201
+         coupled_dummy_19821201 => postproc_19821201 & coupled_dummy_19830101
+         coupled_dummy_19830101 => postproc_19830101 => pp_verify => housekeeping_pp
+         postproc_19811001 => postproc_19811101 => postproc_19811201 => postproc_19820101 => \
+postproc_19820201 => postproc_19820301 => postproc_19820401 => postproc_19820501 => \
+postproc_19820601 => postproc_19820701 => postproc_19820801 => postproc_19820901 => \
+postproc_19821001 => postproc_19821101 => postproc_19821201 => postproc_19830101
+         fcm_make_pp => pp_unittests",
+
     "default" : "default_task"
     }
 -%}
@@ -42,7 +67,6 @@
     "NEMO_BUILD"    : ["build_ocean34_safe","build_ocean34_high"],
     "XBS_ALL"       : ["test_oasis", "test_xios",  "test_nemo_gyre"],
     "xios_and_nemo" : ["test_xios",  "test_nemo_gyre"],
-    
     }
 %}
 
@@ -125,7 +149,7 @@ export FCM_VERSION={{FCM_VERSION}}
     [[default_task]]
         inherit = LINUX
         command scripting = "echo [ERROR] Please select a valid group within the test suite to test the component that has been modified >&2; exit 1"
-    [[housekeeping]]
+    [[HOUSEKEEPING]]
 {%- if HOUSEKEEPING == true %}
         command scripting = "rose task-run --verbose"
 {%- else %}
@@ -165,6 +189,8 @@ export FCM_VERSION={{FCM_VERSION}}
             -l walltime=00:10:00
             -l ncpus=6
             -q = shared
+    [[fcm_make_pp]]
+        inherit = LINUX
     [[NEMO_CICE_34_16x32]]
         inherit = XC40,NEMO_16x32
         pre-command scripting = "module load cray-netcdf"
@@ -202,11 +228,11 @@ export FCM_VERSION={{FCM_VERSION}}
         [[[environment]]]
             ROSE_TASK_APP = rose_ana_nemo_cice_34_16x32_high
     [[housekeep_nemo_cice_34_safe]]
-        inherit = XC40_serial,housekeeping
+        inherit = XC40_serial,HOUSEKEEPING
         [[[environment]]]
             RUNDIR=../nemo_cice_34_16x32_safe
     [[housekeep_nemo_cice_34_high]]
-        inherit = XC40_serial,housekeeping
+        inherit = XC40_serial,HOUSEKEEPING
         [[[environment]]]
             RUNDIR=../nemo_cice_34_16x32_high
             
@@ -567,23 +593,60 @@ module load XIOS-PrgEnv/{{XIOS_PRGENV_VERSION}}/{{ROSE_SUITE_REV_NO}}
             NEMO_REMOTE_RESULT_DIR=$(rose host-select {{HOST_XC40}} ):cylc-run/$CYLC_SUITE_NAME/share/data/{{NEMO}}
 
     [[housekeeping_xios]]
-        inherit=None, XBS, XC40_serial, housekeeping, 
+        inherit=None, XBS, XC40_serial, HOUSEKEEPING, 
         [[[environment]]]
             RUNDIR=../testXios
 
     [[housekeeping_nemo]]
-        inherit=None, XBS, XC40_serial, housekeeping, 
+        inherit=None, XBS, XC40_serial, HOUSEKEEPING, 
         [[[environment]]]
             RUNDIR=../testNemo
 
     [[housekeeping_oasis]]
-        inherit=None, XBS, XC40_serial, housekeeping, 
+        inherit=None, XBS, XC40_serial, HOUSEKEEPING, 
         [[[environment]]]
             RUNDIR=../testOasis
     
+    [[POSTPROC]]
+        pre-command scripting = "ulimit -s unlimited"
+        inherit=None, LINUX
+        [[[environment]]]
+            ROSE_TASK_APP = postproc
+	    RUNID      = hg3es
+	    MODELBASIS = 1981,10,1,0,0,0
+            DATAM      = $CYLC_SUITE_SHARE_DIR/data/postproc/ATMOSdata
+            NEMO_DATA  = $CYLC_SUITE_SHARE_DIR/data/postproc/NEMOdata
+            CICE_DATA  = $CYLC_SUITE_SHARE_DIR/data/postproc/CICEdata
 
-        
+    [[PP_COUPLED_DUMMY]]
+        inherit = None, POSTPROC
+        [[[environment]]]
+            ROSE_TASK_APP = pp_coupled_dummy
 
-            
-     
+{%- for cycle in PP_CYCLES %}
+{%- set CYCLEPOINT = '198%s01T0000Z' % (cycle) %}
+    [[{{'postproc_198%s01' % (cycle)}}]]
+        inherit=None, POSTPROC
+        [[[environment]]]
+            CYCLEPOINT_OVERRIDE = {{ CYCLEPOINT }}
+  {%- if cycle == 301 %}
+            ROSE_APP_OPT_CONF_KEYS = finalcycle
+  {%- endif %}
+
+    [[{{'coupled_dummy_198%s01' % (cycle)}}]]
+        inherit=None, PP_COUPLED_DUMMY
+	[[[environment]]]
+            CYCLEPOINT = {{ CYCLEPOINT }}
+{%- endfor %}
+
+    [[pp_verify]]
+        inherit = None, LINUX
+
+   [[pp_unittests]]
+        inherit = None, LINUX
+	script = 'python2.7 $CYLC_SUITE_SHARE_DIR/fcm_make_pp/build/bin/test_postproc.py'
     
+    [[housekeeping_pp]]
+        inherit=None, LINUX, HOUSEKEEPING 
+        [[[environment]]]
+            RUNDIR="$CYLC_SUITE_SHARE_DIR/data/postproc $CYLC_SUITE_WORK_DIR/1/fcm_make_pp $CYLC_SUITE_WORK_DIR/1/postproc_* $CYLC_SUITE_WORK_DIR/1/pp_* $CYLC_SUITE_WORK_DIR/1/housekeeping_pp $CYLC_SUITE_WORK_DIR/1/coupled_dummy_*"

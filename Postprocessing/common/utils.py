@@ -41,17 +41,18 @@ def loadEnv(*envars, **append):
         try:
             setattr(container, var, os.environ[var])
         except KeyError:
-            noFail = {
+            no_fail = {
                 'ARCHIVE_FINAL': 'ARCHIVE_FINAL=False',
-                'CYLC_TASK_CYCLE_POINT': 'Pre-Cylc 6 environment identified'
+                'CYLC_TASK_CYCLE_POINT': 'Pre-Cylc 6 environment identified',
+                'CYCLEPOINT_OVERRIDE': '',
                 }
-            if var in noFail.keys():
-                msg = noFail[var]
+            if var in no_fail.keys():
+                msg = no_fail[var]
                 level = 1
             else:
                 msg = 'LoadEnv: Unable to find environment variable: ' + var
                 level = 5
-            log_msg(msg, level)
+            log_msg(msg, level=level)
 
     return container
 
@@ -188,6 +189,8 @@ def add_period_to_date(indate, delta, lcal360=True):
     try:
         # Cylc6.0 ->
         cal = os.environ['CYLC_CYCLING_MODE']
+        if cal.lower() == 'integer':
+            cal = '360day' if lcal360 else 'gregorian'
     except KeyError:
         # 'Pre Cylc6.0...'
         cylc6 = False

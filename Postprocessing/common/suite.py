@@ -59,6 +59,7 @@ class SuiteEnvironment(object):
 
         self.envars = utils.loadEnv('CYLC_TASK_CYCLE_POINT',
                                     'CYLC_CYCLING_MODE',
+                                    'CYCLEPOINT_OVERRIDE',
                                     append=self.envars)
         if hasattr(self.envars, 'CYLC_TASK_CYCLE_POINT'):
             self.cylc6 = True
@@ -94,8 +95,13 @@ class SuiteEnvironment(object):
             cyclestring = self._cyclestring
         except AttributeError:
             if self.cylc6:
+                try:
+                    # Required for Single Cycle suites
+                    cyclepoint = self.envars.CYCLEPOINT_OVERRIDE
+                except AttributeError:
+                    cyclepoint = self.envars.CYLC_TASK_CYCLE_POINT
                 match = re.search('(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})Z',
-                                  self.envars.CYLC_TASK_CYCLE_POINT)
+                                  cyclepoint)
             else:
                 match = re.search('(\d{4})(\d{2})(\d{2})(\d{2})',
                                   self.envars.CYLC_TASK_CYCLE_TIME)
@@ -143,7 +149,9 @@ class SuiteEnvironment(object):
         days_per_month = {
             '360day': [None,] + [30,]*12,
             '365day': [None, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
-            'gregorian': [None, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+            'gregorian': [None, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
+            # "integer" required for rose-stem testing mode only - assumes 360day test
+            'integer': [None,] + [30,]*12,
             }
 
         date = self.cycledt

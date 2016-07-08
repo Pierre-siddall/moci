@@ -81,6 +81,10 @@ class ExecTests(unittest.TestCase):
 
     def tearDown(self):
         try:
+            os.remove('TestDir/MyFile')
+        except OSError:
+            pass
+        try:
             os.rmdir('TestDir')
         except OSError:
             pass
@@ -145,12 +149,11 @@ class ExecTests(unittest.TestCase):
         '''Test exec_subproc functionality for running commands in
         an alternative location'''
         func.logtest('Subprocess command run in an alternative location:')
-        cwd = os.path.dirname(os.path.abspath(
-            os.path.dirname(__file__)))+'/common'
-        rcode, output = utils.exec_subproc('ls', cwd=cwd, verbose=False)
+        os.mkdir('TestDir')
+        open('TestDir/MyFile', 'w').close()
+        rcode, output = utils.exec_subproc('ls', cwd='TestDir', verbose=False)
         self.assertEqual(rcode, 0)
-        self.assertIn('utils.py', output)
-
+        self.assertIn('MyFile', output)
 
 class LogTests(unittest.TestCase):
     '''Unit tests for logging output messages'''
