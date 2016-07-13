@@ -15,46 +15,38 @@ import os
 import subprocess
 
 import CrayXc40Common
-import OasisCommon
-import XiosCommon
 
-[SCRIPT_DIR, LIB_DIR, SCRIPT_ENV] = CrayXc40Common.setup_path_to_scripts()
+DIR_DICT, SCRIPT_ENV = CrayXc40Common.setup_path_to_scripts()
 
-class XiosBuildCraySettings(CrayXc40Common.CrayXc40CommonSettings,
-                            OasisCommon.OasisCommonSettings,
-                            XiosCommon.XiosCommonSettings):
-    """
-    Class to contain settings for running XIOS build manual script.
-    """
-    def __init__(self):
-        CrayXc40Common.CrayXc40CommonSettings.__init__(self)
-        OasisCommon.OasisCommonSettings.__init__(self)
-        XiosCommon.XiosCommonSettings.__init__(self)
-
-        self.working_dir = os.getcwd()
-        self.XIOS_DO_CLEAN_BUILD = 'true'
-        self.XIOS_POST_BUILD_CLEANUP = 'false'
-        self.USE_OASIS = 'true'
-        self.BUILD_PATH = os.path.join(self.working_dir,
-                                       'install')
-        self.MTOOLS = ''
-        self.XIOS_NUM_CORES = '8'
-        self.XIOS_EXTERNAL_REPO_URL = \
-            'http://forge.ipsl.jussieu.fr/ioserver/svn/XIOS/trunk'
+import unit_test_common
+import XiosBuildSystem
 
 def main():
     """
     Main function for running XIOS build manual script.
     """
-    build_settings1 = XiosBuildCraySettings()
     env_vars = SCRIPT_ENV.copy()
-    env_vars.update(build_settings1.__dict__)
+    system_name = XiosBuildSystem.XiosCrayBuildSystem.SYSTEM_NAME
+    settings_dict = unit_test_common.get_settings(['oasis3-mct',
+                                                   'XIOS',
+                                                   'XIOS-app'],
+                                                  DIR_DICT['settings'],
+                                                  system_name)
+    env_vars.update(settings_dict)
 
     exec_name1 = 'xios_build'
 
     cmd1 = ''
-    for module_path in build_settings1.XBS_PREREQ_MODULES.split(','):
+    if settings_dict['XBS_SPECIFY_COMPILER_PRGENV'] == 'true':
+        compiler_module = settings_dict['XBS_COMPILER_PRGENV']
+        cmd1 += 'module swap PrgEnv-cray {0}\n'.format(compiler_module)
+    
+    prereq_str = ''.join([s1 for s1 in settings_dict['XBS_PREREQ_MODULES']
+                          if "'[] ".count(s1) == 0])
+    prereq_mod_list = prereq_str.split(',')
+    for module_path in prereq_mod_list:
         cmd1 += 'module load {0}\n'.format(module_path)
+
     cmd1 += '''
 module use $MODULE_INSTALL_PATH/modules
 module load $OASIS3_MCT/$OASIS_MODULE_VERSION/$ROSE_SUITE_REV_NO/$OASIS_REV_NO

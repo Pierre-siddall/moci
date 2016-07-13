@@ -1,4 +1,4 @@
-XIOS build and test scripts README document
+XIOS/Oasis3-mct build and test scripts README document
 
 Overview
 ========
@@ -31,14 +31,17 @@ The scripts are written in Python. The code is structured as follows
 * lib directory - contains most of the core code. These fall into 4 categories:
  * common.py, EnvironmentModules.py - contains common classes and functions
  * *BuildSystem.py - Contains classes for build Oasis3-mct, XIOS & NEMO
- * *TestSystem.py -  Contains classes for testing the libraries & executables that
+ * *TestSystem.py -  Contains classes for testing the libraries & executables
                      that have been built.
- * *ModuleWriter.py - Classes to write environment modules for Oasis3-mct and XIOS.
+ * *ModuleWriter.py - Classes to write environment modules for Oasis3-mct 
+                      and XIOS.
 * testing  - contains unit tests for the build & test scripts. See 
              "Testing the scripts" section for more info on running tests.
 * testing/manual - Contains setup scripts for use by developers to run the 
                    build and test scripts individually. See "Running the 
                    scripts" for more info.
+* testing/settings  - Contains settings used by the unit tests and manual 
+                      test scripts
 * validation - contains small scripts used by rose-stem test suite to validate 
                the output of the tests.
 
@@ -47,9 +50,15 @@ Running the scripts
 The scripts can be run individually or as part of a rose suite.
 
 The intended way of running these scripts is as part of a rose suite. To test
-the scripts there is a rose stem test as part of the build scripts. To run rose 
-stem you run the command "rose stem --group=XBS_ALL". This will run the complete 
-test suite. 
+the scripts there is a rose stem test as part of the build scripts. To run the 
+complete test suite using rose stem use the following command:
+
+rose stem --group=XBS_ALL --opt-conf-key=SYSTEM_NAME
+
+where SYSTEM_NAME is the name of the platform you are running on. Each file in 
+the opt sub-directory of the rose-stem directory represents an available. 
+Alternatively the --opt-conf-key can be ommitted and the rose-suite.conf can be 
+be configured accordingly.
 
 There is also a standalone suite intended to be used for deploying the 
 libraries. The suite can be found in roses section of the Met Office Science
@@ -94,6 +103,3 @@ the following scripts should be run:
 * testing/manual/crayxc40/run_xios_test
 * testing/manual/crayxc40/run_nemo_build
 * testing/manual/crayxc40/run_nemo_test
-
-
-

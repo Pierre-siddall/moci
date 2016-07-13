@@ -75,7 +75,8 @@ def main():
                               'will not be created.')
         return
 
-    build_system = OasisBuildSystem.create_build_system(system_name)
+    build_system = OasisBuildSystem.create_build_system(system_name,
+                                                        os.environ)
     sys.stdout.write(str(build_system) + '\n')
     build_system.run_build()
 

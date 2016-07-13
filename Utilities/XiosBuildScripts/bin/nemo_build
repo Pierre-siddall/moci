@@ -35,7 +35,8 @@ def main():
     Main function for script.
     """
     system_name = os.environ['SYSTEM_NAME']
-    build_system = NemoBuildSystem.create_nemo_build_system(system_name)
+    build_system = NemoBuildSystem.create_nemo_build_system(system_name,
+                                                            os.environ)
     build_system.run_build()
 
 if __name__ == '__main__':

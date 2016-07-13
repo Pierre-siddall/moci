@@ -14,61 +14,35 @@ import os
 import subprocess
 
 import CrayXc40Common
-import OasisCommon
-import XiosCommon
-import NemoCommon
 
-[SCRIPT_DIR, LIB_DIR, SCRIPT_ENV] = CrayXc40Common.setup_path_to_scripts()
+DIR_DICT, SCRIPT_ENV = CrayXc40Common.setup_path_to_scripts()
 
+import NemoBuildSystem
 import XiosModuleWriter
-
-class NemoBuildCraySettings(CrayXc40Common.CrayXc40CommonSettings,
-                            OasisCommon.OasisCommonSettings,
-                            XiosCommon.XiosCommonSettings,
-                            NemoCommon.NemoCommonSettings):
-    """
-    Class to contain settings for running nemo build manual script.
-    """
-    def __init__(self):
-        CrayXc40Common.CrayXc40CommonSettings.__init__(self)
-        OasisCommon.OasisCommonSettings.__init__(self)
-        XiosCommon.XiosCommonSettings.__init__(self)
-        NemoCommon.NemoCommonSettings.__init__(self)
-
-        self.NEMO_SRC_LOCATION_TYPE = 'URL'
-        self.NEMO_REPO_URL = 'svn://fcm3/NEMO.xm_svn/branches/dev/shaddad/' \
-                             'r5643_buildWithOasisNoKeys/NEMOGCM'
-        self.NEMO_REV = '5648'
-        self.USE_OASIS = 'true'
-        self.JP_CFG = '50'
-        self.BUILD_PATH = os.path.join(os.getcwd(),
-                                       'install')
-        self.NEMO_POST_BUILD_CLEANUP = 'false'
-
-
+import unit_test_common
 
 def main():
     """
     Main function for running nemo build manual script.
     """
-    build_settings1 = NemoBuildCraySettings()
-
     env_vars = SCRIPT_ENV.copy()
-    env_vars.update(build_settings1.__dict__)
+    system_name = NemoBuildSystem.NemoCrayXC40BuildSystem.SYSTEM_NAME
+    settings_dict = unit_test_common.get_settings(['NEMO',
+                                                   'XIOS-app'],
+                                                  DIR_DICT['settings'],
+                                                  system_name)
+    env_vars.update(settings_dict)
 
     exec_name1 = 'nemo_build'
 
     cmd1 = '''module use $MODULE_INSTALL_PATH/modules
-module load {XIOS_PRGENV}/{XIOS_PRGENV_MOD_VER}
-{EXEC}'''
+module load {XIOS_PRGENV}/{XIOS_PRGENV_VERSION}/{ROSE_SUITE_REV_NO}
+module list
+{EXEC}'''.format(
+    EXEC=exec_name1,
+    XIOS_PRGENV=XiosModuleWriter.XiosPrgEnvWriter.XIOS_PRGENV_NAME,
+    **settings_dict)
 
-    cmd1 = cmd1.format(
-        EXEC=exec_name1,
-        XIOS_PRGENV=XiosModuleWriter.XiosPrgEnvWriter.XIOS_PRGENV_NAME,
-        XIOS_PRGENV_MOD_VER=build_settings1.XIOS_PRGENV_VERSION)
-
-
-    cmd1 = cmd1.format(EXEC=exec_name1)
     subprocess.call(cmd1,
                     env=env_vars,
                     shell=True)

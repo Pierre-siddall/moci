@@ -5,112 +5,134 @@ Unit test module to test Oasis-3mct build scripts.
 import unittest
 import os
 import filecmp
+import abc
+
+# this must be imported before the other local imports as it sets up the path
+# to import the main scripts
+import unit_test_common
 
 import OasisBuildSystem
 import OasisModuleWriter
+import common
 
+class OasisBuildTests(unittest.TestCase):
+    """
+    Base class for testing functions in the Oasis build classes.
+    """
 
-class OasisBuildCrayTests(unittest.TestCase):
-    """
-    Class for testing functions in the Oasis Cray build class.q
-    """
+    CONFIG_LIST = ['oasis3-mct', 'oasis3-mct-app']
+    @abc.abstractmethod
+    def get_system_name(self):
+        """
+        Get the build system name
+        """
+        pass
+
     def setUp(self):
         """
-        Setup Oasis Cray build tests.
+        Setup Oasis build tests.
         """
-        self.working_dir = os.getcwd()
-        settings_dict = {}
-        self.system_name = 'UKMO_CRAY_XC40'
-        settings_dict['SYSTEM_NAME'] = self.system_name
-        self.library_name = 'oasis3-mct'
-        settings_dict['OASIS3_MCT'] = self.library_name
-        settings_dict['BUILD_OASIS'] = 'true'
-        settings_dict['OASIS_DIR'] = '{0}/install/{1}'.format(self.working_dir,
-                                                              self.library_name)
 
-        settings_dict['OASIS_SRC_LOCATION_TYPE'] = 'URL'
-        settings_dict['OASIS_MAKE_FILE_NAME'] = 'make.cray_xc40_mo'
+        self.system_name = self.get_system_name()
+        self.config_list = OasisBuildTests.CONFIG_LIST
+        self.settings_dir = unit_test_common.get_settings_dir()
 
-        self.oasis_repository_url = \
-            'svn://fcm2/PRISM_svn/OASIS3_MCT/branches/dev/shaddad/'\
-            'r1267_GC3_projOceanTutorial/oasis3-mct'
-
-        settings_dict['OASIS_REPO_URL'] = self.oasis_repository_url
-        settings_dict['OASIS_REV_NO'] = '1327'
-        settings_dict['OASIS_SEPARATE_MAKEFILE'] = 'false'
-        settings_dict['OASIS_SEPARATE_TUTORIAL'] = 'false'
-
-        self.external_repo_url = 'http://server.name/path/to/repository'
-        self.external_rev_no = '1234'
-        settings_dict['OASIS_EXTERNAL_REPO_URL'] = self.external_repo_url
-        settings_dict['OASIS_EXTERNAL_REV_NO'] = self.external_rev_no
-        settings_dict['ROSE_SUITE_URL'] = 'path/to/repository'
-        settings_dict['ROSE_SUITE_REV_NO'] = '1234'
+        settings_dict = unit_test_common.get_settings(self.config_list,
+                                                      self.settings_dir,
+                                                      self.system_name)
 
 
-        settings_dict['OASIS_PLATFORM_NAME'] = 'crayxc40'
-        self.verbose = True
-        if self.verbose:
-            settings_dict['VERBOSE'] = 'true'
-        else:
-            settings_dict['VERBOSE'] = 'false'
-        settings_dict['DEPLOY_AS_MODULE'] = 'true'
-        settings_dict['MODULE_INSTALL_PATH'] = \
-            '{0}/modules'.format(self.working_dir)
-        settings_dict['OASIS_MODULE_VERSION'] = '1.0'
-        settings_dict['XBS_PREREQ_MODULES'] =\
-            "['cray-hdf5-parallel/1.8.13',"\
-            "'cray-netcdf-hdf5parallel/4.3.2']"
+        self.library_name = settings_dict['OASIS3_MCT']
+        self.oasis_repository_url = settings_dict['OASIS_REPO_URL']
+        try:
+            self.external_repo_url = settings_dict['OASIS_EXTERNAL_REPO_URL']
+            self.external_rev_no = settings_dict['OASIS_EXTERNAL_REV_NO']
+        except KeyError:
+            self.external_repo_url = 'http://server/path/to/repository'
+            settings_dict['OASIS_EXTERNAL_REPO_URL'] = self.external_repo_url
+            self.external_rev_no = '1234'
+            settings_dict['OASIS_EXTERNAL_REV_NO'] = self.external_rev_no
 
+        self.verbose = settings_dict['VERBOSE'] == 'true'
 
-        self.build_system = OasisBuildSystem.OasisCrayBuildSystem(settings_dict)
+        self.build_system = \
+            OasisBuildSystem.create_build_system(self.system_name,
+                                                 settings_dict)
 
     def tearDown(self):
         """
-        Cleanup after Oasis3-mct cray build tests
+        Cleanup after Oasis3-mct build tests
         """
         self.build_system = None
 
     def test_setup(self):
         """
-        Test setup of OasisCrayBuildSystem object
+        Test setup of OasisBuildSystem derived objects
         """
-        err_msg1 = 'Input parameters do not match'
+        err_msg1 = 'Input parameters {0} do not match, {1} != {2}'
         self.assertEqual(self.verbose,
                          self.build_system.verbose,
-                         err_msg1)
+                         err_msg1.format('verbose',
+                                         self.verbose,
+                                         self.build_system.verbose))
         self.assertEqual(self.system_name,
                          self.build_system.system_name,
-                         err_msg1)
-        self.assertEqual(self.oasis_repository_url,
-                         self.build_system.oasis_repository_url,
-                         err_msg1)
+                         err_msg1.format('system_name',
+                                         self.system_name,
+                                         self.build_system.system_name))
+        self.assertEqual(\
+            self.oasis_repository_url,
+            self.build_system.oasis_repository_url,
+            err_msg1.format('oasis_repository_url',
+                            self.oasis_repository_url,
+                            self.build_system.oasis_repository_url))
 
     def test_code_extraction(self):
         """
         Test the OasisBuildSystem.extract_source_code() function.
         """
         self.build_system.extract_source_code()
-        script_file_path = '{working_dir}/{fileName}'
-        script_file_path = script_file_path.format(
-            working_dir=self.build_system.working_dir,
-            fileName=OasisBuildSystem.EXTRACT_SCRIPT_FILE_NAME)
-        self.assertTrue(os.path.exists(script_file_path),
-                        'script file {0} not found!'.format(script_file_path))
-        # compare contents to reference file
-        ref_file_path = '{0}/oasisBuild_cray_reference_extractScript.sh'
-        ref_file_path = ref_file_path.format(os.getcwd())
+        #only check extract script if using a repository URL
+        if self.build_system.source_code_location_type == 'URL':
+            script_file_path = '{working_dir}/{fileName}'
+            script_file_path = script_file_path.format(
+                working_dir=self.build_system.working_dir,
+                fileName=OasisBuildSystem.EXTRACT_SCRIPT_FILE_NAME)
+            self.assertTrue(
+                os.path.exists(script_file_path),
+                'script file {0} not found!'.format(script_file_path))
+            # compare contents to reference file
+            ref_file_path = '{0}/oasisBuild_{1}_reference_extractScript.sh'
+            ref_file_path = ref_file_path.format(self.build_system.working_dir,
+                                                 self.system_name)
 
-        ref_file_str = 'fcm co {oasis_repository_url}@{oasis_revision_number} '\
-                     '{oasis_src_dir}\n'
-        ref_file_str = ref_file_str.format(**self.build_system.__dict__)
+            ref_file_str = \
+                'fcm co {oasis_repository_url}@{oasis_revision_number} '\
+                '{oasis_src_dir}\n'
 
-        with open(ref_file_path, 'w') as ref_file:
-            ref_file.write(ref_file_str)
-        self.assertTrue(filecmp.cmp(script_file_path,
-                                    ref_file_path),
-                        'script file {0} not identical to reference file {1}'
-                        .format(script_file_path, ref_file_path))
+            if self.build_system.separate_make_file:
+                ref_file_str += \
+                    'fcm export {make_config_repo_url}'\
+                    '/{make_config_file_name}@{make_config_rev_no}'\
+                    ' {oasis_src_dir}/util/make_dir/'\
+                    '{make_config_file_name}\n'
+            if self.build_system.build_tutorial and \
+                self.build_system.separate_tutorial_location:
+                ref_file_str += \
+                    'rm -rf {oasis_src_dir}/examples/tutorial/\n'
+                ref_file_str += \
+                    'fcm export {tutorial_repository_url}@'\
+                    '{tutorial_revision_number} '\
+                    '{oasis_src_dir}/examples/tutorial/ \n'
+
+            ref_file_str = ref_file_str.format(**self.build_system.__dict__)
+
+            with open(ref_file_path, 'w') as ref_file:
+                ref_file.write(ref_file_str)
+            self.assertTrue(filecmp.cmp(script_file_path,
+                                        ref_file_path),
+                            'script file {0} differs from reference file {1}'
+                            .format(script_file_path, ref_file_path))
 
         # check extracted source code for existence of some files
         self.assertTrue(os.path.exists(self.build_system.oasis_src_dir))
@@ -119,17 +141,28 @@ class OasisBuildCrayTests(unittest.TestCase):
             '{0}/lib/mct/Makefile'.format(self.build_system.oasis_src_dir),
             '{0}/lib/mct/mct/mct_mod.F90'
             .format(self.build_system.oasis_src_dir),
-            '{0}/util/make_dir/make.cray_xc40_mo'
-            .format(self.build_system.oasis_src_dir)]
+            '{0}/util/make_dir/{1}'\
+            .format(self.build_system.oasis_src_dir,
+                    self.build_system.make_config_file_name)]
         for file_path1 in file_check_list:
             self.assertTrue(os.path.exists(file_path1),
                             ' file {0} not found'.format(file_path1))
+
+    @abc.abstractmethod
+    def create_reference_build_cmd(self):
+        """
+        Create a reference build command.
+        """
+        pass
 
     def test_build_command(self):
         """
         Test the OasisBuildSystem.create_build_command() function.
         """
+        verbose_old = self.build_system.verbose
+        self.build_system.verbose = True
         build_cmd = self.build_system.create_build_command()
+        self.build_system.verbose = verbose_old
 
         script_file_path = '{working_dir}/{fileName}'
         script_file_path = script_file_path.format(
@@ -139,23 +172,7 @@ class OasisBuildCrayTests(unittest.TestCase):
         self.assertTrue(os.path.exists(script_file_path),
                         'build script {0} not found!'.format(script_file_path))
 
-        ref_file_path = \
-            '{0}/oasisBuild_cray_referenceBuildScript.sh'\
-            .format(self.build_system.working_dir)
-        ref_file_str = '''#!/bin/sh
-
-'''
-        for mod_name in self.build_system.prerequisite_modules:
-            ref_file_str += 'module load {0}\n'.format(mod_name)
-        ref_file_str += '''
-cd {oasis_src_dir}/util/make_dir
-make -f TopMakefileOasis3
-'''
-
-        ref_file_str = ref_file_str.format(**self.build_system.__dict__)
-
-        with open(ref_file_path, 'w') as ref_file:
-            ref_file.write(ref_file_str)
+        ref_file_path = self.create_reference_build_cmd()
 
         err_msg1 = 'file {resultFile} does not match {kgoFile}'
         err_msg1 = err_msg1.format(resultFile=script_file_path,
@@ -164,22 +181,25 @@ make -f TopMakefileOasis3
                                     ref_file_path),
                         err_msg1)
 
+    @abc.abstractmethod
+    def create_reference_module(self, module_relative_path):
+        """
+        Create a reference module file.
+        """
+        pass
+
+    @abc.abstractmethod
+    def create_module_writer(self):
+        """
+        Create a module writer object
+        """
+        pass
+
     def test_module_write(self):
         """
-        Test the OasisCrayModuleWriter class.
+        Test the OasisModuleWriter derived class class.
         """
-        mw1 = OasisModuleWriter.OasisCrayModuleWriter(
-            self.build_system.module_version,
-            self.build_system.module_root_dir,
-            self.build_system.oasis_repository_url,
-            self.build_system.oasis_revision_number,
-            self.external_repo_url,
-            self.external_rev_no,
-            self.build_system.suite_url,
-            self.build_system.suite_revision_number,
-            self.build_system.library_name,
-            self.build_system.SYSTEM_NAME,
-            self.build_system.prerequisite_modules)
+        mw1 = self.create_module_writer()
         mw1.write_module()
 
         # check for existence of module
@@ -193,6 +213,92 @@ make -f TopMakefileOasis3
                         'Module file {0} not found'.format(module_file_path))
 
         # check contents
+        reference_file_path = \
+            self.create_reference_module(mw1.module_relative_path)
+
+        msg1 = 'module file {0} not identical to reference file {1}'
+        msg1 = msg1.format(module_file_path, reference_file_path)
+        self.assertTrue(filecmp.cmp(module_file_path,
+                                    reference_file_path),
+                        msg1)
+
+class OasisBuildCrayTests(OasisBuildTests):
+    """
+    Class for testing functions in the Oasis Cray build class.
+    """
+    def get_system_name(self):
+        print 'retrieving system name: {0}'.format(
+            OasisBuildSystem.OasisCrayBuildSystem.SYSTEM_NAME)
+        return OasisBuildSystem.OasisCrayBuildSystem.SYSTEM_NAME
+
+    def create_module_writer(self):
+        mw1 = OasisModuleWriter.OasisCrayModuleWriter(
+            self.build_system.module_version,
+            self.build_system.module_root_dir,
+            self.build_system.oasis_repository_url,
+            self.build_system.oasis_revision_number,
+            self.external_repo_url,
+            self.external_rev_no,
+            self.build_system.suite_url,
+            self.build_system.suite_revision_number,
+            self.build_system.library_name,
+            self.build_system.SYSTEM_NAME,
+            self.build_system.prerequisite_modules)
+        return mw1
+
+
+    def create_reference_build_cmd(self):
+        """
+        Create a reference build command.
+        """
+        ref_file_path = \
+            '{0}/oasisBuild_{1}_referenceBuildScript.sh'\
+            .format(self.build_system.working_dir,
+                    self.system_name)
+        ref_file_str = '''#!/bin/sh
+
+'''
+        ref_file_str += 'echo CURRENT MODULES:\n'
+        ref_file_str += 'module list\n'
+
+        if self.build_system.specify_compiler:
+            ref_file_str += \
+                'module swap {0}\n'.format(self.build_system.compiler_module)
+        for mod_name in self.build_system.prerequisite_modules:
+            ref_file_str += 'module load {0}\n'.format(mod_name)
+        ref_file_str += 'echo MODULES AFTER LOAD:\n'
+        ref_file_str += 'module list\n'
+        ref_file_str += '''
+cd {oasis_src_dir}/util/make_dir
+make -f TopMakefileOasis3
+'''
+        if self.build_system.build_tutorial:
+            ref_file_str += '''
+cd {oasis_src_dir}/examples/tutorial/
+rm *.o
+rm *.mod
+
+rm model1.F90
+mv model1_ukmo_cray_xc40.F90 model1.F90
+rm model2.F90
+mv model2_ukmo_cray_xc40.F90 model2.F90
+rm data_oasis3/namcouple
+mv data_oasis3/namcouple_TP data_oasis3/namcouple
+make model1
+make model2
+'''
+
+        ref_file_str = ref_file_str.format(**self.build_system.__dict__)
+
+        with open(ref_file_path, 'w') as ref_file:
+            ref_file.write(ref_file_str)
+
+        return ref_file_path
+
+    def create_reference_module(self, module_relative_path):
+        """
+        Create a reference module file.
+        """
         reference_file_path = '{0}/oasisBuild_cray_referenceModuleFile'
         reference_file_path = \
             reference_file_path.format(self.build_system.working_dir)
@@ -231,22 +337,50 @@ setenv OASIS_MODULE_VERSION {module_version}
 
 '''
         mod_file_string = mod_file_string.format(
-            rel_path=mw1.module_relative_path,
+            rel_path=module_relative_path,
             **self.build_system.__dict__)
 
         with open(reference_file_path, 'w') as ref_file:
             ref_file.write(mod_file_string)
 
-        msg1 = 'module file {0} not identical to reference file {1}'
-        msg1 = msg1.format(module_file_path, reference_file_path)
-        self.assertTrue(filecmp.cmp(module_file_path,
-                                    reference_file_path),
-                        msg1)
+        return reference_file_path
+
+class OasisBuildMonsoonTests(OasisBuildCrayTests):
+    """
+    Unit test class for running Oasis Build tests on Monsoon
+    """
+    def get_system_name(self):
+        print 'retrieving system name: {0}'.format(common.SYSTEM_NAME_MONSOON)
+        return common.SYSTEM_NAME_MONSOON
+
+class OasisBuildExternalTests(OasisBuildCrayTests):
+    """
+    Unit test class for running Oasis Build tests on an external system
+    """
+    def get_system_name(self):
+        print 'retrieving system name: {0}'.format(common.SYSTEM_NAME_EXTERNAL)
+        return common.SYSTEM_NAME_EXTERNAL
 
 def suite():
+    """
+    Build up the Oasis3-mct build unit test suite.
+    """
     return_suite = \
         unittest.TestLoader().loadTestsFromTestCase(OasisBuildCrayTests)
     return return_suite
 
+def main():
+    """
+    Entry function for running only the Oasis3-mct build tests
+    """
+    test_list_dict = {}
+    test_list_dict[OasisBuildSystem.OasisCrayBuildSystem.SYSTEM_NAME] = [
+        OasisBuildCrayTests]
+    test_list_dict[common.SYSTEM_NAME_MONSOON] = [
+        OasisBuildMonsoonTests]
+    test_list_dict[common.SYSTEM_NAME_EXTERNAL] = [
+        OasisBuildExternalTests]
+    unit_test_common.run_tests(test_list_dict)
+
 if __name__ == '__main__':
-    unittest.main()
+    main()

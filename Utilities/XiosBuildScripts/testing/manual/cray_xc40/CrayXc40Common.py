@@ -23,36 +23,31 @@ def setup_path_to_scripts():
                                             os.pardir))
     script_dir = os.path.abspath(os.path.join(root_dir,
                                               'bin'))
+
     lib_dir = os.path.abspath(os.path.join(root_dir,
                                            'lib'))
-    sys.path += [script_dir]
-    sys.path += [lib_dir]
+
+    test_dir = os.path.abspath(os.path.join(root_dir,
+                                            'testing'))
+
+    settings_dir = os.path.abspath(os.path.join(test_dir,
+                                                'settings'))
+
+    sys.path += [script_dir, lib_dir, test_dir]
     script_env = os.environ
     script_env['PATH'] += ':{0}'.format(script_dir)
 
     try:
-        script_env['PYTHONPATH'] += ':{0}'.format(lib_dir)
+        script_env['PYTHONPATH'] += ':'.join([script_env['PYTHONPATH'],
+                                              lib_dir,
+                                              test_dir])
     except KeyError:
-        script_env['PYTHONPATH'] = lib_dir
+        script_env['PYTHONPATH'] = ':'.join([lib_dir, test_dir])
 
-    return [script_dir, lib_dir, script_env]
+    dir_dict = {'lib': lib_dir,
+                'root': root_dir,
+                'bin': script_dir,
+                'testing': test_dir,
+                'settings': settings_dir}
 
-
-class CrayXc40CommonSettings(object):
-    """
-    Class to hold the settings common to all the manual test setup classes.
-    """
-    def __init__(self):
-        """
-        Constructor for settings container.
-        """
-        self.SYSTEM_NAME = 'UKMO_CRAY_XC40'
-
-        self.DEPLOY_AS_MODULE = 'true'
-        self.MODULE_INSTALL_PATH = os.getcwd() + '/modules'
-
-        self.ROSE_SUITE_URL = 'undefined'
-        self.ROSE_SUITE_REV_NO = 'undefined'
-
-        self.XBS_PREREQ_MODULES = \
-            'cray-hdf5-parallel/1.8.13,cray-netcdf-hdf5parallel/4.3.2'
+    return (dir_dict, script_env)

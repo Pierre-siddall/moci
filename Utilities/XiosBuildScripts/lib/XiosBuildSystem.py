@@ -53,7 +53,7 @@ class XiosInvalidSourceCodeOptionError(Exception):
     pass
 
 
-class XiosBuildSystem(common.XbsBase):
+class XiosBuildSystem(common.XbsBuild):
 
     """
     Base class containing functionality to build xios. For a particular
@@ -68,34 +68,14 @@ class XiosBuildSystem(common.XbsBase):
         """
         Class constructor for XiosBuildSystem base class.
         """
-        common.XbsBase.__init__(self, settings_dict)
+        common.XbsBuild.__init__(self, settings_dict)
         self.build_required = False
         self.pre_build_clean = False
         self.update_required = False
         self.tar_command = 'tar'
 
-        try:
-            self.compiler_module = settings_dict['XBS_COMPILER_PRGENV']
-            self.load_compiler_module = True
-        except KeyError:
-            self.compiler_module = None
-            self.load_compiler_module = False
-
         self.build_path = settings_dict['BUILD_PATH']
 
-        try:
-            self.specify_compiler = \
-                settings_dict['XBS_SPECIFY_COMPILER_PRGENV'] == 'true'
-            self.compiler_version = \
-                settings_dict['XBS_COMPILER_PRGENV']
-        except KeyError:
-            self.specify_compiler = False
-            self.compiler_version = None
-
-        prereq_module_str = settings_dict['XBS_PREREQ_MODULES']
-        prereq_module_str = \
-            ''.join([s1 for s1 in prereq_module_str if "'[] ".count(s1) == 0])
-        self.prerequisite_modules = prereq_module_str.split(',')
 
         self.library_name = settings_dict['XIOS']
         self.source_code_location_type = settings_dict[
@@ -163,8 +143,8 @@ class XiosBuildSystem(common.XbsBase):
             self.suite_revision_number = ''
 
         try:
-            self.deploy_xios_as_module = settings_dict[
-                'DEPLOY_AS_MODULE'] == 'true'
+            self.deploy_xios_as_module = \
+                settings_dict['DEPLOY_AS_MODULE'] == 'true'
             self.module_root_dir = settings_dict['MODULE_INSTALL_PATH']
             self.module_version = settings_dict['XIOS_MODULE_VERSION']
             self.prg_env_version = settings_dict['XIOS_PRGENV_VERSION']
@@ -336,8 +316,10 @@ class XiosBuildSystem(common.XbsBase):
         Retrieve the XIOS source code either from a repository or a directory.
         """
         if self.source_code_location_type == 'URL':
+            sys.stderr.write('extracting from source code repository\n\n')
             self.extract_from_repository()
         elif self.source_code_location_type == 'local':
+            sys.stderr.write('extracting from local source code directory\n\n')
             self.extract_from_directory()
         else:
             raise XiosInvalidSourceCodeOptionError()
@@ -618,19 +600,26 @@ class XiosCrayBuildSystem(XiosBuildSystem):
         """
         build_cmd1 = ''
 
-        if self.load_compiler_module:
+        build_cmd1 += 'echo CURRENT MODULES:\n'
+        build_cmd1 += 'module list\n'
+
+        if self.specify_compiler:
             build_cmd1 += 'module swap {0}\n'.format(self.compiler_module)
         for mod_1 in self.prerequisite_modules:
             build_cmd1 += 'module load {0}\n'.format(mod_1)
 
         build_cmd1 += '\n'
+
+        build_cmd1 += 'echo MODULES AFTER LOAD:\n'
+        build_cmd1 += 'module list\n'
+
         xios_src_dir = os.path.join(self.working_dir, self.library_name)
         build_cmd1 += 'cd {0}\n'.format(xios_src_dir)
 
         # main build command
         build_cmd1 += './make_xios --arch XC30_Cray'
         if self.do_clean_build:
-            build_cmd1 += ' --full '
+            build_cmd1 += ' --full'
         if self.use_oasis:
             build_cmd1 += ' --use_oasis oasis3_mct '
         build_cmd1 += ' --job {0}'.format(self.number_of_build_tasks)
@@ -818,7 +807,7 @@ export NETCDF_LIB_DIR=""
                 suiteUrl=self.suite_url,
                 suite_revision_number=self.suite_revision_number,
                 prerequisites=self.prerequisite_modules,
-                compiler_module=self.compiler_version)
+                compiler_module=self.compiler_module)
         # Create the PrgEnv module with 2 names, first XIOS-PrgEnv and then
         # GC3-PrgEnv
         prg_env_writer1.write_module()
@@ -1025,6 +1014,8 @@ def create_build_system(system_name, build_settings):
     if system_name == XiosCrayBuildSystem.SYSTEM_NAME:
         system1 = XiosCrayBuildSystem(build_settings)
     elif system_name == common.SYSTEM_NAME_MONSOON:
+        system1 = XiosCrayBuildSystem(build_settings)
+    elif system_name == common.SYSTEM_NAME_EXTERNAL:
         system1 = XiosCrayBuildSystem(build_settings)
     elif system_name == XiosLinuxIntelSystem.SYSTEM_NAME:
         system1 = XiosLinuxIntelSystem(build_settings)

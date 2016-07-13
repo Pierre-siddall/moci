@@ -43,7 +43,7 @@ class OasisInvalidSourceCodeOptionError(Exception):
     pass
 
 
-class OasisBuildSystem(common.XbsBase):
+class OasisBuildSystem(common.XbsBuild):
 
     """
     Base class for building Oasis3-mct library on different platforms. Specific
@@ -63,24 +63,12 @@ class OasisBuildSystem(common.XbsBase):
                        be just the os.environ object, but doesn't need to be.
         """
 
-        common.XbsBase.__init__(self, settings_dict)
-
-        try:
-            self.compiler_module = settings_dict['XBS_COMPILER_PRGENV']
-            self.load_compiler_module = True
-        except KeyError:
-            self.compiler_module = None
-            self.load_compiler_module = False
+        common.XbsBuild.__init__(self, settings_dict)
 
         self.do_build = settings_dict['BUILD_OASIS'] == 'true'
 
         self.library_name = settings_dict['OASIS3_MCT']
         self.build_platform_name = settings_dict['OASIS_PLATFORM_NAME']
-
-        prereq_module_str = settings_dict['XBS_PREREQ_MODULES']
-        prereq_module_str = \
-            ''.join([s1 for s1 in prereq_module_str if "'[] ".count(s1) == 0])
-        self.prerequisite_modules = prereq_module_str.split(',')
 
         if self.do_build:
             # if we are building oasis, then get relevant repository settings
@@ -236,8 +224,10 @@ class OasisBuildSystem(common.XbsBase):
         Retreive source code from repository or directory
         """
         if self.source_code_location_type == 'URL':
+            sys.stderr.write('extracting from source code repository\n\n')
             self.extract_from_repository()
         elif self.source_code_location_type == 'local':
+            sys.stderr.write('extracting from local source code directory\n\n')
             self.extract_from_directory()
         else:
             raise OasisInvalidSourceCodeOptionError()
@@ -426,10 +416,15 @@ class OasisCrayBuildSystem(OasisBuildSystem):
 
     def create_build_command(self):
         build_str_1 = '#!/bin/sh\n\n'
-        if self.load_compiler_module:
+        build_str_1 += 'echo CURRENT MODULES:\n'
+        build_str_1 += 'module list\n'
+        if self.specify_compiler:
             build_str_1 += 'module swap {0}\n'.format(self.compiler_module)
         for prereq_module in self.prerequisite_modules:
             build_str_1 += 'module load {0}\n'.format(prereq_module)
+
+        build_str_1 += 'echo MODULES AFTER LOAD:\n'
+        build_str_1 += 'module list\n'
 
         build_str_1 += '''
 cd {oasis_src_dir}/util/make_dir
@@ -448,7 +443,7 @@ mv model1_ukmo_cray_xc40.F90 model1.F90
 rm model2.F90
 mv model2_ukmo_cray_xc40.F90 model2.F90
 rm data_oasis3/namcouple
-mv data_oasis3/namcouple_TP data_oasis3/namcouple 
+mv data_oasis3/namcouple_TP data_oasis3/namcouple
 make model1
 make model2
 '''
@@ -503,7 +498,7 @@ make model2
         remote_writer_1.write_module()
 
 
-def create_build_system(system_name):
+def create_build_system(system_name, settings_dict):
     """
     Factory method to construct oasis3-mct build object for the correct
     platform.
@@ -520,7 +515,9 @@ def create_build_system(system_name):
     """
     build_system_1 = None
     if system_name == OasisCrayBuildSystem.SYSTEM_NAME:
-        build_system_1 = OasisCrayBuildSystem(os.environ)
+        build_system_1 = OasisCrayBuildSystem(settings_dict)
     elif system_name == common.SYSTEM_NAME_MONSOON:
-        build_system_1 = OasisCrayBuildSystem(os.environ)
+        build_system_1 = OasisCrayBuildSystem(settings_dict)
+    elif system_name == common.SYSTEM_NAME_EXTERNAL:
+        build_system_1 = OasisCrayBuildSystem(settings_dict)
     return build_system_1

@@ -5,50 +5,69 @@ Unit test module to test Nemo build scripts.
 import unittest
 import os
 import filecmp
+import abc
 
+# this must be imported before the other local imports as it sets up the path
+# to import the main scripts
+import unit_test_common
+
+import common
 import NemoBuildSystem
 
-class NemoBuildCrayTests(unittest.TestCase):
+class NemoBuildTests(unittest.TestCase):
     """
-    Class to test Nemo build script on the UKMO Cray XC40
+    Class to test Nemo build scripts
     """
+
+    CONFIG_LIST = ['NEMO', 'NEMO_unit']
     def setUp(self):
         """
-        Setup class to test Nemo build script on the UKMO Cray XC40
+        Setup class to test Nemo build scripts
         """
-        setup_dict = {}
-        self.system_name = 'UKMO_CRAY_XC40'
-        setup_dict['SYSTEM_NAME'] = self.system_name
-        setup_dict['NEMO'] = 'NEMO'
-        setup_dict['NEMO_SRC_LOCATION_TYPE'] = 'URL'
-        self.repo_url = 'svn://fcm3/NEMO.xm_svn/branches/dev/shaddad/'\
-                        'r5643_buildWithOasisNoKeys/NEMOGCM'
-        setup_dict['NEMO_REPO_URL'] = self.repo_url
-        self.rev_no = '5648'
-        setup_dict['NEMO_REV'] = self.rev_no
-        self.use_oasis = True
-        setup_dict['USE_OASIS'] = 'true'
-        setup_dict['OASIS_ROOT'] = '/home/d02/shaddad/Projects/GC3Port/'\
-                                   'r1217_port_mct_xcf/oasis3-mct/crayxc40'
-        setup_dict['JP_CFG'] = '50'
-        setup_dict['BUILD_PATH'] = '{0}/install'.format(os.getcwd())
-        setup_dict['NEMO_POST_BUILD_CLEANUP'] = 'false'
-        setup_dict['XIOS_PATH'] = '/projects/moci/modules/packages/XIOS/1.0'
-        setup_dict['XBS_PREREQ_MODULES'] = "['cray-hdf5-parallel/1.8.13',"\
-                                           "'cray-netcdf-hdf5parallel/4.3.2']"
-        setup_dict['VERBOSE'] = 'true'
-        self.build_system = NemoBuildSystem.NemoCrayXC40BuildSystem(setup_dict)
-        self.working_dir = os.getcwd()
+        self.config_list = NemoBuildTests.CONFIG_LIST
+        self.system_name = self.get_system_name()
+        self.settings_dir = unit_test_common.get_settings_dir()
+
+        setup_dict = unit_test_common.get_settings(self.config_list,
+                                                   self.settings_dir,
+                                                   self.system_name)
+
+        self.repo_url = setup_dict['NEMO_REPO_URL']
+        self.rev_no = setup_dict['NEMO_REV']
+        self.use_oasis = setup_dict['USE_OASIS'] == 'true'
+
+        self.build_system = \
+            NemoBuildSystem.create_nemo_build_system(self.system_name,
+                                                     setup_dict)
+
+    @abc.abstractmethod
+    def get_system_name(self):
+        """
+        Get the name of the build system
+        """
+        pass
+
+    def get_settings(self):
+        """
+        Get the settings for running the unit tests. If we are in a rose suite
+        we will use the settings provided. If not in a rose suite, we can use
+        the settings provided in .conf files in the local copy.
+        """
+        if os.environ.has_key('ROSE_SUITE_NAME'):
+            settings_dict = os.environ
+        else:
+            settings_dict = self.get_settings_from_conf()
+        return settings_dict
 
     def tearDown(self):
         """
-        Cleanup after tests of Nemo build scripts on the UKMO Cray XC40
+        Cleanup after tests of Nemo build scripts
         """
         self.build_system = None
 
     def test_build_system_creation(self):
         """
-        Test the creation of NemoCrayXC40BuildSystem object
+        Test the creation of NemoBuildSystem object
         """
         err_msg1 = 'System names do not match {0}!={1}'
         err_msg1 = err_msg1.format(self.system_name,
@@ -117,16 +136,17 @@ class NemoBuildCrayTests(unittest.TestCase):
 %USER_LIB            %NCDF_LIB %OASIS_LIBDIR %OASIS_LIB %XIOS_LIB %OASIS_LIB
 """
         arch_file_string = arch_file_string.format(**self.build_system.__dict__)
-        reference_file_path = '{0}/nemo_archFile_{1}_reference.fcm'
-        reference_file_path = reference_file_path.format(
-            self.working_dir,
-            self.build_system.system_name)
+        ref_file_name = 'nemo_archFile_{0}_reference.fcm'
+        ref_file_name = ref_file_name.format(self.build_system.system_name)
+        reference_file_path = os.path.join(self.build_system.working_dir,
+                                           ref_file_name)
+
         with open(reference_file_path, 'w') as ref_file:
             ref_file.write(arch_file_string)
 
-        arch_file_path = '{0}/ARCH/{1}'.format(
-            self.build_system.source_directory,
-            self.build_system.arch_file_name)
+        arch_file_path = os.path.join(self.build_system.source_directory,
+                                      'ARCH',
+                                      self.build_system.arch_file_name)
 
         err_msg1 = 'arch file {0} does not match reference {1}'
         err_msg1 = err_msg1.format(arch_file_path,
@@ -139,10 +159,14 @@ class NemoBuildCrayTests(unittest.TestCase):
         """
         Check that the correct source files have been extracted.
         """
-        src_file_list = ['{0}/CONFIG/makenemo'
-                         .format(self.build_system.library_name),
-                         '{0}/ARCH/arch-XC40_METO.fcm'
-                         .format(self.build_system.library_name)]
+        src_file_list = [os.path.join(self.build_system.working_dir,
+                                      self.build_system.library_name,
+                                      'CONFIG',
+                                      'makenemo'),
+                         os.path.join(self.build_system.working_dir,
+                                      self.build_system.library_name,
+                                      'ARCH',
+                                      'arch-XC40_METO.fcm')]
 
         err_msg1 = 'source file {0} not found'
         for file1 in src_file_list:
@@ -155,11 +179,11 @@ class NemoBuildCrayTests(unittest.TestCase):
         """
         # change source directory as the source directory is not created
         # for this test
-        self.build_system.source_directory = self.working_dir
+        self.build_system.source_directory = self.build_system.working_dir
         self.build_system.create_build_command()
         build_script_file_path = '{workingDir}/{fileName}'
         build_script_file_path = build_script_file_path.format(
-            workingDir=self.working_dir,
+            workingDir=self.build_system.working_dir,
             fileName=NemoBuildSystem.BUILD_SCRIPT_FILENAME)
 
         ref_build_script_str = """#!/bin/sh
@@ -169,9 +193,11 @@ cd {source_directory}/CONFIG
         ref_build_script_str = \
             ref_build_script_str.format(**self.build_system.__dict__)
 
-        ref_file_path = '{0}/nemo_buildScript_{1}_reference.sh'
-        ref_file_path = ref_file_path.format(self.working_dir,
-                                             self.build_system.system_name)
+        ref_file_name = 'nemo_buildScript_{0}_reference.sh'
+        ref_file_name = ref_file_name.format(self.build_system.system_name)
+        ref_file_path = os.path.join(self.build_system.working_dir,
+                                     ref_file_name)
+
         with open(ref_file_path, 'w') as ref_file:
             ref_file.write(ref_build_script_str)
 
@@ -214,7 +240,6 @@ class NemoBuildLinuxIntelTests(unittest.TestCase):
 
         self.build_system = \
             NemoBuildSystem.NemoLinuxIntelBuildSystem(setup_dict)
-        self.working_dir = os.getcwd()
 
     def tearDown(self):
         """
@@ -225,7 +250,7 @@ class NemoBuildLinuxIntelTests(unittest.TestCase):
 
     def test_build_system_creation(self):
         """
-        Test the creation of NemoCrayXC40BuildSystem object
+        Test the creation of NemoBuildSystem object
         """
         err_msg1 = 'System names do not match {0}!={1}'
         err_msg1 = err_msg1.format(self.system_name,
@@ -287,7 +312,7 @@ class NemoBuildLinuxIntelTests(unittest.TestCase):
         arch_file_string = arch_file_string.format(**self.build_system.__dict__)
         reference_file_path = '{0}/nemo_archFile_{1}_reference.fcm'
         reference_file_path = reference_file_path.format(
-            self.working_dir,
+            self.build_system.working_dir,
             self.build_system.system_name)
         with open(reference_file_path, 'w') as ref_file:
             ref_file.write(arch_file_string)
@@ -324,10 +349,10 @@ class NemoBuildLinuxIntelTests(unittest.TestCase):
         """
         # change source directory as the source directory is not created
         # for this test
-        self.build_system.source_directory = self.working_dir
+        self.build_system.source_directory = self.build_system.working_dir
         self.build_system.create_build_command()
         build_script_file_path = '{0}/{1}'.format(
-            self.working_dir,
+            self.build_system.working_dir,
             NemoBuildSystem.BUILD_SCRIPT_FILENAME)
 
         ref_build_script_str = """#!/bin/sh
@@ -343,7 +368,7 @@ module load environment/dynamo/compiler/intelfortran/15.0.0
             ref_build_script_str.format(**self.build_system.__dict__)
 
         ref_file_path = '{0}/nemo_buildScript_{1}_reference.sh'
-        ref_file_path = ref_file_path.format(self.working_dir,
+        ref_file_path = ref_file_path.format(self.build_system.working_dir,
                                              self.build_system.system_name)
         with open(ref_file_path, 'w') as ref_file:
             ref_file.write(ref_build_script_str)
@@ -355,3 +380,49 @@ module load environment/dynamo/compiler/intelfortran/15.0.0
         self.assertTrue(filecmp.cmp(ref_file_path,
                                     build_script_file_path),
                         err_msg1)
+
+class NemoBuildCrayTests(NemoBuildTests):
+    """
+    Unit test class for running Nemo Build tests on Mett Office Cray XC40
+    """
+    def get_system_name(self):
+        return NemoBuildSystem.NemoCrayXC40BuildSystem.SYSTEM_NAME
+
+class NemoBuildMonsoonTests(NemoBuildCrayTests):
+    """
+    Unit test class for running Nemo Build tests on Monsoon
+    """
+    def get_system_name(self):
+        return common.SYSTEM_NAME_MONSOON
+
+
+class NemoBuildExternalTests(NemoBuildCrayTests):
+    """
+    Unit test class for running Nemo Build tests on an external system
+    """
+    def get_system_name(self):
+        return common.SYSTEM_NAME_EXTERNAL
+
+def suite():
+    """
+    Build up the NEMO build unit test suite.
+    """
+    return_suite = \
+        unittest.TestLoader().loadTestsFromTestCase(NemoBuildCrayTests)
+    return return_suite
+
+def main():
+    """
+    Entry function for running only the NEMO build tests
+    """
+    test_list_dict = {}
+    test_list_dict[NemoBuildSystem.NemoCrayXC40BuildSystem.SYSTEM_NAME] = [
+        NemoBuildCrayTests]
+    test_list_dict[common.SYSTEM_NAME_MONSOON] = [
+        NemoBuildCrayTests]
+    test_list_dict[common.SYSTEM_NAME_EXTERNAL] = [
+        NemoBuildExternalTests]
+    unit_test_common.run_tests(test_list_dict)
+
+if __name__ == '__main__':
+    main()

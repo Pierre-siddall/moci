@@ -44,11 +44,6 @@ class NemoTestSystem(common.XbsBase):
         self.script_name = ''
         self.script_path = ''
 
-        prereq_module_str = settings_dict['XBS_PREREQ_MODULES']
-        prereq_module_str = \
-            ''.join([s1 for s1 in prereq_module_str if "'[] ".count(s1) == 0])
-        self.prerequisite_modules = prereq_module_str.split(',')
-
         self.xios_path = settings_dict['XIOS_PATH']
         self.nemo_dir_name = settings_dict['NEMO']
         self.build_path_dir = settings_dict['BUILD_PATH']
@@ -354,6 +349,8 @@ def build_test_system(system_name, settings_dict):
     if system_name == NemoCrayXc40TestSystem.SYSTEM_NAME:
         test_system = NemoCrayXc40TestSystem(settings_dict)
     elif system_name == common.SYSTEM_NAME_MONSOON:
+        test_system = NemoCrayXc40TestSystem(settings_dict)
+    elif system_name == common.SYSTEM_NAME_EXTERNAL:
         test_system = NemoCrayXc40TestSystem(settings_dict)
     elif system_name == NemoLinuxIntelTestSystem.SYSTEM_NAME:
         test_system = NemoLinuxIntelTestSystem(settings_dict)

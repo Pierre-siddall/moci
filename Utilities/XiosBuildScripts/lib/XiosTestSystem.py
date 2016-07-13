@@ -182,10 +182,10 @@ class XiosCrayXC40TestSystem(XiosTestSystem):
         exec_str1 = ''
         if not self.suite_mode:
             exec_str1 += '''
-#!/bin/bash --login        
-#PBS -N XIOScomplete        
-#PBS -l select=2        
-#PBS -l walltime=00:15:00        
+#!/bin/bash --login
+#PBS -N XIOScomplete
+#PBS -l select=2
+#PBS -l walltime=00:15:00
 #PBS -j oe
 '''
         else:
@@ -194,9 +194,9 @@ class XiosCrayXC40TestSystem(XiosTestSystem):
         exec_str1 += '''
 cd {test_dir}
 echo current dir is $(pwd)
-rm -rf *.csv *.nc        
-        
-aprun -n 28 ./{xios_test_exec_name} : -n 4 ./{xios_server_link_name}        
+rm -rf *.csv *.nc
+
+aprun -n 28 ./{xios_test_exec_name} : -n 4 ./{xios_server_link_name}
 '''.format(**self.__dict__)
 
         if os.path.exists(self.test_script_file_name):
@@ -246,7 +246,7 @@ class XiosLinuxIntelTestSystem(XiosTestSystem):
         executed or submitted to the queue as required.
         """
         test_cmd1 = '''#!/bin/bash
-        
+
 cd {test_dir}
 echo current dir is $(pwd)
 rm -rf *.csv *.nc
@@ -281,6 +281,8 @@ def create_test_system(system_name, settings_dict):
     if system_name == XiosCrayXC40TestSystem.SYSTEM_NAME:
         test_system1 = XiosCrayXC40TestSystem(settings_dict)
     elif system_name == common.SYSTEM_NAME_MONSOON:
+        test_system1 = XiosCrayXC40TestSystem(settings_dict)
+    elif system_name == common.SYSTEM_NAME_EXTERNAL:
         test_system1 = XiosCrayXC40TestSystem(settings_dict)
     elif system_name == XiosLinuxIntelTestSystem.SYSTEM_NAME:
         test_system1 = XiosLinuxIntelTestSystem(settings_dict)

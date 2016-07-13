@@ -13,47 +13,34 @@ Created on 13 January 2016
 import os
 import subprocess
 
-import OasisCommon
 import CrayXc40Common
 
-[SCRIPT_DIR, LIB_DIR, SCRIPT_ENV] = CrayXc40Common.setup_path_to_scripts()
+DIR_DICT, SCRIPT_ENV = CrayXc40Common.setup_path_to_scripts()
 
-class OasisTestCraySettings(CrayXc40Common.CrayXc40CommonSettings,
-                            OasisCommon.OasisCommonSettings):
-    def __init__(self):
-        """
-        Class to contain settings for running oasis3-mct test manual script.
-        """
-        CrayXc40Common.CrayXc40CommonSettings.__init__(self)
-        OasisCommon.OasisCommonSettings.__init__(self)
-        self.working_dir = os.getcwd()
-        self.OASIS_DATA_DIRECTORY = '/data/d02/shaddad/oasis3-mct_tutorialData/'
-        self.OASIS_PLATFORM_NAME = 'crayxc40'
-        self.VERBOSE = 'true'
-        self.OASIS_OUTPUT_DIR = os.path.join(self.working_dir,
-                                             'install',
-                                             self.OASIS3_MCT)
-
-        self.OASIS_ROOT = self.OASIS_OUTPUT_DIR
-
-        self.OASIS_RESULT_DIR = os.path.join(self.working_dir,
-                                             'oasisOutput')
-        if not os.path.exists(self.OASIS_RESULT_DIR):
-            os.makedirs(self.OASIS_RESULT_DIR)
-        self.OASIS_TEST_NAME = 'oasis3mct_tutorial'
-
+import unit_test_common
+import OasisTestSystem
 
 def main():
     """
     Main function for running oasis test manual script.
     """
-    test_settings1 = OasisTestCraySettings()
     env_vars = SCRIPT_ENV.copy()
-    env_vars.update(test_settings1.__dict__)
+    system_name = OasisTestSystem.OasisCrayTestSystem.SYSTEM_NAME
+    settings_dict = unit_test_common.get_settings(['oasis3-mct','oasis3-mct-test'],
+                                                  DIR_DICT['settings'],
+                                                  system_name)
+    env_vars.update(settings_dict)
 
     exec_name1 = 'oasis_test'
     cmd1 = ''
-    for module_path in test_settings1.XBS_PREREQ_MODULES.split(','):
+    if settings_dict['XBS_SPECIFY_COMPILER_PRGENV'] == 'true':
+        compiler_module = settings_dict['XBS_COMPILER_PRGENV']
+        cmd1 += 'module swap PrgEnv-cray {0}\n'.format(compiler_module)
+    
+    prereq_str = ''.join([s1 for s1 in settings_dict['XBS_PREREQ_MODULES']
+                          if "'[] ".count(s1) == 0])
+    prereq_mod_list = prereq_str.split(',')
+    for module_path in prereq_mod_list:
         cmd1 += 'module load {0}\n'.format(module_path)
     cmd1 += '''
 module use $MODULE_INSTALL_PATH/modules

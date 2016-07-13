@@ -21,6 +21,7 @@ import os
 import textwrap
 
 SYSTEM_NAME_MONSOON = 'Monsoon'
+SYSTEM_NAME_EXTERNAL = 'external'
 
 def formatted_write(output, text):
     """
@@ -41,7 +42,6 @@ def formatted_write(output, text):
 
 
 class XbsBase(object):
-
     """
     Base class for all the XIOS/Oasis3-mct
     """
@@ -58,6 +58,25 @@ class XbsBase(object):
             self.verbose = False
         self.system_name = settings_dict['SYSTEM_NAME']
 
+class XbsBuild(XbsBase):
+    """
+    Base class for Xios/Oasis3-mct build classes.
+    """
+    def __init__(self, settings_dict):
+        XbsBase.__init__(self, settings_dict)
+        try:
+            self.specify_compiler = \
+                settings_dict['XBS_SPECIFY_COMPILER_PRGENV'] == 'true'
+            self.compiler_module = \
+                settings_dict['XBS_COMPILER_PRGENV']
+        except KeyError:
+            self.specify_compiler = False
+            self.compiler_module = None
+
+        prereq_module_str = settings_dict['XBS_PREREQ_MODULES']
+        prereq_module_str = \
+            ''.join([s1 for s1 in prereq_module_str if "'[] ".count(s1) == 0])
+        self.prerequisite_modules = prereq_module_str.split(',')
 
 class MissingVariableError(Exception):
 

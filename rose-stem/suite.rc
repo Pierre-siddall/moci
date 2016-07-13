@@ -1,6 +1,6 @@
 #!jinja2
 
-{% set TASK_RUN = 'rose task-run --verbose' %}
+{% set TASK_RUN = "rose task-run --verbose -O '(" + SITE + ")'"%}
 {% set PP_CYCLES = range(110,113)|list + range(201,213)|list + [301,]|list %}
 
 [cylc]
@@ -16,22 +16,14 @@
     "build_ocean34_high" : "fcm_make_ocean_34_16x32_high => fcm_make2_ocean_34_16x32_high => nemo_cice_34_16x32_high => rose_ana_nemo_cice_34_16x32_high => housekeep_nemo_cice_34_high",
     "test_oasis" :
         "fcm_make_xiosScript_remote => fcm_make2_xiosScript_remote => xbs_unitTests => buildOasis
-         fcm_make_xiosScript_local => validate_oasis
-         buildOasis => testOasis => validate_oasis => housekeeping_oasis
-         fcm_make_xiosScript_local => validation_prepare => testOasis",
-
-
+         buildOasis => testOasis => validate_oasis => housekeeping_oasis",
     "test_xios" :  
         "fcm_make_xiosScript_remote => fcm_make2_xiosScript_remote => xbs_unitTests  => buildXios
-         buildXios => testXios => validate_xios => housekeeping_xios
-         fcm_make_xiosScript_local => validate_xios 
-         fcm_make_xiosScript_local => validation_prepare => testXios", 
-
+         buildXios => testXios => validate_xios => housekeeping_xios", 
     "test_nemo_gyre" :  
         "fcm_make_xiosScript_remote => fcm_make2_xiosScript_remote => xbs_unitTests  => buildOasis => buildXios => buildNemo 
-         buildNemo => testNemo => validate_nemo => housekeeping_nemo
-         fcm_make_xiosScript_local => validate_nemo
-         fcm_make_xiosScript_local =>validation_prepare => testNemo",
+         buildNemo => testNemo => validate_nemo => housekeeping_nemo",
+         
 
     "test_postproc" :
         "fcm_make_pp => coupled_dummy_19811001 => postproc_19811001 & coupled_dummy_19811101
@@ -120,21 +112,7 @@ export FCM_VERSION={{FCM_VERSION}}
             method = at
         [[[remote]]]
             host = $(rose host-select {{EXTRACT_HOST}})
-    [[XC40]]
-        [[[job submission]]]
-            method = pbs
-        [[[remote]]]
-            host = $(rose host-select {{ HOST_XC40 }})
-        [[[directives]]]
-            -W umask=0022
-    [[XC40_serial]]
-        inherit = XC40
-        [[[environment]]]
-            ROSE_TASK_N_JOBS=1
-        [[[directives]]]
-            -l walltime=00:10:00
-            -l ncpus=1
-            -q = shared
+
     [[NEMO_16x32]]
         [[[environment]]]
             CICE_COL   = 1440
@@ -238,8 +216,10 @@ export FCM_VERSION={{FCM_VERSION}}
             
     [[XBS]]
         environment scripting = "eval $(rose task-env)"
+        
         [[[environment]]]
             TASKS_PER_NODE={{TASKS_PER_NODE}}
+            OASIS3_MCT={{OASIS3_MCT}}
             XIOS={{XIOS}}
             NEMO={{NEMO}} 
             SYSTEM_NAME={{SYSTEM_NAME}} 
@@ -306,7 +286,6 @@ export FCM_VERSION={{FCM_VERSION}}
             {% else %}
                 OASIS_PREBUILD_DIR={{OASIS_ROOT}}
             {% endif %}
-            OASIS3_MCT={{OASIS3_MCT}}
             OASIS_PLATFORM_NAME={{OASIS_PLATFORM_NAME}}  
             OASIS_MODULE_VERSION={{OASIS_MODULE_VERSION}}
 
@@ -331,6 +310,34 @@ export FCM_VERSION={{FCM_VERSION}}
             JP_CFG = '50'
             NEMO_PATH=$CYLC_SUITE_SHARE_DIR/{{NEMO}}
 
+    [[OASIS_BUILD_APP]]
+        inherit = OASIS_APP
+        [[[environment]]]
+        {% if OASIS_BUILD_TUTORIAL %}
+            OASIS_BUILD_TUTORIAL=true
+        {% else %}
+            OASIS_BUILD_TUTORIAL=false
+        {% endif %}  
+        
+    [[XIOS_BUILD_APP]]
+        inherit = XIOS_APP
+        [[[environment]]]
+{% if XIOS_USE_PREBUILT_LIB == false %}
+            XIOS_NUM_CORES={{XIOS_NUM_CORES}}
+{% endif %}
+            XIOS_MODULE_VERSION={{XIOS_MODULE_VERSION}}
+            XIOS_PRGENV_VERSION={{XIOS_PRGENV_VERSION}}
+            
+    [[NEMO_BUILD_APP]]
+        inherit = NEMO_APP
+        [[[environment]]]
+            NEMO_SRC_LOCATION_TYPE = {{NEMO_SRC_LOCATION_TYPE}}
+            NEMO_REPO_URL = {{NEMO_REPO_URL}}
+            NEMO_REV = {{NEMO_REV}}
+            {% if NEMO_SRC_LOCATION_TYPE == 'local' %}
+                NEMO_SRC_CODE_DIR = {{NEMO_SRC_CODE_DIR}}
+            {% endif %}         
+            
     [[fcm_make_xiosScript_remote]]
         inherit = None, XBS, LINUX
         [[[environment]]]
@@ -342,214 +349,44 @@ export FCM_VERSION={{FCM_VERSION}}
              SOURCE_MOCI={{SOURCE_MOCI}}
             
      [[xbs_unitTests]]
-        inherit = None, XC40_serial
-        [[[directives]]]
-{% if SYSTEM_NAME == "UKMO_CRAY_XC40" %}
-            -l walltime=00:05:00
-            -l ncpus=2
-            -l mem=2000MB
-            -q = shared
-            -P = climate
-{% endif %}
-
-    [[buildOasis]]
-        inherit = None, XBS, XC40_serial, MODULE_DEPLOYMENT_APP, OASIS_APP
-        pre-command scripting = '''
-{% if SYSTEM_NAME == "UKMO_CRAY_XC40" %}
-    export WORKING_DIR=$RAMTMP
-{% endif %}
-{% if XBS_SPECIFY_COMPILER_PRGENV %}
-    module swap PrgEnv-cray {{XBS_COMPILER_PRGENV}}
-{% endif %}
-{% for mod_name in XBS_PREREQ_MODULES %}
-    module load {{mod_name}}
-{% endfor %}
-'''
-        [[[directives]]]
-{% if SYSTEM_NAME == "UKMO_CRAY_XC40" %}
-            -l walltime=00:10:00
-            -l ncpus={{XIOS_NUM_CORES}}
-            -l mem=2000MB
-            -l tmpsize=2gb
-            -q = shared
-            -P = climate
-{% endif %}
+        inherit = None, XBS, OASIS_BUILD_APP, XIOS_BUILD_APP, NEMO_BUILD_APP, MODULE_DEPLOYMENT_APP, XBS_UNIT_TEST_SETUP, XBS_UNIT_TEST_RESOURCE
         [[[environment]]]
-        {% if OASIS_BUILD_TUTORIAL %}
-            OASIS_BUILD_TUTORIAL=true
-        {% else %}
-            OASIS_BUILD_TUTORIAL=false
-        {% endif %}            
+            VERBOSE='true'
+            XIOS_PATH='/path/to/xios/dir'
+            OASIS_ROOT = '/path/to/oasis3mct/dir'
+            NEMO_POST_BUILD_CLEANUP='false'
+            XIOS_DO_CLEAN_BUILD='false'
+            XIOS_EXTERNAL_REPO_URL='http://forge.ipsl.jussieu.fr/ioserver/svn/XIOS/trunk'
+            XIOS_POST_BUILD_CLEANUP='false'
+            OASIS_EXTERNAL_REPO_URL='http://oasis3mct.cerfacs.fr/svn/trunk/oasis3-mct'
+            OASIS_EXTERNAL_REV_NO='1120'
+        
+    [[buildOasis]]
+        inherit = None, XBS, MODULE_DEPLOYMENT_APP, OASIS_BUILD_APP, BUILD_OASIS_RESOURCE, BUILD_OASIS_SETUP
     
      [[testOasis]]
-        inherit = None, XBS, XC40, OASIS_APP
-{% if SYSTEM_NAME == "UKMO_CRAY_XC40" %}
-        pre-command scripting = """
-{% if XBS_SPECIFY_COMPILER_PRGENV %}
-    module swap PrgEnv-cray {{XBS_COMPILER_PRGENV}}
-{% endif %}
-{% for mod_name in XBS_PREREQ_MODULES %}
-    module load {{mod_name}}
-{% endfor %}
-{% if DEPLOY_AS_MODULE %}
-module use {{MODULE_INSTALL_PATH}}/modules; 
-module load {{OASIS3_MCT}}/{{OASIS_MODULE_VERSION}}
-{% endif %}
-"""
-{% endif %}
-        [[[directives]]]
-{% if SYSTEM_NAME == "UKMO_CRAY_XC40" %}
-            -l walltime=00:10:00
-            -l select=2
-            -q = normal
-            -P = climate
-{% endif %}
+        inherit = None, XBS, OASIS_APP, TEST_OASIS_SETUP, TEST_OASIS_RESOURCE
         [[[environment]]]
-        OASIS_RESULT_DIR=$ROSE_DATA/{{OASIS3_MCT}}
-        OASIS_TEST_NAME={{OASIS_TEST_NAME}}
+            OASIS_RESULT_DIR=$ROSE_DATA/{{OASIS3_MCT}}
+            OASIS_TEST_NAME={{OASIS_TEST_NAME}}
+            OASIS_DATA_DIRECTORY = {{OASIS_DATA_DIRECTORY}}
         
-        
-        
-     [[buildXios]]
-        inherit = None, XBS, XC40_serial, XIOS_APP, MODULE_DEPLOYMENT_APP, OASIS_SRC
-        pre-command scripting = """
-{% if SYSTEM_NAME == "UKMO_CRAY_XC40" %}
-{% if XBS_SPECIFY_COMPILER_PRGENV %}
-    module swap PrgEnv-cray {{XBS_COMPILER_PRGENV}}
-{% endif %}
-{% for mod_name in XBS_PREREQ_MODULES %}
-    module load {{mod_name}}
-{% endfor %}
-{% if DEPLOY_AS_MODULE %}
-module use {{MODULE_INSTALL_PATH}}/modules; 
-{% if USE_OASIS %}
-module load {{OASIS3_MCT}}/{{OASIS_MODULE_VERSION}}
-{% endif %}
-{% endif %}
-export WORKING_DIR=$RAMTMP
-{% endif %}
-"""
-
-        [[[environment]]]
-{% if XIOS_USE_PREBUILT_LIB == false %}
-            XIOS_NUM_CORES={{XIOS_NUM_CORES}}
-{% endif %}
-            XIOS_MODULE_VERSION={{XIOS_MODULE_VERSION}}
-            XIOS_PRGENV_VERSION={{XIOS_PRGENV_VERSION}}
-
-        [[[directives]]]
-{% if SYSTEM_NAME == "UKMO_CRAY_XC40" %}
-            -l walltime=00:50:00
-    {% if XIOS_USE_PREBUILT_LIB == false %}
-            -l ncpus={{XIOS_NUM_CORES}}
-    {% else %}
-            -l ncpus=1
-    {% endif %}
-            -l mem=2000MB
-            -l tmpsize=4gb
-            -q = shared
-            -P = climate
-{% endif %}
+    [[buildXios]]
+        inherit = None, XBS, XIOS_BUILD_APP, MODULE_DEPLOYMENT_APP, OASIS_SRC, BUILD_XIOS_SETUP, BUILD_XIOS_RESOURCE
 
     [[testXios]]
-        inherit = None, XBS, XC40, XIOS_APP
-{% if SYSTEM_NAME == "UKMO_CRAY_XC40" %}
-        pre-command scripting = """
-{% if DEPLOY_AS_MODULE %}
-module use {{MODULE_INSTALL_PATH}}/modules; 
-module load XIOS-PrgEnv/{{XIOS_PRGENV_VERSION}}/{{ROSE_SUITE_REV_NO}}
-{% else %}
-{% if XBS_SPECIFY_COMPILER_PRGENV %}
-    module swap PrgEnv-cray {{XBS_COMPILER_PRGENV}}
-{% endif %}
-{% for mod_name in XBS_PREREQ_MODULES %}
-    module load {{mod_name}}
-{% endfor %}
-{% endif %}
-"""
-{% endif %}
-        [[[directives]]]
-{% if SYSTEM_NAME == "UKMO_CRAY_XC40" %}
-            -l walltime=00:10:00
-            -l select=2
-            -q = normal
-            -P = climate
-{% endif %}
+        inherit = None, XBS, XIOS_APP, TEST_PRGENV_USER, TEST_XIOS_RESOURCE
         [[[environment]]]
-        XIOS_RESULT_DIR=$ROSE_DATA/{{XIOS}}
+            XIOS_RESULT_DIR=$ROSE_DATA/{{XIOS}}
         
     [[buildNemo]]
-        inherit = None, XBS, XC40, XIOS_APP, NEMO_APP, 
-{% if SYSTEM_NAME == "UKMO_CRAY_XC40" %}
-        pre-command scripting = """
-{% if DEPLOY_AS_MODULE %} 
-module use {{MODULE_INSTALL_PATH}}/modules; 
-module load XIOS-PrgEnv/{{XIOS_PRGENV_VERSION}}/{{ROSE_SUITE_REV_NO}}
-{% else %}
-{% if XBS_SPECIFY_COMPILER_PRGENV %}
-    module swap PrgEnv-cray {{XBS_COMPILER_PRGENV}}
-{% endif %}
-{% for mod_name in XBS_PREREQ_MODULES %}
-    module load {{mod_name}}
-{% endfor %}
-{% endif %}
-export WORKING_DIR=$RAMTMP
-{% endif %}
-"""
+        inherit = None, XBS, XIOS_APP, NEMO_BUILD_APP, BUILD_PRGENV_USER, BUILD_NEMO_RESOURCE
 
-        [[[environment]]]
-            NEMO_SRC_LOCATION_TYPE = {{NEMO_SRC_LOCATION_TYPE}}
-            NEMO_REPO_URL = {{NEMO_REPO_URL}}
-            NEMO_REV = {{NEMO_REV}}
-            {% if NEMO_SRC_LOCATION_TYPE == 'local' %}
-                NEMO_SRC_CODE_DIR = {{NEMO_SRC_CODE_DIR}}
-            {% endif %}
- 
-        [[[directives]]]
-{% if SYSTEM_NAME == "UKMO_CRAY_XC40" %}
-            -q = shared
-            -l ncpus=8
-            -l tmpsize=4gb
-            -l walltime=00:20:00
-{% endif %}
+
 
     [[testNemo]]
-        inherit=None, XBS, XC40, NEMO_APP, XIOS_APP
-{% if SYSTEM_NAME == "UKMO_CRAY_XC40" %}
-        pre-command scripting = """
-{% if DEPLOY_AS_MODULE %}
-module use {{MODULE_INSTALL_PATH}}/modules
-module load XIOS-PrgEnv/{{XIOS_PRGENV_VERSION}}/{{ROSE_SUITE_REV_NO}}
-{% else %}
-{% if XBS_SPECIFY_COMPILER_PRGENV %}
-    module swap PrgEnv-cray {{XBS_COMPILER_PRGENV}}
-{% endif %}
-{% for mod_name in XBS_PREREQ_MODULES %}
-    module load {{mod_name}}
-{% endfor %}
-{% endif %}
-"""
+        inherit=None, XBS, NEMO_APP, XIOS_APP, TEST_PRGENV_USER, TEST_NEMO_RESOURCE
 
-{% endif %}
-        [[[directives]]]
-{% if SYSTEM_NAME == "UKMO_CRAY_XC40" %}
-            -q = normal
-    {% if (NEMO_TASKS_JPI*NEMO_TASKS_JPJ)%TASKS_PER_NODE == 0 %}
-        {% if (XIOS_TASKS % XIOS_TASKS_PER_NODE == 0) %}
-            -l select={{(NEMO_TASKS_JPI*NEMO_TASKS_JPJ)//TASKS_PER_NODE + (XIOS_TASKS//XIOS_TASKS_PER_NODE) }}
-        {% else %}
-            -l select={{(NEMO_TASKS_JPI*NEMO_TASKS_JPJ)//TASKS_PER_NODE + (XIOS_TASKS//XIOS_TASKS_PER_NODE) + 1 }}
-        {% endif %}
-    {% else %}
-        {% if (XIOS_TASKS % XIOS_TASKS_PER_NODE == 0) %}
-            -l select={{(NEMO_TASKS_JPI*NEMO_TASKS_JPJ)//TASKS_PER_NODE + (XIOS_TASKS//XIOS_TASKS_PER_NODE) + 1}}
-        {% else %}
-            -l select={{(NEMO_TASKS_JPI*NEMO_TASKS_JPJ)//TASKS_PER_NODE + (XIOS_TASKS//XIOS_TASKS_PER_NODE) + 2 }}
-        {% endif %}
-    {% endif %}
-            -l walltime={{NEMO_TEST_TIME_LIMIT}}
-            -P = climate
-{% endif %}
         [[[environment]]]
             NEMO_TASKS_JPI={{NEMO_TASKS_JPI}}
             NEMO_TASKS_JPJ={{NEMO_TASKS_JPJ}}
@@ -558,39 +395,14 @@ module load XIOS-PrgEnv/{{XIOS_PRGENV_VERSION}}/{{ROSE_SUITE_REV_NO}}
             NEMO_TEST_TIME_LIMIT={{NEMO_TEST_TIME_LIMIT}}
             NEMO_RESULT_DIR=$ROSE_DATA/{{NEMO}}
 
-
-    [[fcm_make_xiosScript_local]]
-        inherit = None, XBS, LINUX
-        [[[environment]]]
-            SOURCE_MOCI={{SOURCE_MOCI}}
-
-    [[validation_prepare]]
-        inherit=None, XBS, LINUX
-        [[[environment]]]
-            XIOS_RESULT_DIR=$ROSE_DATA/{{XIOS}}/
-            NEMO_RESULT_DIR=$ROSE_DATA/{{NEMO}}/
-            OASIS_RESULT_DIR=$ROSE_DATA/{{OASIS3_MCT}}/
-
     [[validate_oasis]]
-        inherit=None, XBS, LINUX
-        [[[environment]]]
-            OASIS_KGO_DIR={{KGO_DIR}}/{{OASIS3_MCT}}
-            OASIS_RESULT_DIR=$ROSE_DATA/{{OASIS3_MCT}}
-            OASIS_REMOTE_RESULT_DIR=$(rose host-select {{HOST_XC40}} ):cylc-run/$CYLC_SUITE_NAME/share/data/{{OASIS3_MCT}}
+        inherit=VALIDATE_APP
 
     [[validate_xios]]
-        inherit=None, XBS, LINUX
-        [[[environment]]]
-            XIOS_KGO_DIR={{KGO_DIR}}/{{XIOS}}
-            XIOS_RESULT_DIR=$ROSE_DATA/{{XIOS}}
-            XIOS_REMOTE_RESULT_DIR=$(rose host-select {{HOST_XC40}} ):cylc-run/$CYLC_SUITE_NAME/share/data/{{XIOS}}
+        inherit=VALIDATE_APP
     
     [[validate_nemo]]
-        inherit=None, XBS, LINUX
-        [[[environment]]]
-            NEMO_KGO_DIR={{KGO_DIR}}/{{NEMO}}
-            NEMO_RESULT_DIR=$ROSE_DATA/{{NEMO}}
-            NEMO_REMOTE_RESULT_DIR=$(rose host-select {{HOST_XC40}} ):cylc-run/$CYLC_SUITE_NAME/share/data/{{NEMO}}
+        inherit=VALIDATE_APP
 
     [[housekeeping_xios]]
         inherit=None, XBS, XC40_serial, HOUSEKEEPING, 
@@ -650,3 +462,5 @@ module load XIOS-PrgEnv/{{XIOS_PRGENV_VERSION}}/{{ROSE_SUITE_REV_NO}}
         inherit=None, LINUX, HOUSEKEEPING 
         [[[environment]]]
             RUNDIR="$CYLC_SUITE_SHARE_DIR/data/postproc $CYLC_SUITE_WORK_DIR/1/fcm_make_pp $CYLC_SUITE_WORK_DIR/1/postproc_* $CYLC_SUITE_WORK_DIR/1/pp_* $CYLC_SUITE_WORK_DIR/1/housekeeping_pp $CYLC_SUITE_WORK_DIR/1/coupled_dummy_*"
+
+{% include 'site/'+SYSTEM_NAME+'.rc' %}

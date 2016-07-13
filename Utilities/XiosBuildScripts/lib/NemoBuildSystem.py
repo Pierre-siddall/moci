@@ -13,6 +13,7 @@
 
 """
 import os
+import sys
 import subprocess
 import shutil
 import abc
@@ -33,7 +34,7 @@ class NemoInvalidSourceCodeOptionError(Exception):
     pass
 
 
-class NemoBuildSystem(common.XbsBase):
+class NemoBuildSystem(common.XbsBuild):
 
     """
     Base class for building the NEMO executable.
@@ -43,7 +44,7 @@ class NemoBuildSystem(common.XbsBase):
 
     def __init__(self, settings_dict):
 
-        common.XbsBase.__init__(self, settings_dict)
+        common.XbsBuild.__init__(self, settings_dict)
 
         self.modules_to_load = []
         self.library_name = settings_dict['NEMO']
@@ -109,8 +110,10 @@ class NemoBuildSystem(common.XbsBase):
         a URL, or copy from a directory.
         """
         if self.source_code_location_type == 'URL':
+            sys.stderr.write('extracting from source code repository\n\n')
             self.extract_from_repository()
         elif self.source_code_location_type == 'local':
+            sys.stderr.write('extracting from local source code directory\n\n')
             self.copy_from_directory()
         else:
             raise NemoInvalidSourceCodeOptionError()
@@ -486,16 +489,18 @@ class NemoLinuxIntelBuildSystem(NemoBuildSystem):
         return build_str1
 
 
-def create_nemo_build_system(system_name):
+def create_nemo_build_system(system_name, settings_dict):
     """
     Factory method to create a class for building NEMO on the platform
     specified by system_name.
     """
     build_system1 = None
     if system_name == NemoCrayXC40BuildSystem.SYSTEM_NAME:
-        build_system1 = NemoCrayXC40BuildSystem(os.environ)
+        build_system1 = NemoCrayXC40BuildSystem(settings_dict)
     elif system_name == common.SYSTEM_NAME_MONSOON:
-        build_system1 = NemoCrayXC40BuildSystem(os.environ)
+        build_system1 = NemoCrayXC40BuildSystem(settings_dict)
+    elif system_name == common.SYSTEM_NAME_EXTERNAL:
+        build_system1 = NemoCrayXC40BuildSystem(settings_dict)
     elif system_name == NemoLinuxIntelBuildSystem.SYSTEM_NAME:
-        build_system1 = NemoLinuxIntelBuildSystem(os.environ)
+        build_system1 = NemoLinuxIntelBuildSystem(settings_dict)
     return build_system1

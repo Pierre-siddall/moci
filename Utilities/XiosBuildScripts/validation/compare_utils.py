@@ -12,6 +12,8 @@ Created on 20 August 2015
 Utility functions for use in validating output of test scripts.
 """
 import os
+import hashlib
+
 import iris
 
 ERROR_TOLERANCE = 1e-10
@@ -56,8 +58,20 @@ class DataMismatchException(Exception):
                                            fileName=fileName)
 
     def __str__(self):
-        return self.Message
+        return self.message
 
+class HashMismatchException(Exception):
+    """
+    Error triggered when files have different SHA-1 hashes
+    """
+    def __init__(self, fileName):
+        Exception.__init__(self)
+        self.message = 'files have different SHA1 hash '\
+                       'values for file {fileName}'
+        self.message = self.message.format(fileName=fileName)
+
+    def __str__(self):
+        return self.message
 
 def compare_cube_list_files(directory1, directory2, file_name1):
     """
@@ -89,4 +103,3 @@ def compare_cube_list_files(directory1, directory2, file_name1):
         cube_diff = (cube1.data-cube2.data).flatten().sum()
         if abs(cube_diff) > ERROR_TOLERANCE:
             raise DataMismatchException(ix1, file_name1)
-            

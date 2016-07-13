@@ -5,67 +5,59 @@ Unit test module to test XIOS build scripts.
 import unittest
 import os
 import filecmp
+import abc
+
+# this must be imported before the other local imports as it sets up the path
+# to import the main scripts
+import unit_test_common
 
 import XiosBuildSystem
 import XiosModuleWriter
+import common
 
-class XiosBuildCrayTests(unittest.TestCase):
+class XiosBuildTests(unittest.TestCase):
     """
-    Class to XIOS build tests on UKMO Cray XC40
+    Base class for running XIOS build tests
     """
+    CONFIG_LIST = ['XIOS',
+                   'XIOS-app',
+                   'XIOS_unit',
+                   'oasis3-mct-app']
+
     def setUp(self):
         """
-        Setup XIOS build tests on Cray XC40
+        Setup XIOS build tests
         """
         print 'Setting up tests'
-        self.environment = {}
-        self.system_name = 'UKMO_CRAY_XC40'
-        self.environment['SYSTEM_NAME'] = self.system_name
-        self.verbose = True
-        if self.verbose:
-            self.environment['VERBOSE'] = 'true'
-        else:
-            self.environment['VERBOSE'] = 'false'
-        self.environment['XIOS_DO_CLEAN_BUILD'] = 'true'
-        self.environment['XIOS_POST_BUILD_CLEANUP'] = 'false'
-        self.environment['XIOS_SRC_LOCATION_TYPE'] = 'URL'
-        self.xios_repo_url = 'svn://fcm1/xios.xm_svn/XIOS/branchs/xios-1.0'
-        self.environment['XIOS_REPO_URL'] = self.xios_repo_url
-        self.xios_rev_no = 'HEAD'
-        self.environment['XIOS_REV'] = self.xios_rev_no
-        self.environment['XIOS'] = 'XIOS'
-        self.environment['USE_OASIS'] = 'false'
-        self.environment['OASIS_ROOT'] = \
-            '/home/d02/shaddad/Projects/GC3Port/r1217_port_mct_xcf/'\
-            'oasis3-mct/crayxc40'
-        self.environment['BUILD_PATH'] = '{0}/install'.format(os.getcwd())
-        self.num_cores = 4
-        self.environment['XIOS_NUM_CORES'] = str(self.num_cores)
-        self.environment['XLF_MODULE'] = ''
-        self.environment['XLCPP_MODULE'] = ''
-        self.environment['DEPLOY_AS_MODULE'] = 'true'
-        self.environment['MODULE_INSTALL_PATH'] = \
-            '{0}/modules'.format(os.getcwd())
-        self.environment['XIOS_MODULE_VERSION'] = '1.0'
-        self.environment['XIOS_PRGENV_VERSION'] = '1.0'
-        self.environment['OASIS_MODULE_VERSION'] = '1.0'
-        self.environment['OASIS3_MCT'] = "oasis3-mct"
-        self.environment['ROSE_SUITE_URL'] = 'path/to/repository'
-        self.environment['ROSE_SUITE_REV_NO'] = '1234'
-        self.external_repo_url = 'http://external.server.gov/path/to/repository'
-        self.environment['XIOS_EXTERNAL_REPO_URL'] = self.external_repo_url
-        self.environment['XBS_PREREQ_MODULES'] = \
-            "['cray-hdf5-parallel/1.8.13',"\
-            "'cray-netcdf-hdf5parallel/4.3.2']"
+        self.config_list = XiosBuildTests.CONFIG_LIST
+        self.system_name = self.get_system_name()
+        self.settings_dir = unit_test_common.get_settings_dir()
 
-        # NOTE:
+        self.environment = unit_test_common.get_settings(self.config_list,
+                                                         self.settings_dir,
+                                                         self.system_name)
+
+
+        self.verbose = self.environment['VERBOSE'] == 'true'
+        self.xios_repo_url = self.environment['XIOS_REPO_URL']
+        self.xios_rev_no = self.environment['XIOS_REV']
+        self.num_cores = int(self.environment['XIOS_NUM_CORES'])
+        self.external_repo_url = self.environment['XIOS_EXTERNAL_REPO_URL']
         self.build_system = \
-            XiosBuildSystem.XiosCrayBuildSystem(self.environment)
+            XiosBuildSystem.create_build_system(self.system_name,
+                                                self.environment)
         self.test_script_directory = os.path.dirname(os.path.realpath(__file__))
+
+    @abc.abstractmethod
+    def get_system_name(self):
+        """
+        Get the build system name
+        """
+        pass
 
     def tearDown(self):
         """
-        Clean up after XIOS build tests on Cray XC40
+        Clean up after XIOS build tests
         """
         pass
 
@@ -86,36 +78,42 @@ class XiosBuildCrayTests(unittest.TestCase):
         """
         Test XiosBuildSystem.extract_xios_source_code() function
         """
-        self.build_system.extract_xios_source_code()
-        script_file_path = '{working_dir}/{file_name}'
-        script_file_path = script_file_path.format(
-            working_dir=self.build_system.working_dir,
-            file_name=XiosBuildSystem.EXTRACT_SCRIPT_FILENAME)
-        self.assertTrue(os.path.exists(script_file_path),
-                        'script file {0} not found!'.format(script_file_path))
-        # compare contents to reference file
-        ref_file_path = '{0}/cray_xiosBuild_extractScript.sh'
-        ref_file_path = ref_file_path.format(self.build_system.working_dir)
+        self.build_system.get_source_code()
+        #only check extract script if using a repository URL
+        if self.build_system.source_code_location_type == 'URL':
+            script_file_path = '{working_dir}/{file_name}'
+            script_file_path = script_file_path.format(
+                working_dir=self.build_system.working_dir,
+                file_name=XiosBuildSystem.EXTRACT_SCRIPT_FILENAME)
+            self.assertTrue(
+                os.path.exists(script_file_path),
+                'script file {0} not found!'.format(script_file_path))
+            # compare contents to reference file
+            ref_file_path = '{0}/{1}_xiosBuild_extractScript.sh'
+            ref_file_path = ref_file_path.format(self.build_system.working_dir,
+                                                 self.build_system.system_name)
 
-        dest_dir = os.path.join(self.build_system.working_dir,
-                                self.build_system.library_name)
-        extract_cmd_string = '''#!/bin/sh
-fcm co svn://fcm1/xios.xm_svn/XIOS/branchs/xios-1.0@HEAD {dest_dir}
+            dest_dir = os.path.join(self.build_system.working_dir,
+                                    self.build_system.library_name)
+            extract_cmd_string = '''#!/bin/sh
+fcm co {url}@{rev} {dest_dir}
 cd {dest_dir}
 for i in tools/archive/*.tar.gz; do  tar -xzf $i; done
-'''.format(dest_dir=dest_dir)
+'''.format(dest_dir=dest_dir,
+           url=self.build_system.xios_repository_url,
+           rev=self.build_system.xios_revision_number)
 
-        with open(ref_file_path, 'w') as extractref_file:
-            extractref_file.write(extract_cmd_string)
+            with open(ref_file_path, 'w') as extractref_file:
+                extractref_file.write(extract_cmd_string)
 
-        assert_msg1 = 'script file {0} not identical to reference file {1}'
-        assert_msg1 = assert_msg1.format(script_file_path,
-                                         ref_file_path)
-        self.assertTrue(
-            filecmp.cmp(script_file_path,
-                        ref_file_path,
-                        shallow=False),
-            assert_msg1)
+            assert_msg1 = 'script file {0} not identical to reference file {1}'
+            assert_msg1 = assert_msg1.format(script_file_path,
+                                             ref_file_path)
+            self.assertTrue(
+                filecmp.cmp(script_file_path,
+                            ref_file_path,
+                            shallow=False),
+                assert_msg1)
 
         # check extracted source code for existence of some files
         extract_directory = '{0}/{1}'.format(self.build_system.working_dir,
@@ -129,9 +127,84 @@ for i in tools/archive/*.tar.gz; do  tar -xzf $i; done
             self.assertTrue(os.path.exists(file_path1),
                             ' file {0} not found'.format(file_path1))
 
+    @abc.abstractmethod
+    def create_module_writer(self):
+        """
+        Test writing of XIOS modules
+        """
+        pass
+
+    @abc.abstractmethod
+    def create_module_file_reference(self, module_relative_path):
+        """
+        Create a reference module file
+        """
+        pass
+
     def test_write_module(self):
         """
-        Test the XiosCrayModuleWriter class.
+        Test the relevant XiosModuleWriter class.
+        """
+        mw1 = self.create_module_writer()
+        mw1.write_module()
+
+        # check for existence of module
+        module_file_path = os.path.join(self.build_system.module_root_dir,
+                                        'modules',
+                                        mw1.module_relative_path)
+
+        self.assertTrue(os.path.exists(module_file_path),
+                        'Module file {0} not found'.format(module_file_path))
+
+        # check contents
+        reference_file_path = \
+            self.create_module_file_reference(mw1.module_relative_path)
+
+        self.assertTrue(filecmp.cmp(module_file_path,
+                                    reference_file_path,
+                                    shallow=False),
+                        'module file {0} not identical to '
+                        'reference file {1}'.format(module_file_path,
+                                                    reference_file_path))
+    @abc.abstractmethod
+    def create_reference_build_script(self):
+        """
+        Create a reference build script.
+        """
+        pass
+
+    def test_write_build_script(self):
+        """
+        Test the XiosBuildSystem.create_build_command()
+        """
+        self.build_system.create_build_command()
+
+        script_file_path = '{working_dir}/{file_name}'
+        script_file_path = script_file_path.format(
+            working_dir=self.build_system.working_dir,
+            file_name=XiosBuildSystem.BUILD_SCRIPT_FILENAME)
+
+        self.assertTrue(os.path.exists(script_file_path),
+                        'build script {0} not found!'.format(script_file_path))
+
+        ref_file_path = self.create_reference_build_script()
+        err_msg1 = 'build script {0} not identical to reference script {1}'
+        err_msg1 = err_msg1.format(script_file_path, ref_file_path)
+        self.assertTrue(filecmp.cmp(script_file_path,
+                                    ref_file_path,
+                                    shallow=False),
+                        err_msg1)
+
+class XiosBuildCrayTests(XiosBuildTests):
+    """
+    Class to XIOS build tests on UKMO Cray XC40
+    """
+    def get_system_name(self):
+        return XiosBuildSystem.XiosCrayBuildSystem.SYSTEM_NAME
+
+    def create_module_writer(self):
+        """
+        Create a module writer object.
         """
         mw1 = XiosModuleWriter.XiosCrayModuleWriter( \
             self.build_system.module_version,
@@ -143,20 +216,16 @@ for i in tools/archive/*.tar.gz; do  tar -xzf $i; done
             self.build_system.suite_revision_number,
             self.build_system.SYSTEM_NAME,
             self.build_system.prerequisite_modules)
-        mw1.write_module()
+        return mw1
 
-        # check for existence of module
-        temp_mod_str1 = '{root_dir}/modules/{rel_path}'
-        module_file_path = temp_mod_str1.format(
-            root_dir=self.build_system.module_root_dir,
-            rel_path=mw1.module_relative_path)
-        self.assertTrue(os.path.exists(module_file_path),
-                        'Module file {0} not found'.format(module_file_path))
-
-        # check contents
+    def create_module_file_reference(self, module_relative_path):
+        """
+        Create a reference module file
+        """
         reference_file_path = \
-            '{0}/xiosBuild_cray_moduleFile'\
-            .format(self.build_system.working_dir)
+            '{0}/xiosBuild_{1}_moduleFile'\
+            .format(self.build_system.working_dir,
+                    self.system_name)
 
         mod_file_string = '''#%Module1.0
 proc ModulesHelp {{ }} {{
@@ -191,53 +260,52 @@ setenv XIOS_EXEC $xiosdir/bin/xios_server.exe
 prepend-path PATH $xiosdir/bin
 \n'''
         mod_file_string = mod_file_string.format(
-            rel_path=mw1.module_relative_path,
+            rel_path=module_relative_path,
             **self.build_system.__dict__)
         with open(reference_file_path, 'w') as ref_file:
             ref_file.write(mod_file_string)
 
-        self.assertTrue(filecmp.cmp(module_file_path,
-                                    reference_file_path,
-                                    shallow=False),
-                        'module file {0} not identical to '
-                        'reference file {1}'.format(module_file_path,
-                                                    reference_file_path))
+        return reference_file_path
 
-
-    def test_write_build_script(self):
+    def create_reference_build_script(self):
         """
-        Test the XiosBuildSystem.create_build_command()
+        Create a reference build script.
         """
-        self.build_system.create_build_command()
-
-        script_file_path = '{working_dir}/{file_name}'
-        script_file_path = script_file_path.format(
-            working_dir=self.build_system.working_dir,
-            file_name=XiosBuildSystem.BUILD_SCRIPT_FILENAME)
-
-        self.assertTrue(os.path.exists(script_file_path),
-                        'build script {0} not found!'.format(script_file_path))
         ref_file_path = '{0}/xiosBuild_cray_referenceBuildScript.sh'
         ref_file_path = ref_file_path.format(self.build_system.working_dir)
         ref_file_str = '''#!/bin/sh
 
-module load cray-hdf5-parallel/1.8.13
-module load cray-netcdf-hdf5parallel/4.3.2
+echo CURRENT MODULES:
+module list
+'''
+        if self.build_system.specify_compiler:
+            ref_file_str += \
+                'module swap {0}\n'.format(self.build_system.compiler_module)
+        for mod_name in self.build_system.prerequisite_modules:
+            ref_file_str += 'module load {0}\n'.format(mod_name)
 
+        option_str = ''
+        if self.build_system.do_clean_build:
+            option_str += '--full '
+        if self.build_system.use_oasis:
+            option_str += '--use_oasis oasis3_mct '
+        ref_file_str += '''
+echo MODULES AFTER LOAD:
+module list
 cd {working_dir}/XIOS
-./make_xios --arch XC30_Cray --full  --job 4
+./make_xios --arch XC30_Cray {options} --job {num_procs}
 '''
         ref_file_str = ref_file_str.format(
-            working_dir=self.build_system.working_dir)
+            working_dir=self.build_system.working_dir,
+            options=option_str,
+            num_procs=self.build_system.number_of_build_tasks)
 
         with open(ref_file_path, 'w') as ref_file:
             ref_file.write(ref_file_str)
-        err_msg1 = 'build script {0} not identical to reference script {1}'
-        err_msg1 = err_msg1.format(script_file_path, ref_file_path)
-        self.assertTrue(filecmp.cmp(script_file_path,
-                                    ref_file_path,
-                                    shallow=False),
-                        err_msg1)
+
+        return ref_file_path
+
+
 
 class XiosBuildLinuxIntelTests(unittest.TestCase):
     """
@@ -428,10 +496,41 @@ cd {working_dir}/XIOS
                                     shallow=False),
                         err_msg1)
 
+
+class XiosBuildMonsoonTests(XiosBuildCrayTests):
+    """
+    Unit test class for running XIOS Build tests on Monsoon
+    """
+    def get_system_name(self):
+        return common.SYSTEM_NAME_MONSOON
+
+class XiosBuildExternalTests(XiosBuildCrayTests):
+    """
+    Unit test class for running XIOS Build tests on an external system
+    """
+    def get_system_name(self):
+        return common.SYSTEM_NAME_EXTERNAL
+
 def suite():
+    """
+    Build up the XIOS build unit test suite.
+    """
     suite = \
         unittest.TestLoader().loadTestsFromTestCase(XiosBuildLinuxIntelTests)
     return suite
 
+def main():
+    """
+    Entry function for running only the XIOS build tests
+    """
+    test_list_dict = {}
+    test_list_dict[XiosBuildSystem.XiosCrayBuildSystem.SYSTEM_NAME] = [
+        XiosBuildCrayTests]
+    test_list_dict[common.SYSTEM_NAME_MONSOON] = [
+        XiosBuildMonsoonTests]
+    test_list_dict[common.SYSTEM_NAME_EXTERNAL] = [
+        XiosBuildMonsoonTests]
+    unit_test_common.run_tests(test_list_dict)
+
 if __name__ == '__main__':
-    unittest.main()
+    main()
