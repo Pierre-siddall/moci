@@ -46,5 +46,6 @@ class CiceNamelist:
     correct_time_variables = False
     correct_time_bounds_variables = False
     time_vars = 'time'
+    cat_daily_means = False
 
 NAMELISTS = {'cicepostproc': CiceNamelist}

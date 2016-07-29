@@ -284,6 +284,36 @@ class SuiteEnvironment(object):
 
         return output
 
+    def preproc_ncrcat(self, infiles, **kwargs):
+        '''
+        Invoke NetCDF utility ncrcat for concatenating records
+        Arguments should be provided in the form of a dictionary
+        '''
+        try:
+            outfile = kwargs['outfile']
+            del kwargs['outfile']
+        except KeyError:
+            msg = 'ncrcat: Cannot continue - output filename not provided'
+            utils.log_msg(msg, level=5)
+
+        cmd = self.nl.ncrcat_path
+        if not os.path.basename(cmd) == 'ncrcat':
+            cmd = os.path.join(cmd, 'ncrcat')
+
+        for key, val in kwargs.items():
+            cmd = ' '.join([cmd, '-' + key, val])
+        cmd = '{} {} {}'.format(cmd, ' '.join(infiles), outfile)
+
+        utils.log_msg('ncrcat: Concatenating files: {}'.format(cmd), level=1)
+        ret_code, output = utils.exec_subproc(cmd)
+        level = 2
+        if ret_code == 0:
+            msg = 'ncrcat: Command successful'
+        else:
+            msg = 'ncrcat: Command failed:\n{}'.format(output)
+            level = 5
+        utils.log_msg(msg, level=level)
+
 
 class SuitePostProc(object):
     ''' Default namelist for model independent properties '''
@@ -294,6 +324,7 @@ class SuitePostProc(object):
     archive_command = 'Moose'
     nccopy_path = ''
     ncdump_path = ''
+    ncrcat_path = ''
 
 
 class TimerInfo(object):

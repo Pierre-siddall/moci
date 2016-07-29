@@ -14,9 +14,9 @@
 '''
 import unittest
 import os
-import mock
 from collections import OrderedDict
 import sys
+import mock
 
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
 
@@ -388,6 +388,58 @@ class PreProcessTests(unittest.TestCase):
                 self.mysuite.preproc_ncdump(infile, h='')
             mock_exec.assert_called_with('ncdump -h  TestDir/myFile')
         self.assertIn('I failed', func.capture('err'))
+
+    def test_ncrcat(self):
+        '''Test call to ncrcat utility'''
+        func.logtest('Assert call to ncrcat file utility:')
+        infiles = ['INfile1', 'INfile2']
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            mock_exec.return_value = (0, '')
+            self.mysuite.preproc_ncrcat(infiles, outfile='OUTfile')
+            mock_exec.assert_called_with('ncrcat INfile1 INfile2 OUTfile')
+        self.assertIn('ncrcat: Command successful', func.capture())
+
+    def test_ncrcat_args(self):
+        '''Test call to ncrcat utility - additional arguments'''
+        func.logtest('Assert call to ncrcat file utility - added args:')
+        infiles = ['INfile1', 'INfile2']
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            mock_exec.return_value = (0, '')
+            self.mysuite.preproc_ncrcat(infiles, k='val', outfile='OUTfile')
+            mock_exec.assert_called_with(
+                'ncrcat -k val INfile1 INfile2 OUTfile'
+                )
+        self.assertIn('ncrcat: Command successful', func.capture())
+
+    def test_ncrcat_path(self):
+        '''Test call to ncrcat utility with util path provided'''
+        func.logtest('Assert call to ncrcat file utility - path provided:')
+        infiles = ['INfile1', 'INfile2']
+        self.mysuite.nl.ncrcat_path = 'path/to/ncutils'
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            mock_exec.return_value = (0, '')
+            self.mysuite.preproc_ncrcat(infiles, outfile='OUTfile')
+            cmdstring = 'path/to/ncutils/ncrcat INfile1 INfile2 OUTfile'
+            mock_exec.assert_called_with(cmdstring)
+
+    def test_ncrcat_cmd_failure(self):
+        '''Test call to ncrcat utility - command failure'''
+        func.logtest('Assert failure in call to ncrcat file utility:')
+        infiles = ['INfile1', 'INfile2']
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            mock_exec.return_value = (1, 'I failed')
+            with self.assertRaises(SystemExit):
+                self.mysuite.preproc_ncrcat(infiles, outfile='OUTfile')
+            mock_exec.assert_called_with('ncrcat INfile1 INfile2 OUTfile')
+        self.assertIn('I failed', func.capture('err'))
+
+    def test_ncrcat_no_outfile(self):
+        '''Test call to ncrcat utility - no outfile'''
+        func.logtest('Assert call to ncrcat file utility - no outfile:')
+        infiles = ['INfile1', 'INfile2']
+        with self.assertRaises(SystemExit):
+            self.mysuite.preproc_ncrcat(infiles, kwarg='KWARG')
+        self.assertIn('ncrcat: Cannot continue', func.capture('err'))
 
 
 def main():

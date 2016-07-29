@@ -19,6 +19,7 @@ DESCRIPTION
     and methods
 '''
 import re
+import os
 
 import modeltemplate as mt
 import utils
@@ -111,6 +112,15 @@ class CicePostProc(mt.ModelTemplate):
     def rsttypes(self):
         return ('', r'.age')
 
+    @property
+    def archive_types(self):
+        '''
+        Additional archiving methods to call for files
+        other than restarts and means.
+        Returns a list of tuples: (method_name, bool)
+        '''
+        return [('concat_daily_means', self.nl.cat_daily_means),]
+
     def get_date(self, fname, startdate=True):
         '''
         Returns the date extracted from the filename provided.
@@ -125,6 +135,60 @@ class CicePostProc(mt.ModelTemplate):
         day = date[2] if len(date) == 3 else None
 
         return date[0], date[1], day
+
+    def archive_concat_daily_means(self):
+        '''Concatenate daily mean data into a single file'''
+        in_pat = r'^{P}i\.[0-9d_]*24h\.{{Y}}-{{M}}-{{D}}(-\d{{{{5}}}})?\.nc$'.\
+            format(P=self.suite.prefix)
+        out_pat = r'{P}i_1d_{{Y1}}{{M1}}01-{{Y2}}{{M2}}01.nc'.\
+            format(P=self.suite.prefix)
+
+        if self.work != self.share:
+            self.move_to_share(pattern=in_pat.format(Y=r'\d{4}', M=r'\d{2}',
+                                                     D=r'\d{2}'))
+
+        endset = utils.get_subset(self.share, in_pat.format(Y=r'\d{4}',
+                                                            M=r'\d{2}',
+                                                            D='01'))
+        for end in endset:
+            catfiles = [end]
+            end_yr, end_mo, _ = self.get_date(end)
+            if end_mo == '01':
+                start_yr = str(int(end_yr)- 1)
+                start_mo = '12'
+            else:
+                start_yr = end_yr
+                start_mo = str(int(end_mo) - 1).zfill(2)
+            catfiles += utils.get_subset(
+                self.share,
+                in_pat.format(Y=start_yr, M=start_mo,
+                              D=r'(0[2-9]|[1-3][0-9])')
+                )
+            if len(catfiles) != 30:
+                msg = 'concat_daily_means: Cannot create month of daily means '
+                msg += 'as only got {} files:\n{}'.format(len(catfiles),
+                                                          catfiles)
+                utils.log_msg(msg, level=5)
+            catfiles = utils.add_path(catfiles, self.share)
+
+            outfile = out_pat.format(Y1=start_yr, Y2=end_yr,
+                                     M1=start_mo, M2=end_mo)
+            outfile = os.path.join(self.share, outfile)
+            self.suite.preprocess_file('ncrcat', sorted(catfiles),
+                                       outfile=outfile)
+            utils.remove_files(catfiles)
+
+        to_archive = utils.get_subset(self.share,
+                                      out_pat.format(Y1=r'\d{4}', Y2=r'\d{4}',
+                                                     M1=r'\d{2}', M2=r'\d{2}'))
+        if to_archive:
+            arch_files = self.archive_files(to_archive)
+            if not [fn for fn in arch_files if arch_files[fn] == 'FAILED']:
+                msg = 'Deleting archived files: \n\t' + '\n\t'.join(to_archive)
+                utils.log_msg(msg)
+                utils.remove_files(to_archive, self.share)
+        else:
+            utils.log_msg(' -> Nothing to archive')
 
 
 INSTANCE = ('nemocicepp.nl', CicePostProc)

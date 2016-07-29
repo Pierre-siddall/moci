@@ -108,3 +108,18 @@ class pp11_t98(rose.upgrade.MacroUpgrade):
                                   "means_fieldsfiles",],
                          "grid_U,grid_V,grid_W,grid_T")
         return config, self.reports
+
+
+class pp11_t112(rose.upgrade.MacroUpgrade):
+
+    """Upgrade macro for ticket #112 by <Erica Neininger>."""
+    BEFORE_TAG = "pp11_t98"
+    AFTER_TAG = "pp11_t112"
+
+    def upgrade(self, config, meta_config=None):
+        """New options for calling ncrcat from CICE."""
+        self.add_setting(config,
+                         ["namelist:suitegen", "ncrcat_path",], "")
+        self.add_setting(config,
+                         ["namelist:cicepostproc", "cat_daily_means",], "false")        
+        return config, self.reports

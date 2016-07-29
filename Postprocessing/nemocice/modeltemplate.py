@@ -156,9 +156,10 @@ class ModelTemplate(control.runPostProc):
         Returns a list of means to be archived; additional to the standard
         monthly, seasonal and annual means files
         '''
-        if not isinstance(self.nl.means_to_archive, list):
-            self.nl.means_to_archive = [self.nl.means_to_archive]
-        return self.nl.means_to_archive
+        means = self.nl.means_to_archive if self.nl.means_to_archive else []
+        if not isinstance(means, list):
+            means = [means]
+        return means
 
     @property
     def rebuild_cmd(self):
@@ -503,7 +504,7 @@ class ModelTemplate(control.runPostProc):
                     to_archive.append(mean)
 
         for other_mean in self.additional_means:
-            if other_mean and other_mean not in ['1m', '1s', '1y']:
+            if other_mean not in ['1m', '1s', '1y']:
                 for field in self.fields:
                     meanset = utils.get_subset(
                         self.share,

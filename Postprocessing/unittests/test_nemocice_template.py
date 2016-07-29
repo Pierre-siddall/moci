@@ -14,8 +14,8 @@
 '''
 import unittest
 import os
-import mock
 import sys
+import mock
 
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'nemocice'))
@@ -670,7 +670,7 @@ class PropertyTests(unittest.TestCase):
         '''Test additional_means property value'''
         func.logtest('Assert return of additional means list:')
         self.model.nl.means_to_archive = None
-        self.assertEqual(self.model.additional_means, [None])
+        self.assertEqual(self.model.additional_means, [])
         self.model.nl.means_to_archive = '12h'
         self.assertEqual(self.model.additional_means, ['12h'])
         self.model.nl.means_to_archive = ['12h', '10d']
