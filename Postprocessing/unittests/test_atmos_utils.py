@@ -35,9 +35,90 @@ class HousekeepTests(unittest.TestCase):
     def setUp(self):
         self.umutils = os.path.join(os.environ['UMDIR'],
                                     'vn10.4', 'linux', 'utilities')
+        self.atmos = atmos.AtmosPostProc()
+        self.atmos.work = 'WorkDir'
+        self.atmos.share = 'ShareDir'
+        self.del_inst_pp = [('INST1', True), ('INST2', False), ('INST3', True)]
+        self.del_mean_pp = [('MEAN1', True), ('MEAN2', False), ('MEAN3', True)]
 
     def tearDown(self):
-        pass
+        for fname in runtime_environment.RUNTIME_FILES:
+            try:
+                os.remove(fname)
+            except OSError:
+                pass
+
+    @mock.patch('utils.remove_files')
+    def test_delete_inst_pp_archived(self, mock_rm):
+        '''Test delete_ppfiles functionality - archived instantaneous files'''
+        func.logtest('Assert successful deletion of archived inst. ppfiles:')
+        self.atmos.nl.delete_sc.gpdel = True
+        self.atmos.nl.delete_sc.gcmdel = False
+        housekeeping.delete_ppfiles(self.atmos, self.del_inst_pp,
+                                    self.del_mean_pp, True)
+        self.assertEqual(
+            mock_rm.mock_calls,
+            [mock.call(['INST1', 'INST3'], 'ShareDir'),
+             mock.call(['INST1.arch', 'INST3.arch'], 'WorkDir',
+                       ignoreNonExist=True)]
+            )
+
+    @mock.patch('utils.remove_files')
+    def test_delete_mean_pp_archived(self, mock_rm):
+        '''Test delete_ppfiles functionality - archived mean ppfiles'''
+        func.logtest('Assert successful deletion of archived mean ppfiles:')
+        self.atmos.nl.delete_sc.gpdel = True
+        self.atmos.nl.delete_sc.gcmdel = False
+        housekeeping.delete_ppfiles(self.atmos, self.del_mean_pp,
+                                    self.del_mean_pp, True)
+        self.assertEqual(
+            mock_rm.mock_calls,
+            [mock.call(['MEAN1', 'MEAN3'], 'ShareDir'),
+             mock.call(['MEAN1.arch', 'MEAN3.arch'], 'WorkDir',
+                       ignoreNonExist=True)]
+            )
+
+    @mock.patch('housekeeping.FILETYPE')
+    @mock.patch('utils.remove_files')
+    def test_delete_inst_ppfiles(self, mock_rm, mock_ft):
+        '''Test delete_ppfiles functionality - instantaneous files'''
+        func.logtest('Assert successful deletion of inst. ppfiles:')
+        self.atmos.nl.delete_sc.gpdel = True
+        mock_ft.__getitem__().__getitem__().return_value = 'INST'
+        self.atmos.suite = mock.Mock()
+        self.atmos.suite.prefix = ''
+        self.atmos.get_marked_files = mock.Mock(
+            return_value=[f[0] for f in self.del_inst_pp + self.del_mean_pp]
+            )
+        housekeeping.delete_ppfiles(self.atmos, self.del_inst_pp,
+                                    self.del_mean_pp, False)
+        self.assertEqual(
+            mock_rm.mock_calls,
+            [mock.call(['INST1', 'INST2', 'INST3'], 'ShareDir'),
+             mock.call(['INST1.arch', 'INST2.arch', 'INST3.arch'],
+                       'WorkDir', ignoreNonExist=True)]
+            )
+
+    @mock.patch('housekeeping.FILETYPE')
+    @mock.patch('utils.remove_files')
+    def test_delete_mean_ppfiles(self, mock_rm, mock_ft):
+        '''Test delete_ppfiles functionality - mean files'''
+        func.logtest('Assert successful deletion of mean ppfiles:')
+        self.atmos.nl.delete_sc.gcmdel = True
+        mock_ft.__getitem__().__getitem__().return_value = 'MEAN'
+        self.atmos.suite = mock.Mock()
+        self.atmos.suite.prefix = ''
+        self.atmos.get_marked_files = mock.Mock(
+            return_value=[f[0] for f in self.del_inst_pp + self.del_mean_pp]
+            )
+        housekeeping.delete_ppfiles(self.atmos, self.del_mean_pp,
+                                    self.del_mean_pp, False)
+        self.assertEqual(
+            mock_rm.mock_calls,
+            [mock.call(['MEAN1', 'MEAN2', 'MEAN3'], 'ShareDir'),
+             mock.call(['MEAN1.arch', 'MEAN2.arch', 'MEAN3.arch'], 'WorkDir',
+                       ignoreNonExist=True)]
+            )
 
     def test_convert_to_pp(self):
         '''Test convert_to_pp functionality'''
@@ -75,7 +156,7 @@ class HeaderTests(unittest.TestCase):
         self.logfile = open('logfile', 'w')
 
     def tearDown(self):
-        for fname in ['logfile'] + runtime_environment.runtime_files:
+        for fname in ['logfile'] + runtime_environment.RUNTIME_FILES:
             try:
                 os.remove(fname)
             except OSError:

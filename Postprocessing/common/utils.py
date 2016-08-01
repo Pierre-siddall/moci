@@ -43,7 +43,6 @@ def loadEnv(*envars, **append):
         except KeyError:
             no_fail = {
                 'ARCHIVE_FINAL': 'ARCHIVE_FINAL=False',
-                'CYLC_TASK_CYCLE_POINT': 'Pre-Cylc 6 environment identified',
                 'CYCLEPOINT_OVERRIDE': '',
                 }
             if var in no_fail.keys():
@@ -179,75 +178,57 @@ def move_files(mvfiles, destination, originpath=None, fail_on_err=False):
             log_msg(msg, msglevel)
 
 
-def add_period_to_date(indate, delta, lcal360=True):
+def add_period_to_date(indate, delta):
+    '''
+    Add a delta (list of integers) to a given date (list of integers).
+        Call `rose date` with calendar argument -
+      taken from environment variable CYLC_CYCLING_MODE.
+        If no indate is provided ([0,0,0,0,0}) then delta is returned.
+    '''
+
     while len(indate) < 5:
         indate.append(0)
         msg = '`rose date` requires length=5 input date array - adding zero: '
-        log_msg(msg + str(indate), 3)
+        log_msg(msg + str(indate), level=3)
 
-    cylc6 = True
-    try:
-        # Cylc6.0 ->
-        cal = os.environ['CYLC_CYCLING_MODE']
-        if cal.lower() == 'integer':
-            cal = '360day' if lcal360 else 'gregorian'
-    except KeyError:
-        # 'Pre Cylc6.0...'
-        cylc6 = False
+    offset = 'P'
+    for elem in delta:
+        if elem > 0:
+            try:
+                offset += str(elem) + ['Y', 'M', 'D'][delta.index(elem)]
+            except IndexError:
+                if 'T' not in offset:
+                    offset += 'T'
+                offset += str(elem) + ['M', 'H'][delta.index(elem)-4]
 
-    if cylc6:
-        # Cylc6.0 ->
-        offset = 'P'
-        for elem in delta:
-            if elem > 0:
-                try:
-                    offset += str(elem) + ['Y', 'M', 'D'][delta.index(elem)]
-                except IndexError:
-                    if 'T' not in offset:
-                        offset += 'T'
-                    offset += str(elem) + ['M', 'H'][delta.index(elem)-4]
-
-        if all(elem == 0 for elem in indate):
-            output = '{0:0>4},{1:0>2},{2:0>2},{3:0>2},{4:0>2}'.format(*delta)
-            rcode = 0
-        else:
-            dateinput = '{0:0>4}{1:0>2}{2:0>2}T{3:0>2}{4:0>2}'.format(*indate)
-            if not re.match('^\d{8}T\d{4}$', dateinput):
-                log_msg('add_period_to_date: Invalid date for conversion to '
-                        'ISO 8601 date representation: ' + str(indate), 5)
-            else:
-                cmd = 'rose date {} --calendar {} --offset {} ' \
-                    '--print-format %Y,%m,%d,%H,%M'.format(dateinput,
-                                                           cal, offset)
-                rcode, output = exec_subproc(cmd, verbose=False)
-
+    if all(elem == 0 for elem in indate):
+        output = '{0:0>4},{1:0>2},{2:0>2},{3:0>2},{4:0>2}'.format(*delta)
+        rcode = 0
     else:
-        # 'Pre Rose 2014 (Cylc6.0)'
-        if lcal360:
-            outdate = [sum(x) for x in zip(indate, delta)]
-            limits = {0: 999999, 1: 12, 2: 30, 3: 24, 4: 60, 5: 60, }
-            for elem in reversed(sorted(limits)):
+        dateinput = '{0:0>4}{1:0>2}{2:0>2}T{3:0>2}{4:0>2}'.format(*indate)
+
+        if re.match(r'^\d{8}T\d{4}$', dateinput):
+            cal = os.environ['CYLC_CYCLING_MODE']
+            if cal.lower() == 'integer':
+                # Non-Cycling suites should export the CALENDAR environment
+                # variable.  DEFAULT VALUE: 360day
                 try:
-                    newval = outdate[elem] % limits[elem]
-                    if outdate[elem] != newval:
-                        outdate[elem-1] += outdate[elem]//limits[elem]
-                        outdate[elem] = newval
-                except IndexError:
-                    pass
-            output = ','.join(str(x) for x in outdate)
-            rcode = 0
-        else:  # Gregorian
-            offset = '{}D'.format((delta[0] * 365) +
-                                  (delta[1] * 12) + delta[2])
-            dateinput = '{0:0>4}{1:0>2}{2:0>2}{3:0>2}'.format(*indate)
-            cmd = 'rose date {} --offset {} --print-format %Y,%m,%d,%H,%M'.\
-                format(dateinput, offset)
+                    cal = os.environ['CALENDAR']
+                except KeyError:
+                    cal = '360day'
+            cmd = 'rose date {} --calendar {} --offset {} --print-format ' \
+            '%Y,%m,%d,%H,%M'.format(dateinput, cal, offset)
             rcode, output = exec_subproc(cmd, verbose=False)
+        else:
+            log_msg('add_period_to_date: Invalid date for conversion to '
+                    'ISO 8601 date representation: ' + str(indate), level=5)
+
+
 
     if rcode == 0:
         outdate = map(int, output.split(','))
     else:
-        log_msg('`rose date` command failed:\n' + output, 3)
+        log_msg('`rose date` command failed:\n' + output, level=3)
         outdate = None
 
     return outdate

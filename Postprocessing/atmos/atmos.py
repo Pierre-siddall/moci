@@ -38,22 +38,31 @@ import housekeeping
 import suite
 
 
-class AtmosPostProc(control.runPostProc):
+class AtmosPostProc(control.RunPostProc):
     '''
     Methods and properties specific to the UM Atmosphere
     post processing application.
     '''
     def __init__(self, input_nl='atmospp.nl'):
+        '''
+        Initialise UM Atmosphere Postprocessing:
+            Import namelists: atmospp, archiving, delete_sc
+            Import required environment: CYLC_SUITE_WORK_DIR, MODELBASIS
+            Check WORK and SHARE directories exist
+            Determine dumpname for final cycle: archived but not deleted
+        '''
         self.nl = nlist.loadNamelist(input_nl)
         self.convpp_streams = self._convpp_streams
 
         if self.runpp:
-            self.suite = suite.SuiteEnvironment(self.share, input_nl)
 
             self.envars = utils.loadEnv('CYLC_SUITE_WORK_DIR',
-                                        'CYLC_TASK_LOG_ROOT', 'MODELBASIS')
-            utils.log_msg('ATMOS SHARE directory: ' + self.share)
-            utils.log_msg('ATMOS WORK directory: ' + ', '.join(self.work))
+                                        'MODELBASIS')
+            self.share = self._directory(self.nl.atmospp.share_directory,
+                                         'ATMOS SHARE')
+            self.suite = suite.SuiteEnvironment(self.share, input_nl)
+            self.work = self._directory(self._work, 'ATMOS WORK')
+
 
             if self.suite.finalcycle:
                 dumpdate = utils.add_period_to_date(self.suite.cycledt,
@@ -64,44 +73,27 @@ class AtmosPostProc(control.runPostProc):
 
     @property
     def runpp(self):
+        '''
+        Logical - Run postprocessing for UM Atmosphere
+        Set via the atmospp namelist
+        '''
         return self.nl.atmospp.pp_run
 
     @property
     def methods(self):
+        '''
+        Returns a dictionary of methods available for this model to the
+        main program
+        '''
         return OrderedDict([('do_archive', self.nl.archiving.archive_switch),
                             ('do_delete', self.nl.delete_sc.del_switch)])
 
     @property
-    def work(self):
-        try:
-            return self._work
-        except AttributeError:
-            self._work = []
-            s_work = self.envars.CYLC_SUITE_WORK_DIR
-            if self.suite.cylc6:
-                um_work = '{0}/{1}'.\
-                    format(self.suite.envars.CYLC_TASK_CYCLE_POINT,
-                           self.suite.umtask)
-                self._work.append(os.path.join(s_work, um_work))
-            else:  # Pre Cylc-6.0
-                for i in range(self.suite.tasks_per_cycle):
-                    um_work = '{0}_{1:0>2d}.{2}'.\
-                        format(self.suite.umtask, i+1,
-                               self.suite.envars.CYLC_TASK_CYCLE_TIME)
-                    self._work.append(os.path.join(s_work, um_work))
-
-            for datadir in self._work:
-                utils.check_directory(datadir)
-            return self._work
-
-    @property
-    def share(self):
-        try:
-            return self._share
-        except AttributeError:
-            self._share = utils.check_directory(self.nl.atmospp.
-                                                share_directory)
-            return self._share
+    def _work(self):
+        ''' Work directory - Contains unprocessed .arch files'''
+        return os.path.join(self.envars.CYLC_SUITE_WORK_DIR,
+                            self.suite.envars.CYLC_TASK_CYCLE_POINT,
+                            self.suite.umtask)
 
     @property
     def streams(self):
@@ -139,6 +131,7 @@ class AtmosPostProc(control.runPostProc):
         return convpp
 
     def dumpname(self, dumpdate=None):
+        ''' Returns the dump name to be archived and/or deleted'''
         if not dumpdate:
             dumpdate = self.suite.cycledt
         return '{0}a.da{1:0>4d}{2:0>2d}{3:0>2d}_{4:0>2d}'.\
@@ -149,15 +142,14 @@ class AtmosPostProc(control.runPostProc):
         archfiles = []
         archdumps = []
         suffix = '.arch'
-        # Multiple work directories required for Pre-CYLC-6.0 only
-        for datadir in self.work:
-            archfiles += utils.get_subset(datadir, r'^{}a\.[pm][{}].*{}$'.\
-                                              format(self.suite.prefix,
-                                                     self.streams + self.means,
-                                                     suffix))
-            archdumps += utils.get_subset(
-                datadir, r'^{}a\.da.*{}$'.format(self.suite.prefix, suffix))
-
+        archfiles += utils.get_subset(
+            self.work,
+            r'^{}a\.[pm][{}].*{}$'.format(self.suite.prefix,
+                                          self.streams + self.means, suffix)
+            )
+        archdumps += utils.get_subset(
+            self.work, r'^{}a\.da.*{}$'.format(self.suite.prefix, suffix)
+            )
         archpp = list(set(archfiles) - set(archdumps))
         return [pp[:-len(suffix)] for pp in archpp]
 
@@ -218,12 +210,9 @@ class AtmosPostProc(control.runPostProc):
             utils.log_msg(msg)
 
             for fname in files_to_archive:
-                if convert_pattern.match(os.path.basename(fname)):
-                    convertpp = True
-                else:
-                    convertpp = False
+                convpp = bool(convert_pattern.match(os.path.basename(fname)))
                 self.suite.archive_file(fname, logfile=log_file,
-                                        preproc=convertpp,
+                                        preproc=convpp,
                                         debug=self.nl.atmospp.debug)
         else:
             utils.log_msg(' -> Nothing to archive')
@@ -231,6 +220,7 @@ class AtmosPostProc(control.runPostProc):
         log_file.close()
 
     def do_delete(self):
+        '''Delete superseded or archived dumps and pp output'''
         archived = self.nl.archiving.archive_switch
         dump = pp_inst = pp_mean = None
 

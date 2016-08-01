@@ -33,6 +33,7 @@ class ArchiveDeleteTests(unittest.TestCase):
     '''Unit tests relating to the atmosphere archive and delete methods'''
     def setUp(self):
         self.atmos = atmos.AtmosPostProc()
+        self.atmos.share = os.getcwd()
         self.atmos.suite = mock.Mock()
         self.atmos.suite.logfile = 'logfile'
         self.atmos.suite.prefix = 'RUNID'
@@ -43,7 +44,7 @@ class ArchiveDeleteTests(unittest.TestCase):
     def tearDown(self):
         files = ['logfile', self.dfiles[0], self.ffiles[0],
                  self.ffiles[0] + '.pp']
-        for fname in runtime_environment.runtime_files + files:
+        for fname in runtime_environment.RUNTIME_FILES + files:
             try:
                 os.remove(fname)
             except OSError:

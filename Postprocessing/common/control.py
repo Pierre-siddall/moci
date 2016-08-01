@@ -24,7 +24,7 @@ import importlib
 import utils
 
 
-class runPostProc(object):
+class RunPostProc(object):
     '''
     Control class template for input models
     '''
@@ -32,6 +32,7 @@ class runPostProc(object):
 
     @abc.abstractproperty
     def runpp(self):
+        ''' Placeholder for model specific runpp method'''
         msg = 'runpp - Model Post-Processing logical trigger not defined.'
         msg += '\n\t return: boolean'
         utils.log_msg(msg, 4)
@@ -39,16 +40,27 @@ class runPostProc(object):
 
     @abc.abstractproperty
     def methods(self):
+        ''' Placeholder for model specific methods'''
         msg = 'runpp - Model Post-Processing property not defined.'
         msg += '\n\t return: OrderedDict([ ("MethodName", LogicalValue), ])'
         utils.log_msg(msg, 4)
         raise NotImplementedError
 
+    @staticmethod
+    def _directory(location, title):
+        '''
+        Returns a titled directory provided via namelist or other means,
+        providing the directory exists.
+        '''
+        location = utils.check_directory(location)
+        utils.log_msg('{} directory: {}'.format(title, location))
+        return location
+
 NL = {}
 
-input_modules = ['suite', 'atmosNamelist', 'nemoNamelist', 'ciceNamelist', 'moo']
+INPUT_MODS = ['suite', 'atmosNamelist', 'nemoNamelist', 'ciceNamelist', 'moo']
 
-for mod in input_modules:
+for mod in INPUT_MODS:
     try:
         name = importlib.import_module(mod)
         NL.update(name.NAMELISTS)

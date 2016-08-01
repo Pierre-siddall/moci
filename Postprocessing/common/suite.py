@@ -22,12 +22,9 @@ ENVIRONMENT VARIABLES
   Standard Cylc environment:
     CYLC_TASK_LOG_ROOT
     CYLC_TASK_CYCLE_POINT
-    CYLC_TASK_CYCLE_TIME (Pre-Cylc 6.0 only)
 
   Suite specific environment:
     ARCHIVE FINAL - Suite defined: Logical to indicate final cycle
-                    -> Default: False
-    END_CYCLE_TIME (Pre-Cylc 6.0 only) - Suite defined
                     -> Default: False
 '''
 import re
@@ -40,8 +37,9 @@ class SuiteEnvironment(object):
     '''Object to hold model independent aspects of the post processing app'''
     def __init__(self, sourcedir, input_nl='atmospp.nl'):
         from nlist import loadNamelist
+        load_nl = loadNamelist(input_nl)
         try:
-            self.nl = loadNamelist(input_nl).suitegen
+            self.nl = load_nl.suitegen
         except AttributeError:
             msg = 'SuiteEnvironment: Failed to load ' \
                 '&suitegen namelist from namelist file: ' + input_nl
@@ -49,94 +47,81 @@ class SuiteEnvironment(object):
 
         if self.nl.archive_command.lower() == 'moose':
             try:
-                self.nl_arch = loadNamelist(input_nl).moose_arch
+                self.nl_arch = load_nl.moose_arch
             except AttributeError:
                 msg = 'SuiteEnvironment: Failed to load ' \
                     '&moose_arch namelist from namelist file: ' + input_nl
                 utils.log_msg(msg, level=5)
 
-        self.envars = utils.loadEnv('CYLC_TASK_LOG_ROOT')
-
-        self.envars = utils.loadEnv('CYLC_TASK_CYCLE_POINT',
+        self.envars = utils.loadEnv('CYLC_TASK_LOG_ROOT',
+                                    'CYLC_TASK_CYCLE_POINT',
                                     'CYLC_CYCLING_MODE',
-                                    'CYCLEPOINT_OVERRIDE',
-                                    append=self.envars)
-        if hasattr(self.envars, 'CYLC_TASK_CYCLE_POINT'):
-            self.cylc6 = True
-        else:
-            # Pre-Cylc6.0
-            self.envars = utils.loadEnv('CYLC_TASK_CYCLE_TIME',
-                                        append=self.envars)
-            self.cylc6 = False
+                                    'CYCLEPOINT_OVERRIDE')
 
         self.sourcedir = sourcedir
-        self.archiveOK = True
+        self.finalcycle = self._finalcycle
+        self.cyclestring = self._cyclestring
+        self.archive_ok = True
 
     @property
     def umtask(self):
+        '''
+        Returns the name of the app producing the data for postprocessing.
+        Provided via &suitegen namelist
+        '''
         return self.nl.umtask_name
 
     @property
     def prefix(self):
+        '''Returns the filename prefix.  Provided via &suitegen namelist'''
         return self.nl.prefix
 
     @property
     def cycleperiod(self):
+        '''Returns the cycling period for the suite.
+        Provided via  &suitegen namelist
+        '''
         return self.nl.cycleperiod
 
     @property
-    def tasks_per_cycle(self):
-        return self.nl.tasks_per_cycle
-
-    @property
-    def cyclestring(self):
-        ''' Returns an array of strings: YYYY,MM,DD,mm,ss'''
+    def _cyclestring(self):
+        '''
+        Creates a representation of the current cycletime in string format.
+        Returns an list of strings: YYYY,MM,DD,mm,ss
+        '''
         try:
-            cyclestring = self._cyclestring
+            # An override is required for Single Cycle suites
+            cyclepoint = self.envars.CYCLEPOINT_OVERRIDE
         except AttributeError:
-            if self.cylc6:
-                try:
-                    # Required for Single Cycle suites
-                    cyclepoint = self.envars.CYCLEPOINT_OVERRIDE
-                except AttributeError:
-                    cyclepoint = self.envars.CYLC_TASK_CYCLE_POINT
-                match = re.search('(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})Z',
-                                  cyclepoint)
-            else:
-                match = re.search('(\d{4})(\d{2})(\d{2})(\d{2})',
-                                  self.envars.CYLC_TASK_CYCLE_TIME)
-            if match:
-                self._cyclestring = match.groups()
-            else:
-                utils.log_msg('Unable to determine cycletime', level=5)
+            cyclepoint = self.envars.CYLC_TASK_CYCLE_POINT
 
-        return self._cyclestring
+        match = re.search(r'(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})Z',
+                          cyclepoint)
+        if match:
+            cyclestring = match.groups()
+        else:
+            utils.log_msg('Unable to determine cycletime', level=5)
+        return cyclestring
 
     @property
     def cycledt(self):
+        '''
+        Creates a representation of the current cycletime in integer format.
+        Returns a list of integers: YYYY,MM,DD,mm,ss
+        '''
         return map(int, self.cyclestring)
 
     @property
-    def finalcycle(self):
+    def _finalcycle(self):
+        '''
+        Determine whether this cycle is the final cycle for the running suite.
+        Returns True/False
+        '''
+        self.envars = utils.loadEnv('ARCHIVE_FINAL', append=self.envars)
         try:
-            finalcycle = self._finalcycle
+            finalcycle = ('true' in self.envars.ARCHIVE_FINAL.lower())
         except AttributeError:
-            if self.cylc6:
-                self.envars = utils.loadEnv('ARCHIVE_FINAL',
-                                            append=self.envars)
-                try:
-                    finalcycle = ('true' in self.envars.ARCHIVE_FINAL.lower())
-                except AttributeError:
-                    finalcycle = False
-            else:
-                self.envars = utils.loadEnv('END_CYCLE_TIME',
-                                            append=self.envars)
-                endcycle = map(int,
-                               re.search('(\d{4})(\d{2})(\d{2})(\d{2})',
-                                         self.envars.END_CYCLE_TIME).groups())
-                finalcycle = (self.cycledt == endcycle)
-            self._finalcycle = finalcycle
-
+            finalcycle = False
         return finalcycle
 
     @property
@@ -150,7 +135,7 @@ class SuiteEnvironment(object):
             '360day': [None,] + [30,]*12,
             '365day': [None, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
             'gregorian': [None, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
-            # "integer" required for rose-stem testing mode only - assumes 360day test
+            # "integer" required for rose-stem testing mode - assumes 360day
             'integer': [None,] + [30,]*12,
             }
 
@@ -198,7 +183,7 @@ class SuiteEnvironment(object):
             else:
                 log_line = '{} ARCHIVE FAILED. Archive process error\n'.\
                     format(archfile)
-                self.archiveOK = False
+                self.archive_ok = False
 
         if not logfile:
             logfile = self.logfile
@@ -319,7 +304,6 @@ class SuitePostProc(object):
     ''' Default namelist for model independent properties '''
     prefix = os.environ['RUNID']
     umtask_name = 'atmos'
-    tasks_per_cycle = 1
     cycleperiod = 0, 1, 0, 0, 0
     archive_command = 'Moose'
     nccopy_path = ''

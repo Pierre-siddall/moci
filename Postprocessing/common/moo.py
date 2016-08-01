@@ -26,8 +26,6 @@ ENVIRONMENT VARIABLES
   Suite specific environment:
     ARCHIVE FINAL - Suite defined: Logical to indicate final cycle
                     -> Default: False
-    END_CYCLE_TIME (Pre-Cylc 6.0 only) - Suite defined
-                    -> Default: False
 
   External environment:
     JOBTEMP

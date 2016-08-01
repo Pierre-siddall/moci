@@ -74,7 +74,7 @@ class RegexArgs(object):
         self.date = date
 
 
-class ModelTemplate(control.runPostProc):
+class ModelTemplate(control.RunPostProc):
     '''
     Template class for input models
     '''
@@ -85,10 +85,10 @@ class ModelTemplate(control.runPostProc):
         self.nl = getattr(nlist.loadNamelist(input_nl), name.lower())
         self.fields = self._fields
         if self.runpp:
-            msg = '{} SHARE: {}'.format(name.upper()[:-8], self.share)
-            utils.log_msg(msg)
-            msg = '{} WORK: {}'.format(name.upper()[:-8], self.work)
-            utils.log_msg(msg)
+            self.share = self._directory(self.nl.restart_directory,
+                                         name.upper()[:-8] + ' SHARE')
+            self.work = self._directory(self.nl.means_directory,
+                                        name.upper()[:-8] + ' WORK')
             self.suite = suite.SuiteEnvironment(self.share, input_nl)
             self.suite.envars = utils.loadEnv('CYLC_SUITE_INITIAL_CYCLE_POINT',
                                               append=self.suite.envars)
@@ -127,18 +127,6 @@ class ModelTemplate(control.runPostProc):
         Returns a list of tuples: (method_name, bool)
         '''
         return []
-
-    @property
-    def share(self):
-        '''
-        Share directory - Contains restart data and processed means files.
-        '''
-        return self.nl.restart_directory
-
-    @property
-    def work(self):
-        ''' Work directory - Contains unprocessed 10day Means files '''
-        return self.nl.means_directory
 
     @property
     def prefix(self):
@@ -196,19 +184,17 @@ class ModelTemplate(control.runPostProc):
         need for processing (rebuild or archive)
         '''
         nlvar = getattr(self.nl, process + '_timestamps')
-        if [ts for ts in nlvar if [month, day] == ts.split('-')] or not nlvar:
-            valid = True
-        else:
-            valid = False
-        return valid
+        return bool([ts for ts in nlvar if [month, day] == ts.split('-')] or \
+                        not nlvar)
 
     @property
     def _fields(self):
-        '''Returns a tuple of means fields available'''
+        ''' Returns a tuple of means fields available'''
         return ('',)
 
     @property
     def rsttypes(self):
+        ''' Returns a tuple of restart file types available'''
         return ('',)
 
     @abc.abstractproperty

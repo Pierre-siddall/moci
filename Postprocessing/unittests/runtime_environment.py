@@ -15,7 +15,7 @@
 
 import os
 
-runtime_files = ['atmospp.nl', 'input.nl', 'monitorpp.nl',
+RUNTIME_FILES = ['atmospp.nl', 'input.nl', 'monitorpp.nl',
                  'nemocicepp.nl']
 
 def setup_env():
@@ -25,9 +25,9 @@ def setup_env():
     os.environ['CYLC_SUITE_REG_NAME'] = 'suiteID'
     os.environ['CYLC_SUITE_NAME'] = os.environ['CYLC_SUITE_REG_NAME']
     os.environ['CYLC_CYCLING_MODE'] = '360day'
-    os.environ['CYLC_SUITE_SHARE_DIR'] = os.environ['PWD']
-    os.environ['CYLC_TASK_WORK_DIR'] = os.environ['PWD']
-    os.environ['CYLC_TASK_LOG_ROOT'] = os.environ['PWD'] + '/job'
+    os.environ['CYLC_SUITE_SHARE_DIR'] = os.getcwd()
+    os.environ['CYLC_TASK_WORK_DIR'] = os.getcwd()
+    os.environ['CYLC_TASK_LOG_ROOT'] = os.getcwd() + '/job'
     os.environ['CYLC_SUITE_INITIAL_CYCLE_POINT'] = '19950821T0000Z'
     os.environ['CYLC_TASK_CYCLE_POINT'] = '20000121T0000Z'
 

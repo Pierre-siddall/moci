@@ -31,12 +31,12 @@ class PeriodTests(unittest.TestCase):
     '''Unit tests relating to the "get period files" methods'''
 
     def setUp(self):
+        modeltemplate.ModelTemplate._directory = mock.Mock()
         with mock.patch('nlist.loadNamelist'):
-            with mock.patch('suite.SuiteEnvironment'):
-                self.model = modeltemplate.ModelTemplate()
+            self.model = modeltemplate.ModelTemplate()
+            self.model.share = 'ShareDir'
         self.inputs = modeltemplate.RegexArgs(period=modeltemplate.RR,
                                               field='FIELD')
-        self.model.nl.restart_directory = os.getcwd()
 
     def tearDown(self):
         pass
@@ -54,7 +54,7 @@ class PeriodTests(unittest.TestCase):
                                                   self.inputs.date[1],
                                                   None,
                                                   'FIELD')
-            mock_subset.assert_called_with(os.getcwd(),
+            mock_subset.assert_called_with('ShareDir',
                                            mock_set.__getitem__()())
 
     def test_periodset_datadir(self):
@@ -90,7 +90,7 @@ class PeriodTests(unittest.TestCase):
             with mock.patch('utils.get_subset') as mock_subset:
                 self.model.periodend(self.inputs)
             mock_end['PERIOD'].assert_called_with(None, 'FIELD')
-            mock_subset.assert_called_with(os.getcwd(),
+            mock_subset.assert_called_with('ShareDir',
                                            mock_end.__getitem__()())
 
     def test_periodend_datadir(self):
@@ -116,13 +116,13 @@ class MeansTests(unittest.TestCase):
     '''Unit tests relating to creation of means'''
 
     def setUp(self):
+        modeltemplate.ModelTemplate._directory = mock.Mock()
         with mock.patch('nlist.loadNamelist'):
-            with mock.patch('suite.SuiteEnvironment'):
-                self.model = modeltemplate.ModelTemplate()
+            self.model = modeltemplate.ModelTemplate()
+            self.model.share = 'ShareDir'
         self.model.suite.envars.CYLC_SUITE_INITIAL_CYCLE_POINT = \
             '19950821T0000Z'
         self.model.nl.debug = False
-        self.model.nl.restart_directory = os.getcwd()
         self.model.nl.base_component = '10d'
 
         self.model.move_to_share = mock.Mock()
@@ -141,9 +141,9 @@ class MeansTests(unittest.TestCase):
         self.model.fix_mean_time = mock.Mock()
 
     def tearDown(self):
-        for fname in runtime_environment.runtime_files:
+        for fname in runtime_environment.RUNTIME_FILES:
             try:
-                os.remove('fname')
+                os.remove(fname)
             except OSError:
                 pass
 
@@ -172,7 +172,7 @@ class MeansTests(unittest.TestCase):
         self.model.create_means()
         self.assertIn('Created .* Monthly mean for', func.capture())
         mock_rm.assert_called_with(self.model.periodset.return_value,
-                                   path=os.getcwd())
+                                   path='ShareDir')
 
     @mock.patch('utils.remove_files')
     @mock.patch('os.path')
@@ -191,7 +191,7 @@ class MeansTests(unittest.TestCase):
         self.model.create_means()
         self.assertIn('Created .* Monthly mean for', func.capture())
         mock_rm.assert_called_with(self.model.periodset.return_value,
-                                   path=os.getcwd())
+                                   path='ShareDir')
 
     @mock.patch('os.path')
     @mock.patch('utils.exec_subproc')
@@ -281,13 +281,13 @@ class ArchiveTests(unittest.TestCase):
     '''Unit tests relating to archiving of files'''
 
     def setUp(self):
+        modeltemplate.ModelTemplate._directory = mock.Mock()
         with mock.patch('nlist.loadNamelist'):
-            with mock.patch('suite.SuiteEnvironment'):
-                self.model = modeltemplate.ModelTemplate()
+            self.model = modeltemplate.ModelTemplate()
+            self.model.share = os.getcwd()
         self.model.suite.envars.CYLC_SUITE_INITIAL_CYCLE_POINT = \
             '19950821T0000Z'
         self.model.nl.debug = False
-        self.model.nl.restart_directory = os.getcwd()
         self.model.nl.buffer_archive = None
         self.model.nl.compression_level = 0
 
@@ -465,9 +465,11 @@ class PreprocessTests(unittest.TestCase):
     '''Unit tests relating to pre-processing of files prior to archive'''
 
     def setUp(self):
+        modeltemplate.ModelTemplate._directory = mock.Mock()
         with mock.patch('nlist.loadNamelist'):
             with mock.patch('suite.SuiteEnvironment'):
                 self.model = modeltemplate.ModelTemplate()
+                self.model.share = 'ShareDir'
 
     def tearDown(self):
         pass
@@ -475,13 +477,12 @@ class PreprocessTests(unittest.TestCase):
     def test_compress_file_nccopy(self):
         '''Test call to file compression method - nccopy'''
         func.logtest('Assert call to file compression method nccopy:')
-        self.model.nl.restart_directory = os.getcwd()
         self.model.nl.compression_level = 5
         self.model.nl.chunking_arguments = ['a/1', 'b/2', 'c/3']
         self.model.compress_file('meanfile', 'nccopy')
         self.model.suite.preprocess_file.assert_called_with(
             'nccopy',
-            os.path.join(os.getcwd(), 'meanfile'),
+            os.path.join('ShareDir', 'meanfile'),
             compression=5,
             chunking=['a/1', 'b/2', 'c/3']
             )
@@ -489,7 +490,6 @@ class PreprocessTests(unittest.TestCase):
     def test_compress_file_unknown(self):
         '''Test call to file compression method - failure'''
         func.logtest('Assert call to file compression method - fail:')
-        self.model.nl.restart_directory = os.getcwd()
         self.model.nl.compression_level = 5
         self.model.nl.chunking_arguments = ['a/1', 'b/2', 'c/3']
         with self.assertRaises(SystemExit):
@@ -549,10 +549,10 @@ class MethodsTests(unittest.TestCase):
 
     def setUp(self):
         with mock.patch('nlist.loadNamelist'):
-            with mock.patch('suite.SuiteEnvironment'):
-                self.model = modeltemplate.ModelTemplate()
-                self.model.nl.restart_directory = 'ShareDir'
-                self.model.nl.means_directory = 'WorkDir'
+            modeltemplate.ModelTemplate._directory = mock.Mock()
+            self.model = modeltemplate.ModelTemplate()
+            self.model.share = 'ShareDir'
+            self.model.work = 'WorkDir'
 
         myyear = modeltemplate.PDICT
         self.period = ['Monthly'] + \
@@ -570,7 +570,7 @@ class MethodsTests(unittest.TestCase):
     def test_no_move_to_share(self, mock_set, mock_mv):
         '''Test move_to_share functionality - share==work'''
         func.logtest('Assert null behaviour of move_to_share method:')
-        self.model.nl.means_directory = 'ShareDir'
+        self.model.work = 'ShareDir'
         self.model.meantemplate = mock.Mock()
         self.model.move_to_share()
         self.assertEqual(len(mock_mv.mock_calls), 0)
@@ -658,10 +658,8 @@ class PropertyTests(unittest.TestCase):
 
     def setUp(self):
         with mock.patch('nlist.loadNamelist'):
-            with mock.patch('suite.SuiteEnvironment'):
-                self.model = modeltemplate.ModelTemplate()
-                self.model.nl.restart_directory = 'ShareDir'
-                self.model.nl.means_directory = 'WorkDir'
+            modeltemplate.ModelTemplate._directory = mock.Mock()
+            self.model = modeltemplate.ModelTemplate()
 
     def tearDown(self):
         pass

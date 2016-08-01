@@ -52,7 +52,7 @@ class StencilTests(unittest.TestCase):
         self.meanstencil = self.cice.mean_stencil
 
     def tearDown(self):
-        for fname in runtime_environment.runtime_files:
+        for fname in runtime_environment.RUNTIME_FILES:
             try:
                 os.remove(fname)
             except OSError:
@@ -244,7 +244,7 @@ class MeansProcessingTests(unittest.TestCase):
     '''Unit tests relating to the processing of means files'''
     def setUp(self):
         self.cice = cice.CicePostProc()
-        self.cice.nl.means_directory = self.cice.nl.restart_directory = '.'
+        self.cice.share = self.cice.work = '.'
         self.cice.suite = mock.Mock()
         self.cice.suite.prefix = 'RUNID'
         self.meanfiles = [
@@ -316,7 +316,7 @@ class MeansProcessingTests(unittest.TestCase):
     def test_concat_daily_move(self, mock_mv):
         '''Test method to compile list of means to concatenate - move'''
         func.logtest('Assert compilation of means to concatenate - move:')
-        self.cice.nl.means_directory = 'TestDir'
+        self.cice.work = 'TestDir'
         with mock.patch('utils.get_subset', return_value=[]):
             self.cice.archive_concat_daily_means()
         mock_mv.assert_called_once_with(pattern=mock.ANY)

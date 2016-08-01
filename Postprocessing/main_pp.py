@@ -21,7 +21,7 @@ DESCRIPTION
     Post-Processing app for use with Rose Suites - UM vn9.1 ->
 
 ARGUMENTS
-    The models to run. 
+    The models to run.
         Default: atmos nemo cice
 '''
 
@@ -74,7 +74,7 @@ def main():
                 if model.methods[meth]:
                     utils.log_msg('Running {} for {}...'.format(meth, name))
                     getattr(model, meth)()
-            exit_check[name] = model.suite.archiveOK
+            exit_check[name] = model.suite.archive_ok
 
     timer.finalise_timer()
     if not all(exit_check.values()):

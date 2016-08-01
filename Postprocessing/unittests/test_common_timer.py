@@ -124,7 +124,7 @@ class TimerMethodsTests(unittest.TestCase):
                 timer.initialise_timer()
 
     def tearDown(self):
-        for fname in runtime_environment.runtime_files:
+        for fname in runtime_environment.RUNTIME_FILES:
             try:
                 os.remove(fname)
             except OSError:

@@ -48,13 +48,13 @@ def read_arch_logfile(logfile, prefix, inst, mean):
     for line in open(logfile, 'r').readlines():
         fname, tag = line.split(' ', 1)
         tag = 'FAILED' not in tag
-        for ft in FILETYPE:
-            stream = inst if ft == 'pp_inst_names' else mean
-            if FILETYPE[ft][REGEX](prefix, stream).\
+        for ftype in FILETYPE:
+            stream = inst if ftype == 'pp_inst_names' else mean
+            if FILETYPE[ftype][REGEX](prefix, stream).\
                     search(os.path.basename(fname)):
-                FILETYPE[ft][RTN].append((fname, tag))
+                FILETYPE[ftype][RTN].append((fname, tag))
 
-    return tuple(FILETYPE[ft][RTN] for ft in FILETYPE)
+    return tuple(FILETYPE[ftype][RTN] for ftype in FILETYPE)
 
 
 def delete_dumps(atmos, dump_names, archived):
@@ -63,15 +63,14 @@ def delete_dumps(atmos, dump_names, archived):
     if archived:
         # Pre-determined list of files available following archiving operation
         arch_succeeded = sorted([dump for dump, tag in dump_names if tag])
-        arch_failed = [dump for dump, tag in dump_names if not tag]
 
         if arch_succeeded:
             last_file = arch_succeeded[-1]
-            for fn in utils.get_subset(atmos.share, r'{0}a\.da\d{{8}}'.
-                                       format(atmos.suite.prefix)):
-                if fn <= os.path.basename(last_file) and \
-                        not fn.endswith('.done'):
-                    to_delete.append(fn)
+            for fname in utils.get_subset(atmos.share, r'{0}a\.da\d{{8}}'.
+                                          format(atmos.suite.prefix)):
+                if fname <= os.path.basename(last_file) and \
+                        not fname.endswith('.done'):
+                    to_delete.append(fname)
                 if atmos.final_dumpname:
                     # Final dump should not be deleted as it is not superseded
                     try:
@@ -80,12 +79,12 @@ def delete_dumps(atmos, dump_names, archived):
                         pass
 
     else:  # Not archiving
-        for fn in utils.get_subset(atmos.share, r'{0}a\.da\d{{8}}'.
-                                   format(atmos.suite.prefix)):
+        for fname in utils.get_subset(atmos.share, r'{0}a\.da\d{{8}}'.
+                                      format(atmos.suite.prefix)):
             # Delete files upto and including current cycle time
-            filetime = re.search('a.da(\d{8})', fn).group(1)
+            filetime = re.search(r'a.da(\d{8})', fname).group(1)
             if filetime <= ''.join(atmos.suite.cyclestring[:3]):
-                to_delete.append(fn)
+                to_delete.append(fname)
 
     if to_delete:
         msg = 'Removing dump files:\n' + '\n '.join([f for f in to_delete])
@@ -122,13 +121,12 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, archived):
         utils.remove_files(to_delete, atmos.share)
 
         # Remove .arch files from work directory(s)
-        del_dot_arch = [os.path.basename(fn).rstrip('.pp') + ".arch" for
-                        fn in to_delete]
+        del_dot_arch = [os.path.basename(fname).rstrip('.pp') + ".arch" for
+                        fname in to_delete]
         msg = 'Removing .arch files from work directory:\n ' + \
             '\n '.join([f for f in del_dot_arch])
         utils.log_msg(msg)
-        for workdir in atmos.work:
-            utils.remove_files(del_dot_arch, workdir, ignoreNonExist=True)
+        utils.remove_files(del_dot_arch, atmos.work, ignoreNonExist=True)
 
 
 def convert_to_pp(fieldsfile, sharedir, umutils):

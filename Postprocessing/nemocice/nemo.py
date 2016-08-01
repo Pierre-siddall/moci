@@ -291,7 +291,7 @@ class NemoPostProc(mt.ModelTemplate):
                 if not self.suite.finalcycle or 'restart' not in corename:
                     utils.log_msg('Deleting component files for: ' + corename,
                                   level=1)
-                    utils.remove_files(bldset, self.share)
+                    utils.remove_files(bldset, datadir)
 
         if bldfiles and not rebuild_required:
             msg = 'Nothing to rebuild - {} {} files available ' \

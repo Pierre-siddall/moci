@@ -30,16 +30,11 @@ import suite
 class SuiteTests(unittest.TestCase):
     '''Unit tests for the SuiteEnvironment class'''
     def setUp(self):
-        runtime_environment.setup_env()
-        if 'pre_cylc6' in self.id():
-            os.environ['CYLC_TASK_CYCLE_TIME'] = '1980090100'
-            del os.environ['CYLC_TASK_CYCLE_POINT']
         self.inputnl = OrderedDict([
             ('&suitegen', None),
             ('umtask_name="atmos"', 'umtask'),
             ('prefix="RUNID"', 'prefix'),
             ('cycleperiod=0, 1, 10, 0, 0', 'cycleperiod'),
-            ('tasks_per_cycle=2', 'tasks_per_cycle'),
             ('archive_command="Moose"', None),
             ('/', None),
             ('&moose_arch', None),
@@ -51,30 +46,21 @@ class SuiteTests(unittest.TestCase):
         self.mysuite = suite.SuiteEnvironment(self.mypath, self.myfile)
 
     def tearDown(self):
-        for fname in [self.myfile] + runtime_environment.runtime_files:
+        for fname in [self.myfile] + runtime_environment.RUNTIME_FILES:
             try:
                 os.remove(fname)
             except OSError:
                 pass
-        for var in ['CYLC_TASK_CYCLE_TIME',
-                    'ARCHIVE_FINAL']:
-            try:
-                del os.environ[var]
-            except KeyError:
-                pass
+        try:
+            del os.environ['ARCHIVE_FINAL']
+        except KeyError:
+            pass
 
     def test_suite_object(self):
         '''Test creation of suite object and assertion of Cylc6 environment'''
         func.logtest('Assert creation of a suite object:')
         self.assertEqual(self.mysuite.sourcedir, self.mypath)
         self.assertTrue(hasattr(self.mysuite.envars, 'CYLC_TASK_LOG_ROOT'))
-        self.assertTrue(self.mysuite.cylc6)
-
-    def test_pre_cylc6_suite(self):
-        '''Test assertion of pre-Cylc6 environment'''
-        func.logtest('Assert pre-Cylc6 suite creation:')
-        self.assertFalse(self.mysuite.cylc6)
-        self.assertTrue(hasattr(self.mysuite.envars, 'CYLC_TASK_CYCLE_TIME'))
 
     def test_suite_object_blank_file(self):
         '''Test creation of suite object with a blank namelist file'''
@@ -103,12 +89,6 @@ class SuiteTests(unittest.TestCase):
         self.assertTupleEqual(self.mysuite.cyclestring,
                               ('2000', '01', '21', '00', '00'))
 
-    def test_pre_cylc6_cyclestring(self):
-        '''Test calculation of property "cyclestring; pre-Cylc6 environment"'''
-        func.logtest('Assert pre-Cylc6 cycletime as string array property:')
-        self.assertTupleEqual(self.mysuite.cyclestring,
-                              ('1980', '09', '01', '00'))
-
     def test_cycledt(self):
         '''Test access to property "cycledt"'''
         func.logtest('Assert cycletime as integer array property:')
@@ -121,50 +101,24 @@ class SuiteTests(unittest.TestCase):
         func.logtest('Failure mode of cycletime property:')
         self.mysuite.envars.CYLC_TASK_CYCLE_POINT = 'Dummy'
         with self.assertRaises(SystemExit):
-            print self.mysuite.cyclestring
-
-    def test_existing_cyclestring(self):
-        '''Test access to previously calculated property "cyclestring"'''
-        func.logtest('Retrieval existing cycle time string array:')
-        mycycle = ('1981', '09', '01', '00', '00')
-        self.mysuite._cyclestring = mycycle
-        self.assertTupleEqual(self.mysuite.cyclestring, mycycle)
+            print self.mysuite._cyclestring
 
     def test_final_cycle(self):
         '''Test assertion of final cycle in Cylc6 environment'''
         func.logtest('Assert final cycle time property - TRUE:')
         os.environ['ARCHIVE_FINAL'] = 'true'
-        self.assertTrue(self.mysuite.finalcycle)
+        testfinal = suite.SuiteEnvironment(self.mypath, self.myfile)
+        self.assertTrue(testfinal.finalcycle)
 
     def test_not_final_cycle(self):
         '''Test negative assertion of final cycle in Cylc6 environment'''
         func.logtest('Assert final cycle time property - FALSE:')
         self.assertFalse(self.mysuite.finalcycle)
 
-    def test_pre_cylc6_final_cycle(self):
-        '''Test assertion of final cycle in pre-Cylc6 environment'''
-        func.logtest('Assert pre-Cylc6 final cycle time property - TRUE:')
-        os.environ['END_CYCLE_TIME'] = '1985090100'
-        self.mysuite._cyclestring = ('1985', '09', '01', '00')
-        self.assertTrue(self.mysuite.finalcycle)
-
-    def test_pre_cylc6_not_final_cycle(self):
-        '''Test negative assertion of final cycle in pre-Cylc6 environment'''
-        func.logtest('Assert pre-Cylc6 final cycle time property - FALSE:')
-        os.environ['END_CYCLE_TIME'] = '1985090100'
-        self.assertFalse(self.mysuite.finalcycle)
-
-    def test_existing_final_cycle(self):
-        '''Test previously asserted final cycle'''
-        func.logtest('Retrieval of existing final cycle time logical:')
-        mycycle = ('2000', '09', '01', '00', '00')
-        self.mysuite._finalcycle = mycycle
-        self.assertTupleEqual(self.mysuite.finalcycle, mycycle)
-
     def test_log(self):
         '''Test creation of and access to property "logfile"'''
         func.logtest('Create a log file:')
-        logfile = os.environ['PWD'] + '/job-archive.log'
+        logfile = os.getcwd() + '/job-archive.log'
         self.assertEqual(self.mysuite.logfile, logfile)
 
     def test_monthlength_360d(self):
@@ -211,7 +165,7 @@ class ArchiveTests(unittest.TestCase):
         self.mysuite = suite.SuiteEnvironment('somePath/directory', 'input.nl')
 
     def tearDown(self):
-        for fname in [self.logfile] + runtime_environment.runtime_files:
+        for fname in [self.logfile] + runtime_environment.RUNTIME_FILES:
             if os.path.exists(fname):
                 os.remove(fname)
 
@@ -225,7 +179,7 @@ class ArchiveTests(unittest.TestCase):
             self.assertEqual(rcode, 0)
             self.assertIn('TestFile ARCHIVE OK',
                           open(self.mysuite.logfile, 'r').read())
-            self.assertTrue(self.mysuite.archiveOK)
+            self.assertTrue(self.mysuite.archive_ok)
 
     def test_archive_file_fail(self):
         '''Test failure mode of archive_file command - moo is mocked out'''
@@ -237,7 +191,7 @@ class ArchiveTests(unittest.TestCase):
             self.assertNotEqual(rcode, 0)
             self.assertIn('TestFile ARCHIVE FAILED',
                           open(self.mysuite.logfile, 'r').read())
-            self.assertFalse(self.mysuite.archiveOK)
+            self.assertFalse(self.mysuite.archive_ok)
 
     def test_archive_empty_file(self):
         '''Test attempt to archive an empty file - moo is mocked out'''
@@ -249,7 +203,7 @@ class ArchiveTests(unittest.TestCase):
             self.assertEqual(rcode, 11)
             self.assertIn('TestFile FILE NOT ARCHIVED',
                           open(self.mysuite.logfile, 'r').read())
-            self.assertTrue(self.mysuite.archiveOK)
+            self.assertTrue(self.mysuite.archive_ok)
 
     def test_archive_file_debug(self):
         '''Test debug mode of archive_file command with no file handle'''

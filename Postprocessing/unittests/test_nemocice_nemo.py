@@ -59,9 +59,9 @@ class StencilTests(unittest.TestCase):
         self.nemo.suite.monthlength = dummysuite.monthlength
 
     def tearDown(self):
-        for fname in runtime_environment.runtime_files:
+        for fname in runtime_environment.RUNTIME_FILES:
             try:
-                os.remove('fname')
+                os.remove(fname)
             except OSError:
                 pass
 
@@ -341,6 +341,7 @@ class RebuildTests(unittest.TestCase):
     '''Unit tests relating to the rebuilding of restart and means files'''
     def setUp(self):
         self.nemo = nemo.NemoPostProc()
+        self.nemo.share = 'ShareDir'
         self.nemo.suite = mock.Mock()
         self.nemo.suite.prefix = 'RUNID'
         self.nemo.suite.finalcycle = False
@@ -349,7 +350,7 @@ class RebuildTests(unittest.TestCase):
         self.buffer_mean = self.nemo.buffer_rebuild('mean')
 
     def tearDown(self):
-        for fname in ['nam_rebuild'] + runtime_environment.runtime_files:
+        for fname in ['nam_rebuild'] + runtime_environment.RUNTIME_FILES:
             try:
                 os.remove(fname)
             except OSError:
@@ -363,7 +364,7 @@ class RebuildTests(unittest.TestCase):
                             new_callable=mock.PropertyMock,
                             return_value=(self.nemo.rsttypes[0],)):
                 self.nemo.rebuild_restarts()
-            mock_fs.assert_called_with(os.environ['PWD'],
+            mock_fs.assert_called_with('ShareDir',
                                        r'RUNIDo__?\d{8}_restart(\.nc)?')
 
     def test_call_rebuild_iceberg_rsts(self):
@@ -375,10 +376,8 @@ class RebuildTests(unittest.TestCase):
                             new_callable=mock.PropertyMock,
                             return_value=(self.nemo.rsttypes[1],)):
                 self.nemo.rebuild_restarts()
-            mock_fs.assert_called_with(
-                os.environ['PWD'],
-                r'RUNIDo_icebergs_?\d{8}_restart(\.nc)?'
-                )
+            mock_fs.assert_called_with('ShareDir',
+                                       r'RUNIDo_icebergs_?\d{8}_restart(\.nc)?')
 
     def test_call_rebuild_tracer_rsts(self):
         '''Test call to rebuild_restarts method with tracer restart files'''
@@ -389,7 +388,7 @@ class RebuildTests(unittest.TestCase):
                             new_callable=mock.PropertyMock,
                             return_value=(self.nemo.rsttypes[2],)):
                 self.nemo.rebuild_restarts()
-            mock_fs.assert_called_with(os.environ['PWD'],
+            mock_fs.assert_called_with('ShareDir',
                                        r'RUNIDo__?\d{8}_restart_trc(\.nc)?')
 
     def test_call_rebuild_means(self):
@@ -400,8 +399,7 @@ class RebuildTests(unittest.TestCase):
             r'(([_\-]\d{6,10}){2})?(_\d{4})?(\.nc)?'
         with mock.patch('nemo.NemoPostProc.rebuild_fileset') as mock_fs:
             self.nemo.rebuild_means()
-            mock_fs.assert_called_with(os.environ['PWD'], pattern,
-                                       rebuildall=True)
+            mock_fs.assert_called_with('ShareDir', pattern, rebuildall=True)
 
     def test_namlist_properties(self):
         '''Test definition of NEMO namelist properties'''
@@ -420,7 +418,7 @@ class RebuildTests(unittest.TestCase):
         '''Test rebuild restarts function retaining all files'''
         func.logtest('Assert restart files fewer than buffer are retained:')
         mock_subset.return_value = ['file1']
-        self.nemo.rebuild_fileset(os.environ['PWD'], 'restart')
+        self.nemo.rebuild_fileset('ShareDir', 'restart')
         self.assertIn('{} retained'.format(self.buffer_rst), func.capture())
 
     @mock.patch('utils.get_subset')
@@ -428,17 +426,19 @@ class RebuildTests(unittest.TestCase):
         '''Test rebuild means function retaining all files'''
         func.logtest('Assert means files fewer than buffer (1) are retained:')
         mock_subset.return_value = ['file1']
-        self.nemo.rebuild_fileset(os.environ['PWD'], 'field')
+        self.nemo.rebuild_fileset('ShareDir', 'field')
         self.assertIn('{} retained'.format(self.buffer_mean), func.capture())
 
+    @mock.patch('utils.remove_files')
     @mock.patch('utils.get_subset')
-    def test_rebuild_periodic_only(self, mock_subset):
+    def test_rebuild_periodic_only(self, mock_subset, mock_rm):
         '''Test rebuild function for periodic files not found'''
         func.logtest('Assert only periodic files are rebuilt:')
         mock_subset.return_value = ['file1_19990101_', 'file2_19990101_']
-        self.nemo.rebuild_fileset(os.environ['PWD'], 'field')
+        self.nemo.rebuild_fileset('ShareDir', 'field')
         self.assertIn('only rebuilding periodic', func.capture().lower())
         self.assertIn('deleting component files', func.capture().lower())
+        mock_rm.assert_called_with(['file2_19990101_'], 'ShareDir')
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
     @mock.patch('utils.get_subset')
@@ -449,8 +449,8 @@ class RebuildTests(unittest.TestCase):
         mock_subset.return_value = ['file_19980530_yyyymmdd_0000.nc',
                                     'file_19980630_yyyymmdd_0000.nc',
                                     'file_19980730_yyyymmdd_0000.nc']
-        self.nemo.rebuild_fileset(os.environ['PWD'], 'field', rebuildall=True)
-        mock_nl.assert_called_with(os.environ['PWD'], 'file_19980630_yyyymmdd',
+        self.nemo.rebuild_fileset('SourceDir', 'field', rebuildall=True)
+        mock_nl.assert_called_with('SourceDir', 'file_19980630_yyyymmdd',
                                    1, omp=1)
         self.assertEqual(mock_attr.mock_calls, [])
 
@@ -466,8 +466,8 @@ class RebuildTests(unittest.TestCase):
                    'RUNIDo_19981130_yyyymmdd_field_0000.nc']
         for fname in myfiles:
             open(fname, 'w').close()
-        self.nemo.rebuild_fileset(os.environ['PWD'], 'field')
-        mock_nl.assert_called_with(os.environ['PWD'],
+        self.nemo.rebuild_fileset(os.getcwd(), 'field')
+        mock_nl.assert_called_with(os.getcwd(),
                                    'RUNIDo_19980530_yyyymmdd_field',
                                    3, omp=1)
         for fname in myfiles:
@@ -489,9 +489,9 @@ class RebuildTests(unittest.TestCase):
         for fname in myfiles:
             open(fname, 'w').close()
 
-        self.nemo.rebuild_fileset(os.environ['PWD'],
+        self.nemo.rebuild_fileset(os.getcwd(),
                                   'RUNIDo_19980530_restart')
-        mock_nl.assert_called_with(os.environ['PWD'],
+        mock_nl.assert_called_with(os.getcwd(),
                                    'RUNIDo_19980530_restart',
                                    3, omp=1)
         for fname in myfiles:
@@ -512,9 +512,9 @@ class RebuildTests(unittest.TestCase):
         self.nemo.buffer_rebuild.return_value = 0
         for fname in myfiles:
             open(fname, 'w').close()
-        self.nemo.rebuild_fileset(os.environ['PWD'],
+        self.nemo.rebuild_fileset(os.getcwd(),
                                   'RUNIDo_icebergs_19980530_restart')
-        mock_nl.assert_called_with(os.environ['PWD'],
+        mock_nl.assert_called_with(os.getcwd(),
                                    'RUNIDo_icebergs_19980530_restart',
                                    2, omp=1)
         for fname in myfiles:
@@ -533,9 +533,9 @@ class RebuildTests(unittest.TestCase):
         self.nemo.buffer_rebuild.return_value = 0
         for fname in myfiles:
             open(fname, 'w').close()
-        self.nemo.rebuild_fileset(os.environ['PWD'],
+        self.nemo.rebuild_fileset(os.getcwd(),
                                   'RUNIDo_19980530_restart_trc')
-        mock_nl.assert_called_with(os.environ['PWD'],
+        mock_nl.assert_called_with(os.getcwd(),
                                    'RUNIDo_19980530_restart_trc',
                                    2, omp=1)
         for fname in myfiles:
@@ -553,22 +553,24 @@ class RebuildTests(unittest.TestCase):
         self.nemo.buffer_rebuild = mock.Mock()
         self.nemo.buffer_rebuild.return_value = 0
         self.nemo.suite.finalcycle = True
-        self.nemo.rebuild_fileset(os.environ['PWD'], 'yyyymmdd_restart',
+        self.nemo.rebuild_fileset('SourceDir', 'yyyymmdd_restart',
                                   rebuildall=True)
-        mock_nl.assert_called_with(os.environ['PWD'], 'file_restart', 2, omp=1)
+        mock_nl.assert_called_with('SourceDir', 'file_restart', 2, omp=1)
         self.assertNotIn('deleting component files', func.capture().lower())
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
     @mock.patch('utils.get_subset')
-    def test_rebuild_means_final_cycle(self, mock_subset, mock_nl):
+    @mock.patch('utils.remove_files')
+    def test_rebuild_means_final_cycle(self, mock_rm, mock_subset, mock_nl):
         '''Test final cycle behaviour - deleting components of means'''
         func.logtest('Assert component files not deleted on final cycle:')
         mock_subset.return_value = ['file_mean1_0000.nc', 'file_mean2_0000.nc']
         mock_nl.return_value = 0
         self.nemo.suite.finalcycle = True
-        self.nemo.rebuild_fileset(os.environ['PWD'], 'mean', rebuildall=True)
-        mock_nl.assert_called_with(os.environ['PWD'], 'file_mean1', 1, omp=1)
+        self.nemo.rebuild_fileset('SourceDir', 'mean', rebuildall=True)
+        mock_nl.assert_called_with('SourceDir', 'file_mean1', 1, omp=1)
         self.assertIn('deleting component files', func.capture().lower())
+        mock_rm.assert_called_with(['file_mean2_0000.nc'], 'SourceDir')
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
     @mock.patch('utils.get_subset')
@@ -594,7 +596,7 @@ class RebuildTests(unittest.TestCase):
         mock_exec.return_value = (0, '')
         mock_isfile.return_value = True
         with mock.patch('os.remove'):
-            rtn = self.nemo.rebuild_namelist(os.environ['PWD'],
+            rtn = self.nemo.rebuild_namelist(os.getcwd(),
                                              'file_19980530_yyyymmdd',
                                              3)
         self.assertEqual(mock_exec.return_value[0], rtn)
@@ -602,9 +604,9 @@ class RebuildTests(unittest.TestCase):
         self.assertIn('successfully rebuilt', func.capture().lower())
         self.assertIn('file_19980530_yyyymmdd', func.capture().lower())
         mock_exec.assert_called_with(
-            '{}'.format(os.path.join(os.environ['PWD'],
+            '{}'.format(os.path.join(os.getcwd(),
                                      self.defaults.exec_rebuild)),
-            cwd=os.environ['PWD'])
+            cwd=os.getcwd())
         self.assertTrue(os.path.exists('nam_rebuild'))
         txt = open('nam_rebuild', 'r').read()
         self.assertNotIn('dims=\'1\',\'2\'', txt)
@@ -617,7 +619,7 @@ class RebuildTests(unittest.TestCase):
         mock_exec.return_value = (0, '')
         mock_isfile.return_value = True
         with mock.patch('os.remove'):
-            rtn = self.nemo.rebuild_namelist(os.environ['PWD'],
+            rtn = self.nemo.rebuild_namelist(os.getcwd(),
                                              'file_19980530_yyyymmdd',
                                              3,
                                              omp=1, chunk='opt_chunk',
@@ -635,7 +637,7 @@ class RebuildTests(unittest.TestCase):
         func.logtest('Assert failure to create namelist file:')
         mock_exec.return_value = (0, '')
         mock_isfile.return_value = False
-        rtn = self.nemo.rebuild_namelist(os.environ['PWD'],
+        rtn = self.nemo.rebuild_namelist(os.getcwd(),
                                          'file_19980530_yyyymmdd',
                                          3)
         self.assertNotEqual(rtn, 0)
@@ -649,7 +651,7 @@ class RebuildTests(unittest.TestCase):
         mock_exec.return_value = (1, '')
         os.path.isfile = mock.Mock(return_value=True)
         with self.assertRaises(SystemExit):
-            self.nemo.rebuild_namelist(os.environ['PWD'],
+            self.nemo.rebuild_namelist(os.getcwd(),
                                        'file_19980530_yyyymmdd',
                                        3)
         self.assertIn('failed to rebuild file', func.capture('err').lower())
@@ -662,9 +664,9 @@ class RebuildTests(unittest.TestCase):
         with mock.patch('utils.exec_subproc', return_value=(0, '')):
             with mock.patch('nemo.NemoPostProc.rebuild_icebergs') as mock_rbld:
                 mock_rbld.return_value = 0
-                self.nemo.rebuild_namelist(os.environ['PWD'],
+                self.nemo.rebuild_namelist(os.getcwd(),
                                            'file_icebergs_yyyymmdd', 2)
-        mock_rbld.assert_called_with(os.environ['PWD'],
+        mock_rbld.assert_called_with(os.getcwd(),
                                      'file_icebergs_yyyymmdd', 2)
         self.assertIn('Successfully rebuilt', func.capture())
 
@@ -712,9 +714,9 @@ History_Data/NEMOhist/ae710o_10d_19780901_19780910_diaptr_0000.nc";
 '''
 
     def tearDown(self):
-        for fname in runtime_environment.runtime_files:
+        for fname in runtime_environment.RUNTIME_FILES:
             try:
-                os.remove('fname')
+                os.remove(fname)
             except OSError:
                 pass
 
@@ -742,13 +744,13 @@ History_Data/NEMOhist/ae710o_10d_19780901_19780910_diaptr_0000.nc";
         with mock.patch('utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (0, '')
             self.nemo.global_attr_to_zonal('TestDir', ['File1', 'File2'])
-        mock_exec.assert_called_with(' '.join([
-            self.defaults.ncatted_cmd,
-            '-a DOMAIN_size_global,global,m,l,1,1207',
-            '-a DOMAIN_position_first,global,m,l,1,1',
-            '-a DOMAIN_position_last,global,m,l,1,151',
-            '-a ibegin,global,m,l,1', 'TestDir/File2'
-            ]))
+            mock_exec.assert_called_with(
+                ' '.join([self.defaults.ncatted_cmd,
+                          '-a DOMAIN_size_global,global,m,l,1,1207',
+                          '-a DOMAIN_position_first,global,m,l,1,1',
+                          '-a DOMAIN_position_last,global,m,l,1,151',
+                          '-a ibegin,global,m,l,1', 'TestDir/File2'])
+                )
         self.assertIn('Changing nc file attributes', func.capture())
         self.assertIn('ncatted - Successful', func.capture())
 
@@ -792,11 +794,11 @@ class AdditionalArchiveTests(unittest.TestCase):
         self.nemo.suite.prefix = 'RUNID'
         self.nemo.archive_files = mock.Mock(return_value={})
         self.nemo.nl.exec_rebuild_iceberg_trajectory = 'ICB_PP'
-        self.nemo.nl.restart_directory = 'HERE'
-        self.nemo.nl.means_directory = 'HERE'
+        self.nemo.share = 'HERE'
+        self.nemo.work = 'HERE'
 
     def tearDown(self):
-        for fname in ['nam_rebuild'] + runtime_environment.runtime_files:
+        for fname in ['nam_rebuild'] + runtime_environment.RUNTIME_FILES:
             try:
                 os.remove(fname)
             except OSError:
@@ -862,7 +864,7 @@ class AdditionalArchiveTests(unittest.TestCase):
         '''Test call to iceberg_trajectory archive method - move files'''
         func.logtest('Assert call to archive_iceberg_trajectory with move:')
         self.nemo.nl.archive_iceberg_trajectory = True
-        self.nemo.nl.restart_directory = 'THERE'
+        self.nemo.share = 'THERE'
         with mock.patch('utils.get_subset'):
             self.nemo.archive_general()
         mock_mv.assert_called_once_with(
@@ -898,6 +900,7 @@ class UtilityMethodTests(unittest.TestCase):
     '''Unit tests relating to the NEMO utility methods'''
     def setUp(self):
         self.nemo = nemo.NemoPostProc()
+        self.nemo.share = os.getcwd()
         self.nemo.suite = mock.Mock()
         self.nemo.suite.monthlength.return_value = 30
         self.nemo.suite.prefix = 'RUNID'
@@ -1033,7 +1036,7 @@ class UtilityMethodTests(unittest.TestCase):
         func.logtest('Assert move_to_share called twice for no return:')
         mock_mt.return_value = []
         self.nemo.move_to_share()
-        mock_mt.assert_called_with(source=os.environ['PWD'])
+        mock_mt.assert_called_with(source=os.getcwd())
         self.assertEqual(len(mock_mt.mock_calls), 2)
         self.assertEqual(len(mock_stamp.mock_calls), 0)
 

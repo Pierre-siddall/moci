@@ -52,7 +52,7 @@ class PostprocTests(unittest.TestCase):
         self.modules['cice'].INSTANCE = ('nl_cice', self.modules['cice'])
 
     def tearDown(self):
-        for fname in runtime_environment.runtime_files:
+        for fname in runtime_environment.RUNTIME_FILES:
             try:
                 os.remove(fname)
             except OSError:
@@ -135,7 +135,7 @@ class PostprocTests(unittest.TestCase):
         func.logtest('Assert runtime failure of atmos model:')
         sys.argv = ('script',)
         with mock.patch.dict('sys.modules', self.modules):
-            self.mock_atmos().suite.archiveOK = False
+            self.mock_atmos().suite.archive_ok = False
             with self.assertRaises(SystemExit):
                 main_pp.main()
         self.assertIn('Exiting with errors in atmos', func.capture('err'))
@@ -149,7 +149,7 @@ class PostprocTests(unittest.TestCase):
         func.logtest('Assert runtime failure of nemo model:')
         sys.argv = ('script',)
         with mock.patch.dict('sys.modules', self.modules):
-            self.mock_nemo().suite.archiveOK = False
+            self.mock_nemo().suite.archive_ok = False
             with self.assertRaises(SystemExit):
                 main_pp.main()
         self.assertIn('Exiting with errors in nemo', func.capture('err'))
@@ -161,7 +161,7 @@ class PostprocTests(unittest.TestCase):
         func.logtest('Assert runtime failure of cice model:')
         sys.argv = ('script',)
         with mock.patch.dict('sys.modules', self.modules):
-            self.mock_cice().suite.archiveOK = False
+            self.mock_cice().suite.archive_ok = False
             with self.assertRaises(SystemExit):
                 main_pp.main()
         self.assertIn('Exiting with errors in cice', func.capture('err'))

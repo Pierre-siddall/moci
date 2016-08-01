@@ -123,3 +123,14 @@ class pp11_t112(rose.upgrade.MacroUpgrade):
         self.add_setting(config,
                          ["namelist:cicepostproc", "cat_daily_means",], "false")        
         return config, self.reports
+
+
+class pp11_t18(rose.upgrade.MacroUpgrade):
+    """Upgrade macro for ticket #18 by EricaNeininger."""
+    BEFORE_TAG = "pp11_t112"
+    AFTER_TAG = "pp11_t18"
+
+    def upgrade(self, config, meta_config=None):
+        """Upgrade a Postproc app configuration."""
+        self.remove_setting(config, ["namelist:suitegen", "tasks_per_cycle"])
+        return config, self.reports

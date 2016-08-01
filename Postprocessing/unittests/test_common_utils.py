@@ -248,24 +248,6 @@ class DateCheckTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             _ = utils.add_period_to_date(['a']*5, self.delta)
 
-    def test_pre_c6_cal_360(self):
-        '''Test pre-Cylc6 360day calendar date manipulation'''
-        func.logtest('Pre-Cylc6 date manipulation with 360day calendar:')
-        del os.environ['CYLC_CYCLING_MODE']
-        outdate = [2004, 3, 5, 0, 30]
-        date = utils.add_period_to_date(self.indate, self.delta)
-        self.assertListEqual(date, outdate)
-
-    @unittest.skip('Pre-Cylc 6 is no longer installed')
-    def test_pre_c6_gregorian(self):
-        '''Test pre-Cylc6 Gregorian calendar date manipulation'''
-        func.logtest('Pre-Cylc6 date manipulation with Gregorian calendar:')
-        del os.environ['CYLC_CYCLING_MODE']
-        os.environ['ROSE_HOME'] = '/home/h03/fcm/rose-2013-12'
-        outdate = [2004, 3, 6, 0, 0]
-        date = utils.add_period_to_date(self.indate, self.delta, False)
-        self.assertListEqual(date, outdate)
-
 
 class PathTests(unittest.TestCase):
     '''Unit tests for path maniuplations'''
