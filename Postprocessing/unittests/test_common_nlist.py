@@ -13,17 +13,18 @@
 *****************************COPYRIGHT******************************
 '''
 import unittest
-import mock
 import os
 import sys
+import mock
 
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
-
-import runtime_environment
-runtime_environment.setup_env()
 import testing_functions as func
+import runtime_environment
 
+# Import of nlist requires 'RUNID' from runtime environment
+runtime_environment.setup_env()
 import nlist
+
+
 
 
 class NamelistFileTests(unittest.TestCase):
@@ -110,13 +111,13 @@ class ReadNamelistTests(unittest.TestCase):
         self.assertIn('[WARN]', func.capture(direct='err'))
 
     def test_type_casting(self):
-        '''Test type casting functionality of _testVal - single values only'''
-        func.logtest('Type casting in _testVal (single values only):')
+        '''Test type casting functionality of _test_val - single values only'''
+        func.logtest('Type casting in _test_val (single values only):')
         for line in self.nlvars:
             if isinstance(self.nlvars[line], list):
                 continue
             _, val = line.split("=")
-            self.assertEqual(type(nlist.ReadNamelist._testVal(val)),
+            self.assertEqual(type(nlist.ReadNamelist._test_val(val)),
                              type(self.nlvars[line]))
 
     def test_read_variables_single_line(self):
@@ -124,14 +125,6 @@ class ReadNamelistTests(unittest.TestCase):
         func.logtest('Read in array length of one:')
         mymock = mock.Mock(nlist.ReadNamelist)
         mymock._uppercase_vars = True
-        mymock._testVal = nlist.ReadNamelist._testVal
-        nlist.ReadNamelist._readVariables(mymock, 'myColour="blue"')
+        mymock._test_val = nlist.ReadNamelist._test_val
+        nlist.ReadNamelist._read_variables(mymock, 'myColour="blue"')
         self.assertEqual(mymock.MYCOLOUR, 'blue')
-
-
-def main():
-    '''Main function'''
-    unittest.main(buffer=True)
-
-if __name__ == '__main__':
-    main()

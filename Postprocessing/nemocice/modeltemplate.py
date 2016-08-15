@@ -92,8 +92,11 @@ class ModelTemplate(control.RunPostProc):
                                         name.upper()[:-8] + ' WORK')
             self.suite = suite.SuiteEnvironment(self.share, input_nl)
             self.suite.envars = utils.loadEnv('CYLC_SUITE_INITIAL_CYCLE_POINT',
+                                              'INITCYCLE_OVERRIDE',
                                               append=self.suite.envars)
             self.del_base = []
+            # Initialise debug mode - calling base class method
+            self._debug_mode(self.nl.debug)
 
     @property
     def runpp(self):
@@ -117,7 +120,8 @@ class ModelTemplate(control.RunPostProc):
              ('archive_means', self.nl.archive_means),
              ('archive_general',
               any(ftype[1] for ftype in self.archive_types if
-                  isinstance(ftype[1], bool) and ftype[1]))]
+                  isinstance(ftype[1], bool) and ftype[1])),
+             ('finalise_debug', self.nl.debug)]
             )
 
     @property
@@ -173,7 +177,7 @@ class ModelTemplate(control.RunPostProc):
             workfiles = []
             for field in self.fields:
                 inputs = RegexArgs(field=field, period=XX, date=(None,)*3)
-                workfiles += utils.get_subset(self.work,
+                workfiles += utils.get_subset(source,
                                               self.meantemplate(inputs))
         if workfiles and source != self.share:
             utils.log_msg('Moving files to SHARE directory')
@@ -186,8 +190,8 @@ class ModelTemplate(control.RunPostProc):
         need for processing (rebuild or archive)
         '''
         nlvar = getattr(self.nl, process + '_timestamps')
-        return bool([ts for ts in nlvar if [month, day] == ts.split('-')] or \
-                        not nlvar)
+        return bool([ts for ts in nlvar if [month, day] == ts.split('-')] or
+                    not nlvar)
 
     @property
     def _fields(self):
@@ -209,7 +213,7 @@ class ModelTemplate(control.RunPostProc):
         msg = 'SET_STENCIL not implemented. Required return:\n\t'
         msg += r'dict={"period": lambda y,m,s,f: "^{}{}{}{}\.nc$".'\
             'format(y,m,s,f)}'
-        utils.log_msg(msg, 4)
+        utils.log_msg(msg, level='WARN')
         raise NotImplementedError
 
     @abc.abstractproperty
@@ -221,7 +225,7 @@ class ModelTemplate(control.RunPostProc):
         '''
         msg = 'END_STENCIL not implemented. Required return:\n\t'
         msg += r'dict={"period": lambda s,f: "^{}{}\.nc$".format(s,f)}'
-        utils.log_msg(msg, 4)
+        utils.log_msg(msg, level='WARN')
         raise NotImplementedError
 
     @abc.abstractproperty
@@ -234,7 +238,7 @@ class ModelTemplate(control.RunPostProc):
         msg = 'MEAN_STENCIL not implemented. Required return:\n\t'
         msg += r'dict={"period": lambda p,y,m,s,f: "^{}{}{}{}{}\.nc$"' \
             '.format(p,y,m,s,f)}'
-        utils.log_msg(msg, 4)
+        utils.log_msg(msg, level='WARN')
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -246,7 +250,7 @@ class ModelTemplate(control.RunPostProc):
         '''
         msg = 'Model specific get_date method not implemented.\n\t'
         msg += 'return (year, month, day, [hour])'
-        utils.log_msg(msg, 4)
+        utils.log_msg(msg, level='WARN')
         raise NotImplementedError
 
     def periodset(self, inputs, datadir=None, archive=False):
@@ -353,7 +357,7 @@ class ModelTemplate(control.RunPostProc):
     @staticmethod
     def describe_mean(inp):
         '''Compose informative description for mean under consideration'''
-        MEANS = {
+        means = {
             MM: lambda m, y: ' '.join(m + [y, ]),
             SS: lambda s, y: ' '.join([s, y]),
             AA: lambda a, y: y,
@@ -361,7 +365,7 @@ class ModelTemplate(control.RunPostProc):
         meantype = ' '.join([inp.field, inp.period])
         subperiod = inp.subperiod if inp.spvals else \
             [m[1] for s in PDICT[SS] for m in PDICT[SS][s] if inp.date[1] in m]
-        meandate = MEANS[inp.period](subperiod, inp.date[0])
+        meandate = means[inp.period](subperiod, inp.date[0])
         return '{} mean for {}'.format(meantype, meandate)
 
     @timer.run_timer
@@ -386,7 +390,7 @@ class ModelTemplate(control.RunPostProc):
                 if not lenset[inputs.period]:
                     # Base component of one month - no monthly mean to create
                     msg = 'create_means: Monthly means output directly by model'
-                    utils.log_msg(msg, level=1)
+                    utils.log_msg(msg, level='INFO')
                     if len(meanset) > 1:
                         # Delete component files
                         utils.remove_files(meanset, path=self.share)
@@ -399,7 +403,7 @@ class ModelTemplate(control.RunPostProc):
                     if icode == 0 and os.path.isfile(os.path.join(self.share,
                                                                   meanfile)):
                         msg = 'Created {}: {}'.format(describe, meanfile)
-                        utils.log_msg(msg, 2)
+                        utils.log_msg(msg, level='OK')
 
                         # Meaning gets the time_bounds variables wrong
                         # so correct them here
@@ -415,13 +419,10 @@ class ModelTemplate(control.RunPostProc):
                                 utils.remove_files(meanset, path=self.share)
 
                     else:
-                        msg = '{}: Error={}\n{}'.format(self.means_cmd,
-                                                        icode, output)
-                        utils.log_msg(msg, 4)
-                        msg = 'Failed to create {}: {}'.format(describe,
-                                                               meanfile)
-                        utils.log_msg(msg, 4)
-                        utils.catch_failure(self.nl.debug)
+                        msg = '{C}: Error={E}\n{O}\nFailed to create {M}: {L}'
+                        msg = msg.format(C=self.means_cmd, E=icode, O=output,
+                                         M=describe, L=meanfile)
+                        utils.log_msg(msg, level='FAIL')
 
                 else:
                     # Insuffient component files available to create mean.
@@ -431,10 +432,11 @@ class ModelTemplate(control.RunPostProc):
                         # Model in spinup period for the given mean.
                         # Insufficent component files is expected.
                         msg = msg + '\n\t -> Means creation in spinup mode.'
-                        utils.log_msg(msg, 1)
+                        utils.log_msg(msg, level='INFO')
                     else:
-                        utils.log_msg(msg, 4)
-                        utils.catch_failure(self.nl.debug)
+                        # This error should fail, even in debug mode, otherwise
+                        # components will be archived and deleted.
+                        utils.log_msg(msg, level='FAIL')
 
     def means_spinup(self, description, meandate):
         '''
@@ -444,10 +446,13 @@ class ModelTemplate(control.RunPostProc):
         Returns True if the model is in the spinup period for creation of
         a given mean.
         '''
-        initialcycle = self.suite.envars.CYLC_SUITE_INITIAL_CYCLE_POINT
-        first_year = meandate[0] == initialcycle[0:4]
+        try:
+            # An override is required for Single Cycle test suites
+            initialcycle = self.suite.envars.INITCYCLE_OVERRIDE
+        except AttributeError:
+            initialcycle = self.suite.envars.CYLC_SUITE_INITIAL_CYCLE_POINT
 
-        if first_year:
+        if meandate[0] == initialcycle[0:4]:
             if MM in description:
                 # Spinup during the first model month if initialised
                 # after the first day of a month.
@@ -464,7 +469,7 @@ class ModelTemplate(control.RunPostProc):
             else:
                 msg = 'means_spinup: unknown meantype requested.\n'
                 msg += '\tUnable to assess whether model is in spin up mode.'
-                utils.log_msg(msg, 3)
+                utils.log_msg(msg, level='WARN')
                 spinup = False
         else:
             spinup = False
@@ -516,7 +521,13 @@ class ModelTemplate(control.RunPostProc):
             if not [fn for fn in arch_files if arch_files[fn] == 'FAILED']:
                 msg = 'Deleting archived files: \n\t' + '\n\t'.join(to_archive)
                 utils.log_msg(msg)
-                utils.remove_files(to_archive, self.share)
+                if utils.get_debugmode():
+                    # Append "ARCHIVED" suffix to files, rather than deleting
+                    for fname in to_archive:
+                        fname = os.path.join(self.share, fname)
+                        os.rename(fname, fname + '_ARCHIVED')
+                else:
+                    utils.remove_files(to_archive, self.share)
         else:
             utils.log_msg(' -> Nothing to archive')
 
@@ -547,7 +558,13 @@ class ModelTemplate(control.RunPostProc):
                 arch = self.archive_files(to_archive)
                 to_delete = [fn for fn in arch if arch[fn] == 'SUCCESS']
                 msg = 'Deleting archived files: \n\t' + '\n\t'.join(to_delete)
-                utils.remove_files(to_delete, self.share)
+                if utils.get_debugmode():
+                    # Append "ARCHIVED" suffix to files, rather than deleting
+                    for fname in to_archive:
+                        fname = os.path.join(self.share, fname)
+                        os.rename(fname, fname + '_ARCHIVED')
+                else:
+                    utils.remove_files(to_delete, self.share)
             else:
                 msg = ' -> Nothing to archive'
                 if rstfiles:
@@ -565,7 +582,7 @@ class ModelTemplate(control.RunPostProc):
                     getattr(self, 'archive_' + method)()
                 except AttributeError:
                     msg = 'Archive method not implemented: archive_' + method
-                    utils.log_msg('archive_general: ' + msg, level=5)
+                    utils.log_msg('archive_general: ' + msg, level='FAIL')
 
     @timer.run_timer
     def archive_files(self, filenames):
@@ -578,15 +595,15 @@ class ModelTemplate(control.RunPostProc):
             filenames = [filenames]
 
         for fname in filenames:
-            rcode = self.suite.archive_file(fname, debug=self.nl.debug)
+            rcode = self.suite.archive_file(fname)
             if rcode == 0:
-                utils.log_msg('Archive successful.', 2)
+                utils.log_msg('Archive successful.', level='OK')
                 returnfiles[fname] = 'SUCCESS'
             else:
                 msg = 'Failed to archive file: {}. Will try again later.'.\
                     format(fname)
                 returnfiles[fname] = 'FAILED'
-                utils.log_msg(msg, 3)
+                utils.log_msg(msg, level='WARN')
 
         return returnfiles
 
@@ -599,7 +616,8 @@ class ModelTemplate(control.RunPostProc):
                                        compression=self.nl.compression_level,
                                        chunking=self.nl.chunking_arguments)
         else:
-            utils.log_msg('Preprocessing command not yet implemented', 5)
+            utils.log_msg('Preprocessing command not yet implemented',
+                          level='FAIL')
 
     def fix_mean_time(self, infiles, meanfile):
         '''
@@ -613,7 +631,7 @@ class ModelTemplate(control.RunPostProc):
                 time_vars = [time_vars]
 
             msg = 'fix_mean_time - Correcting mean time in file: '
-            utils.log_msg(msg + meanfile, level=1)
+            utils.log_msg(msg + meanfile, level='INFO')
             file_log = ''
             for var in time_vars:
                 ret_msg = netcdf_utils.fix_times(
@@ -622,4 +640,4 @@ class ModelTemplate(control.RunPostProc):
                     do_bounds=self.nl.correct_time_bounds_variables)
                 file_log = file_log + ret_msg
             if file_log:
-                utils.log_msg(ret_msg, level=2)
+                utils.log_msg(ret_msg, level='OK')

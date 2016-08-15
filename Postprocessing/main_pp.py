@@ -32,6 +32,7 @@ import importlib
 import timer
 import utils
 
+
 def main():
     '''Main function for PostProcessing App'''
     timer.initialise_timer()
@@ -50,7 +51,7 @@ def main():
         unknown = [a for a in sys.argv[1:] if a not in models]
         if any(unknown):
             msg = 'main_pp.py - Unknown model(s) requested: '
-            utils.log_msg(msg + ','.join(unknown), level=5)
+            utils.log_msg(msg + ','.join(unknown), level='FAIL')
 
         for mod in ['common'] + [v for v in models.values()]:
             sys.path.append(os.path.join(os.path.dirname(__file__),
@@ -63,7 +64,7 @@ def main():
         except ImportError as err:
             msg = 'main_pp.py - Error during import of model {}\n\t {}'.\
                 format(name.upper(), err)
-            utils.log_msg(msg, level=5)
+            utils.log_msg(msg, level='FAIL')
 
     exit_check = {}
     for name in models:
@@ -74,13 +75,14 @@ def main():
                 if model.methods[meth]:
                     utils.log_msg('Running {} for {}...'.format(meth, name))
                     getattr(model, meth)()
-            exit_check[name] = model.suite.archive_ok
+            exit_check[name + '_archive'] = model.suite.archive_ok
+            exit_check[name + '_debug'] = model.debug_ok
 
     timer.finalise_timer()
     if not all(exit_check.values()):
         fails = [m for m, v in exit_check.items() if not v]
         msg = 'main_pp.py - PostProc complete. Exiting with errors in '
-        utils.log_msg(msg + ', '.join(fails), level=5)
+        utils.log_msg(msg + ', '.join(fails), level='FAIL')
 
 
 if __name__ == '__main__':

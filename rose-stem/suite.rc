@@ -424,11 +424,12 @@ export FCM_VERSION={{FCM_VERSION}}
         inherit=None, LINUX
         [[[environment]]]
             ROSE_TASK_APP = postproc
-	    RUNID      = hg3es
-	    MODELBASIS = 1981,10,1,0,0,0
+            RUNID      = hg3es
+            MODELBASIS = 1981,10,1,0,0,0
             DATAM      = $CYLC_SUITE_SHARE_DIR/data/postproc/ATMOSdata
             NEMO_DATA  = $CYLC_SUITE_SHARE_DIR/data/postproc/NEMOdata
             CICE_DATA  = $CYLC_SUITE_SHARE_DIR/data/postproc/CICEdata
+            INITCYCLE_OVERRIDE = '19811001T0000Z'
 
     [[PP_COUPLED_DUMMY]]
         inherit = None, POSTPROC

@@ -26,7 +26,7 @@ import timer
 import utils
 
 
-def identify_filedate(fn):
+def identify_filedate(fname):
     '''
     The pp files may be instantaneous, a monthly, seasonal, or annual mean.
     This function will return the date expected in the header.
@@ -44,19 +44,19 @@ def identify_filedate(fn):
     patterns = [re.compile(r'\d?(\d{4})(\d{2})(\d{2})'),
                 re.compile(r'[pm][a-z1-9](\d{4})([a-z]{3})')]
 
-    months = {'jan': 1, 'feb': 2,  'mar': 3,  'apr': 4,
-              'may': 5, 'jun': 6,  'jul': 7,  'aug': 8,
+    months = {'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4,
+              'may': 5, 'jun': 6, 'jul': 7, 'aug': 8,
               'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
-              'djf': 3, 'mam': 6,  'jja': 9,  'son': 12}
+              'djf': 3, 'mam': 6, 'jja': 9, 'son': 12}
 
     filedate = None
     for patt in patterns:
-        if patt.search(fn):
-            filedate = patt.search(fn).groups()
+        if patt.search(fname):
+            filedate = patt.search(fname).groups()
             if filedate[1] in months:
                 month = months[filedate[1]]
                 year = filedate[0]
-                if '.pm' in fn:
+                if '.pm' in fname:
                     month += 1
                     if month == 13:
                         month = 1
@@ -66,8 +66,8 @@ def identify_filedate(fn):
     if filedate:
         return filedate
     else:
-        msg = 'Unable to retrieve a valid date from the filename: ' + fn
-        utils.log_msg(msg, level=5)
+        msg = 'Unable to retrieve a valid date from the filename: ' + fname
+        utils.log_msg(msg, level='ERROR')
 
 
 @timer.run_timer
@@ -83,7 +83,7 @@ def verify_header(atmospp, fname, logfile, logdir):
     try:
         valid_date = tuple([headers[hd] for hd in range(28, 34)])
     except KeyError:
-        utils.log_msg('No header information available', level=3)
+        utils.log_msg('No header information available', level='WARN')
         valid_date = ('',)*6
 
     filedate = identify_filedate(fname)
@@ -94,36 +94,44 @@ def verify_header(atmospp, fname, logfile, logdir):
     else:
         msg = 'Validity time mismatch in file {} to be archived: Ignoring'.\
             format(fname)
-        utils.log_msg(msg, level=3)
         logfile.write(fname + ' ARCHIVE FAILED. Validity mismatch \n')
+        utils.log_msg(msg, level='ERROR')
 
     return validfile
 
 
 @timer.run_timer
 def genlist(ppfile, header, pumfpath):
+    '''
+    Generator function to extract key-value pairs from the fixed-length
+    header of a given UM fieldsfile using the UM pumf utility.
+    '''
     # This command will only work with pumf versions 9.1->
     # As such there is an assertion on the pumf to ensure it points
     # to version 9.1 or more recent.
-    pumfpatt = re.compile('vn(\d+\.\d+)')
+    pumfpatt = re.compile(r'vn(\d+\.\d+)')
     pumfver = float(pumfpatt.search(pumfpath).groups()[0])
     # Verify that the version of pumf is suitable
     try:
-        assert(pumfver >= 9.1)
+        assert pumfver >= 9.1
     except AssertionError:
         msg = 'The version of pumf selected must vn9.1 or later. '
         msg += 'Currently attemping to use version {}'.format(str(pumfver))
-        utils.log_msg(msg, level=5)
+        utils.log_msg(msg, level='FAIL')
+    except AttributeError:
+        msg = 'Unable to extract the version of pumf from the path provided.'
+        utils.log_msg(msg, level='FAIL')
+
     cmd = '{} -h {} {}'.format(pumfpath, header, ppfile)
     pumf_rcode, _ = utils.exec_subproc(cmd)
 
     if pumf_rcode == 0 and os.path.isfile(header):
-        patt = re.compile('(\d*):\s*([-\d]*)')
+        patt = re.compile(r'(\d*):\s*([-\d]*)')
         fixedhd = done = False
         for line in open(header, 'r').readlines():
             if 'FIXED LENGTH HEADER' in line:
                 fixedhd = True
-            elif fixedhd and re.search('\d*:', line):
+            elif fixedhd and re.search(r'\d*:', line):
                 for pair in patt.finditer(line.strip()):
                     yield pair.group(1, 2)
                 # Begun populating the fixed header dictionary -
@@ -132,6 +140,9 @@ def genlist(ppfile, header, pumfpath):
             elif line.strip() == '' and done:
                 break
         utils.remove_files(header)
+    else:
+        msg = 'pumf: Failed to extract header information from file {}'
+        utils.log_msg(msg.format(ppfile), level='ERROR')
 
 
 @timer.run_timer
@@ -143,9 +154,10 @@ def make_dump_name(atmos):
     name will have the form abcde.da20100101
     '''
     cycledt = atmos.suite.cycledt
+    dt_len = len(cycledt)
     basisdt = [int(elem) for elem in atmos.envars.MODELBASIS.split(',')]
 
-    if cycledt == basisdt[:len(cycledt)]:
+    if cycledt == basisdt[:dt_len]:
         # This is the first cycle, definitely do not archive any dumps
         return []
 
@@ -163,14 +175,14 @@ def make_dump_name(atmos):
     # (year,month,day,hour,minute,second) for the start of a cycle in a
     # cycling model run.
     dumptype = {
-        'Yearly':   cycledt[1] == month_for_yearly_archiving and
-        cycledt[2] == 1 and cycledt[3] == 0,
+        'Yearly': cycledt[1] == month_for_yearly_archiving and
+                  cycledt[2] == 1 and cycledt[3] == 0,
         'Seasonal': cycledt[1] in (12, 3, 6, 9) and cycledt[2] == 1 and
-        cycledt[3] == 0,
-        'Monthly':  cycledt >= utils.add_period_to_date(
+                    cycledt[3] == 0,
+        'Monthly': cycledt >= utils.add_period_to_date(
             basisdt,
-            [0, atmos.nl.archiving.arch_dump_offset + 1])[:len(cycledt)] and \
-            cycledt[2] == 1 and cycledt[3] == 0
+            [0, atmos.nl.archiving.arch_dump_offset + 1])[:dt_len] and
+                   cycledt[2] == 1 and cycledt[3] == 0
     }
 
     dumps_to_archive = []

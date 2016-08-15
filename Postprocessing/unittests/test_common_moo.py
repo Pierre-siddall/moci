@@ -13,21 +13,19 @@
 *****************************COPYRIGHT******************************
 '''
 import unittest
-import mock
 import os
-import sys
+import mock
 
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
-
-import runtime_environment
-runtime_environment.setup_env()
 import testing_functions as func
+import runtime_environment
 
+# Import of moo requires 'CYLC_SUITE_REG_NAME' from runtime environment
+runtime_environment.setup_env()
 import moo
-
 
 class CommandTests(unittest.TestCase):
     '''Unit tests relating to the moo.CommandExec() method'''
+
     def setUp(self):
         self.cmd = {
             'CURRENT_RQST_ACTION': 'ARCHIVE',
@@ -108,9 +106,8 @@ class CommandTests(unittest.TestCase):
 
 class MooseTests(unittest.TestCase):
     '''Unit tests relating to Moose archiving functionality'''
-    @mock.patch('utils.exec_subproc')
-    def setUp(self, mock_subproc):
-        mock_subproc.return_value = (0, '')
+
+    def setUp(self):
         cmd = {
             'CURRENT_RQST_ACTION': 'ARCHIVE',
             'CURRENT_RQST_NAME':   'full/path/to/RUNIDa.daTestFile',
@@ -134,7 +131,8 @@ class MooseTests(unittest.TestCase):
         elif 'tracer' in self.id():
             cmd['CURRENT_RQST_NAME'] = 'RUNIDo_YYYYMMDD_restart_trc.nc'
         os.environ['PREFIX'] = 'PATH/'
-        self.inst = moo._Moose(cmd)
+        with mock.patch('utils.exec_subproc', return_value=(0, '')):
+            self.inst = moo._Moose(cmd)
 
     def tearDown(self):
         pass
@@ -354,8 +352,8 @@ class MooseTests(unittest.TestCase):
 
 class PutCommandTests(unittest.TestCase):
     '''Unit tests relating to the creation of the `moo put` command'''
-    @mock.patch('moo._Moose.chkset')
-    def setUp(self, mock_chkset):
+
+    def setUp(self):
         cmd = {
             'CURRENT_RQST_ACTION': 'ARCHIVE',
             'CURRENT_RQST_NAME':   'RUNIDa.daTestFile',
@@ -373,8 +371,8 @@ class PutCommandTests(unittest.TestCase):
         self.testfile = os.path.join(cmd['DATAM'], cmd['CURRENT_RQST_NAME'])
         self.archdest = os.path.join(cmd['DATACLASS'], cmd['RUNID'],
                                      'ada.file')
-        mock_chkset.return_value = True
-        self.inst = moo._Moose(cmd)
+        with mock.patch('moo._Moose.chkset', return_value=True):
+            self.inst = moo._Moose(cmd)
 
     def tearDown(self):
         pass
@@ -452,12 +450,3 @@ class Utilitytests(unittest.TestCase):
         self.cmd['CONVERTPP'] = True
         moo.archive_to_moose('FILE', 'SOURCEDIR', self.nlist, True)
         mock_exec.assert_called_with(self.cmd)
-
-
-def main():
-    '''Main function'''
-    unittest.main(buffer=True)
-
-
-if __name__ == '__main__':
-    main()

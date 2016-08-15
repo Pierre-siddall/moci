@@ -196,7 +196,8 @@ RC=0
 
 echo "[INFO] Checking Atmosphere output all present and correct..."
 for fn in $adumps $aph $apj $apm $apm $aps $apy; do
-    if [[ "$search" != *"$fn WOULD BE ARCHIVED"* ]] && [[ "$search" != *"$fn ARCHIVE OK"* ]]; then 
+    if [[ "$search" != *"$fn WOULD BE ARCHIVED"* ]] && [[ "$search" != *"$fn ARCHIVE OK"* ]] && \
+	[[ "$search" != *"$fn FILE NOT ARCHIVED. File contains no fields"* ]]; then 
         echo "[FAIL] File archive not logged: $fn"
         RC=$((RC + 1))
     fi

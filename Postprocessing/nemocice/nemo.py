@@ -124,8 +124,7 @@ class NemoPostProc(mt.ModelTemplate):
                           L=self.suite.monthlength(m), F=f),
             mt.SS: lambda y, m, s, f: r'{P}o_1s_{Y1}{M1}01_{Y2}{M2}{L}_{F}.nc'.
                    format(P=self.prefix,
-                          Y1=str(int(y) - s[3]) if isinstance(s[3], int) \
-                              else y,
+                          Y1=str(int(y) - s[3]) if isinstance(s[3], int) else y,
                           Y2=y,
                           M1=s[0],
                           M2=s[2],
@@ -160,7 +159,7 @@ class NemoPostProc(mt.ModelTemplate):
         other than restarts and means.
         Returns a list of tuples: (method_name, bool)
         '''
-        return [('iceberg_trajectory', self.nl.archive_iceberg_trajectory),]
+        return [('iceberg_trajectory', self.nl.archive_iceberg_trajectory)]
 
     def buffer_rebuild(self, filetype):
         '''Returns the rebuild buffer for the given filetype'''
@@ -175,7 +174,8 @@ class NemoPostProc(mt.ModelTemplate):
         datestrings = re.findall(r'\d{6,10}', fname)
         day = '01'
         if len(datestrings) == 0:
-            utils.log_msg('Unable to get date for file:\n\t' + fname, level=3)
+            utils.log_msg('Unable to get date for file:\n\t' + fname,
+                          level='WARN')
             return (None,)*3
         elif len(datestrings) == 1:
             date_id = 0
@@ -236,14 +236,14 @@ class NemoPostProc(mt.ModelTemplate):
                        F=field, N=num)
             if filename.strip() != newfname:
                 utils.log_msg('enforce_mean_datestamp: Renamed {} as {}'.
-                              format(filename, newfname), level=2)
+                              format(filename, newfname), level='OK')
                 os.rename(os.path.join(self.share, filename),
                           os.path.join(self.share, newfname))
         else:
             # No recognised field in the filename - Exit with error
             msg = 'enforce_mean_datestamp - unable to extract ' \
                 'datestring from filename: {}'.format(filename)
-            utils.log_msg(msg, level=5)
+            utils.log_msg(msg, level='ERROR')
 
     @timer.run_timer
     def rebuild_restarts(self):
@@ -256,12 +256,10 @@ class NemoPostProc(mt.ModelTemplate):
     @timer.run_timer
     def rebuild_means(self):
         '''Rebuild partial means files'''
-        rebuildmeans = self.additional_means + ['10d']
         for field in self.fields:
-            for mean in set(rebuildmeans):
-                pattern = self.mean_stencil[mt.XX](mean, None, None, field).\
-                    rstrip('$').lstrip('^')
-                self.rebuild_fileset(self.share, pattern, rebuildall=True)
+            pattern = self.mean_stencil[mt.XX](None, None, None, field).\
+                rstrip('$').lstrip('^')
+            self.rebuild_fileset(self.share, pattern, rebuildall=True)
 
     @timer.run_timer
     def rebuild_fileset(self, datadir, filetype, suffix='_0000.nc',
@@ -283,25 +281,25 @@ class NemoPostProc(mt.ModelTemplate):
 
             month, day = self.get_date(corename)[1:3]
             if rebuildall or self.timestamps(month, day, process='rebuild'):
-                utils.log_msg('Rebuilding: ' + corename, level=1)
+                utils.log_msg('Rebuilding: ' + corename, level='INFO')
                 icode = self.rebuild_namelist(datadir, corename,
                                               len(bldset), omp=1)
             else:
                 msg = 'Only rebuilding periodic files: ' + \
                     str(self.nl.rebuild_timestamps)
-                utils.log_msg(msg, level=1)
+                utils.log_msg(msg, level='INFO')
                 icode = 0
 
             if icode == 0:
                 if not self.suite.finalcycle or 'restart' not in corename:
                     utils.log_msg('Deleting component files for: ' + corename,
-                                  level=1)
+                                  level='INFO')
                     utils.remove_files(bldset, datadir)
 
         if bldfiles and not rebuild_required:
             msg = 'Nothing to rebuild - {} {} files available ' \
                 '({} retained).'.format(len(bldfiles), filetype, buff)
-            utils.log_msg(msg, level=1)
+            utils.log_msg(msg, level='INFO')
 
     @timer.run_timer
     def global_attr_to_zonal(self, datadir, fileset):
@@ -337,7 +335,7 @@ class NemoPostProc(mt.ModelTemplate):
             if any(notfound):
                 msg = 'global_attr_to_zonal - attribute(s) {} not found in: '.\
                     format(','.join(notfound))
-                utils.log_msg(msg + full_file, level=5)
+                utils.log_msg(msg + full_file, level='ERROR')
 
             cmd = ' '.join([
                 self.ncatted_cmd,
@@ -355,10 +353,10 @@ class NemoPostProc(mt.ModelTemplate):
             if ret_code == 0:
                 msg = msg + '\nncatted - Successful for file {}'.\
                     format(full_file)
-                level = 2
+                level = 'OK'
             else:
                 msg = msg + '\nncatted - Failed for file {}'.format(full_file)
-                level = 5
+                level = 'ERROR'
             utils.log_msg(msg, level=level)
 
     @timer.run_timer
@@ -379,26 +377,23 @@ class NemoPostProc(mt.ModelTemplate):
         if os.path.isfile(namelistfile):
             icode, _ = utils.exec_subproc(self.rebuild_cmd, cwd=datadir)
             rebuiltfile = os.path.join(datadir, filebase + '.nc')
-            if not os.path.isfile(rebuiltfile):
-                msg = 'Rebuilt file does not exist: ' + rebuiltfile
-                utils.log_msg(msg, level=3)
-                icode = 900
+            if icode != 0 or not os.path.isfile(rebuiltfile):
+                icode = icode if icode != 0 else 900
+            elif 'icebergs' in filebase:
+                # Additional processing required for iceberg restart files
+                icode = self.rebuild_icebergs(datadir, filebase, ndom)
+
+            if icode == 0:
+                msg = 'Successfully rebuilt file: ' + rebuiltfile
+                utils.log_msg(msg, level='INFO')
+                utils.remove_files(namelistfile)
             else:
-                if icode == 0 and 'icebergs' in filebase:
-                    # Additional processing required for iceberg restart files
-                    icode = self.rebuild_icebergs(datadir, filebase, ndom)
-                if icode == 0:
-                    msg = 'Successfully rebuilt file: ' + rebuiltfile
-                    utils.log_msg(msg, level=2)
-                    utils.remove_files(namelistfile)
-                else:
-                    msg = '{}: Error={}\n -> Failed to rebuild file: {}'.\
-                        format(self.rebuild_cmd, icode, rebuiltfile)
-                    utils.log_msg(msg, level=4)
-                    utils.catch_failure(self.nl.debug)
+                msg = '{}: Error={}\n -> Failed to rebuild file: {}'.\
+                    format(self.rebuild_cmd, icode, rebuiltfile)
+                utils.log_msg(msg, level='ERROR')
         else:
             utils.log_msg('Failed to create namelist file: ' + namelist,
-                          level=3)
+                          level='WARN')
             icode = 910
         return icode
 
@@ -428,12 +423,11 @@ class NemoPostProc(mt.ModelTemplate):
         if 'error' in output.lower() or icode != 0:
             msg = 'icb_combrest: Error={}\n\t{}'.format(icode, output)
             msg = msg + '\n -> Failed to rebuild file: ' + filebase
-            utils.log_msg(msg, level=4)
-            utils.catch_failure(self.nl.debug)
+            utils.log_msg(msg, level='ERROR')
             icode = -1
         else:
             msg = 'icb_combrest: Successfully rebuilt iceberg file ' + filebase
-            utils.log_msg(msg, level=1)
+            utils.log_msg(msg, level='INFO')
 
         return icode
 
@@ -441,7 +435,7 @@ class NemoPostProc(mt.ModelTemplate):
     def archive_iceberg_trajectory(self):
         '''Rebuild and archive iceberg trajectory (diagnostic) files'''
         fn_stub = r'trajectory_icebergs_\d{6}'
-	# Move to share if necessary
+        # Move to share if necessary
         if self.work != self.share:
             self.move_to_share(pattern=fn_stub + r'_\d{4}.nc')
 
@@ -464,11 +458,10 @@ class NemoPostProc(mt.ModelTemplate):
             if icode != 0:
                 msg = 'icb_pp: Error={}\n\t{}'.format(icode, output)
                 msg = msg + '\n -> Failed to rebuild file: ' + corename
-                utils.log_msg(msg, level=4)
-                utils.catch_failure(self.nl.debug)
+                utils.log_msg(msg, level='ERROR')
             else:
                 msg = 'icb_pp: Successfully rebuilt iceberg trajectory file: '
-                utils.log_msg(msg + corename, level=1)
+                utils.log_msg(msg + corename, level='INFO')
                 utils.remove_files(bldset, path=self.share)
 
         # Archive and delete from local disk
@@ -481,7 +474,13 @@ class NemoPostProc(mt.ModelTemplate):
             if del_files:
                 msg = 'iceberg_trajectory: Deleting archived files: \n\t'
                 utils.log_msg(msg + '\n\t'.join(del_files))
-                utils.remove_files(del_files, self.share)
+                if utils.get_debugmode():
+                    # Append "ARCHIVED" suffix to files, rather than deleting
+                    for fname in del_files:
+                        fname = os.path.join(self.share, fname)
+                        os.rename(fname, fname + '_ARCHIVED')
+                else:
+                    utils.remove_files(del_files, path=self.share)
 
 
 INSTANCE = ('nemocicepp.nl', NemoPostProc)

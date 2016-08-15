@@ -13,21 +13,17 @@
 *****************************COPYRIGHT******************************
 '''
 import unittest
-import mock
 import os
-import sys
+import mock
 
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'atmos'))
-
-import runtime_environment
-runtime_environment.setup_env()
 import testing_functions as func
+import runtime_environment
 
-import atmos
 import atmosNamelist
 import validation
-
+# Import of atmos requires RUNID from runtime_environment
+runtime_environment.setup_env()
+import atmos
 
 class ArchiveDeleteTests(unittest.TestCase):
     '''Unit tests relating to the atmosphere archive and delete methods'''
@@ -75,7 +71,7 @@ class ArchiveDeleteTests(unittest.TestCase):
         args, kwargs = self.atmos.suite.archive_file.call_args
         self.assertEqual(args, (fnfull, ))
         self.assertEqual(sorted(kwargs.keys()),
-                         sorted(['debug', 'preproc', 'logfile']))
+                         sorted(['preproc', 'logfile']))
 
     def test_do_archive_non_existent(self):
         '''Test do_archive functionality with non-existent dump'''
@@ -211,12 +207,3 @@ class PropertyTests(unittest.TestCase):
         self.assertEqual(self.atmos.means, 'msy')
         self.atmos.nl.archiving.process_means = 'at-z'
         self.assertEqual(self.atmos.means, 'at-z')
-
-
-def main():
-    '''Main function'''
-    unittest.main(buffer=True)
-
-
-if __name__ == '__main__':
-    main()

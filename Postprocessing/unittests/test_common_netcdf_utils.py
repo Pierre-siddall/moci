@@ -13,20 +13,16 @@
 *****************************COPYRIGHT******************************
 '''
 import unittest
-import os
 import mock
-import sys
 import numpy
 from netCDF4 import netcdftime
 
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'nemocice'))
-
 import runtime_environment
-runtime_environment.setup_env()
 import testing_functions as func
 
 import netcdf_utils
+
+runtime_environment.setup_env()
 
 
 class DatasetTests(unittest.TestCase):
@@ -165,11 +161,3 @@ class FixTimeTests(unittest.TestCase):
                     'meanset', 'time_counter',
                     'seconds since 1950-01-01 00:00:00',
                     'noleap')
-
-def main():
-    '''Main function'''
-    unittest.main(buffer=True)
-
-
-if __name__ == '__main__':
-    main()

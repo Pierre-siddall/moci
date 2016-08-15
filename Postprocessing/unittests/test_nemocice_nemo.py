@@ -13,21 +13,21 @@
 *****************************COPYRIGHT******************************
 '''
 import unittest
-import mock
 import os
-import sys
 import re
+import mock
 
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'nemocice'))
-
-import runtime_environment
-runtime_environment.setup_env()
 import testing_functions as func
+import runtime_environment
 
+import utils
+
+# Import of nemo and suite require 'RUNID' from runtime environment
+# Import of nemoNamelist requires 'DATAM' from runtime environment
+runtime_environment.setup_env()
+import suite
 import nemo
 import nemoNamelist
-import suite
 
 
 class StencilTests(unittest.TestCase):
@@ -355,6 +355,7 @@ class RebuildTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
+        utils.set_debugmode(False)
 
     def test_call_rebuild_restarts(self):
         '''Test call to rebuild_restarts method'''
@@ -394,9 +395,9 @@ class RebuildTests(unittest.TestCase):
     def test_call_rebuild_means(self):
         '''Test call to rebuild_means method'''
         func.logtest('Assert call to rebuild_fileset from rebuild_means:')
-        pattern = \
-            r'RUNIDo_10d(_\d{{8,10}}){{2}}_{}'.format(self.nemo.fields[-1]) + \
-            r'(([_\-]\d{6,10}){2})?(_\d{4})?(\.nc)?'
+        pattern = r'RUNIDo_\d+[hdmsy](_\d{8,10}){2}_' + \
+            r'{}(([_\-]\d{{6,10}}){{2}})?(_\d{{4}})?(\.nc)?'.format(
+                self.nemo.fields[-1])
         with mock.patch('nemo.NemoPostProc.rebuild_fileset') as mock_fs:
             self.nemo.rebuild_means()
             mock_fs.assert_called_with('ShareDir', pattern, rebuildall=True)
@@ -640,7 +641,7 @@ class RebuildTests(unittest.TestCase):
         rtn = self.nemo.rebuild_namelist(os.getcwd(),
                                          'file_19980530_yyyymmdd',
                                          3)
-        self.assertNotEqual(rtn, 0)
+        self.assertEqual(rtn, 910)
         self.assertIn('failed to create namelist file',
                       func.capture('err').lower())
 
@@ -651,9 +652,20 @@ class RebuildTests(unittest.TestCase):
         mock_exec.return_value = (1, '')
         os.path.isfile = mock.Mock(return_value=True)
         with self.assertRaises(SystemExit):
-            self.nemo.rebuild_namelist(os.getcwd(),
-                                       'file_19980530_yyyymmdd',
-                                       3)
+            _ = self.nemo.rebuild_namelist(os.getcwd(),
+                                           'file_19980530_yyyymmdd', 3)
+        self.assertIn('failed to rebuild file', func.capture('err').lower())
+        self.assertIn('file_19980530_yyyymmdd', func.capture('err').lower())
+
+    @mock.patch('utils.exec_subproc')
+    def test_rebuild_nlist_fail_debug(self, mock_exec):
+        '''Test failure mode of rebuild namelist function - debug_mode'''
+        func.logtest('Assert debug behaviour of rebuild_namelist function:')
+        utils.set_debugmode(True)
+        mock_exec.return_value = (1, '')
+        os.path.isfile = mock.Mock(return_value=True)
+        _ = self.nemo.rebuild_namelist(os.getcwd(),
+                                       'file_19980530_yyyymmdd', 3)
         self.assertIn('failed to rebuild file', func.capture('err').lower())
         self.assertIn('file_19980530_yyyymmdd', func.capture('err').lower())
 
@@ -803,9 +815,10 @@ class AdditionalArchiveTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
+        utils.set_debugmode(False)
 
     @mock.patch('utils.get_subset')
-    @mock.patch('utils.exec_subproc')
+    @mock.patch('utils.exec_subproc', return_value=(0, ''))
     @mock.patch('utils.remove_files')
     def test_arch_iberg_trajectory(self, mock_rm, mock_exec, mock_set):
         '''Test call to iceberg_trajectory archive method'''
@@ -814,7 +827,40 @@ class AdditionalArchiveTests(unittest.TestCase):
         mock_set.side_effect = [['file1_0000.nc'],
                                 ['file1_0000.nc', 'file1_0001.nc'],
                                 ['arch1.nc']]
-        mock_exec.return_value = (0, '')
+        self.nemo.archive_files.return_value = {'arch1.nc': 'FAILED',
+                                                'arch2.nc': 'SUCCEEDED'}
+
+        self.nemo.nl.archive_iceberg_trajectory = True
+        self.nemo.archive_general()
+
+        cmd = 'python2.7 ICB_PP -t HERE/file1_ -n 2 -o HERE/RUNIDo_file1.nc'
+        mock_exec.assert_called_once_with(cmd)
+        removed = mock_rm.mock_calls
+        self.assertEqual(len(removed), 2)
+        self.assertEqual(mock.call(['file1_0000.nc', 'file1_0001.nc'],
+                                   path='HERE'), removed[0])
+        self.assertEqual(mock.call(['arch2.nc'], path='HERE'), removed[1])
+        self.nemo.archive_files.assert_called_once_with(['arch1.nc'])
+        self.assertIn('Successfully rebuilt iceberg trajectory',
+                      func.capture())
+
+    @mock.patch('utils.get_subset')
+    @mock.patch('utils.exec_subproc', return_value=(0, ''))
+    @mock.patch('utils.remove_files')
+    @mock.patch('os.rename')
+    def test_arch_iberg_traj_debug(self, mock_name, mock_rm,
+                                   mock_exec, mock_set):
+        '''Test call to iceberg_trajectory archive method - debug mode'''
+        func.logtest('Assert call to iceberg_traj archive method - debug:')
+        # Mock results for 3 calls to utils.get_subset
+        utils.set_debugmode(True)
+        mock_set.side_effect = [['file1_0000.nc'],
+                                ['file1_0000.nc', 'file1_0001.nc'],
+                                ['arch1.nc']]
+        self.nemo.archive_files.return_value = {'arch1.nc': 'FAILED',
+                                                'arch2.nc': 'SUCCEEDED',
+                                                'arch3.nc': 'SUCCEEDED'}
+
         self.nemo.nl.archive_iceberg_trajectory = True
         self.nemo.archive_general()
 
@@ -825,6 +871,11 @@ class AdditionalArchiveTests(unittest.TestCase):
         self.nemo.archive_files.assert_called_once_with(['arch1.nc'])
         self.assertIn('Successfully rebuilt iceberg trajectory',
                       func.capture())
+        self.assertEqual(len(mock_name.mock_calls), 2)
+        self.assertIn(mock.call('HERE/arch2.nc', 'HERE/arch2.nc_ARCHIVED'),
+                      mock_name.mock_calls)
+        self.assertIn(mock.call('HERE/arch3.nc', 'HERE/arch3.nc_ARCHIVED'),
+                      mock_name.mock_calls)
 
     @mock.patch('utils.exec_subproc')
     @mock.patch('utils.get_subset')
@@ -845,16 +896,16 @@ class AdditionalArchiveTests(unittest.TestCase):
 
     @mock.patch('utils.exec_subproc')
     @mock.patch('utils.get_subset')
-    def test_arch_iberg_traj_debug(self, mock_set, mock_exec):
-        '''Test call to iceberg_trajectory archive method - debug'''
-        func.logtest('Assert debug call to archive_iceberg_trajectory method:')
+    def test_create_iberg_traj_debug(self, mock_set, mock_exec):
+        '''Test call to iceberg_trajectory creation method - debug'''
+        func.logtest('Assert debug build call to iceberg_trajectory method:')
         # Mock results for 3 calls to utils.get_subset
         mock_set.side_effect = [['file1_0000.nc'],
                                 ['file1_0000.nc', 'file1_0001.nc'],
                                 ['arch1.nc']]
         mock_exec.return_value = (1, 'ICB_PP failed')
+        utils.set_debugmode(True)
         self.nemo.nl.archive_iceberg_trajectory = True
-        self.nemo.nl.debug = True
         self.nemo.archive_general()
         self.assertIn('Error=1\n\tICB_PP failed', func.capture('err'))
         self.nemo.archive_files.assert_called_once_with(['arch1.nc'])
@@ -881,7 +932,7 @@ class AdditionalArchiveTests(unittest.TestCase):
         with mock.patch('utils.get_subset'):
             self.nemo.archive_general()
         self.nemo.archive_files.assert_called_once_with(mock.ANY)
-        mock_rm.assert_called_with(['arch1'], 'HERE')
+        mock_rm.assert_called_with(['arch1'], path='HERE')
 
     @mock.patch('utils.remove_files')
     def test_arch_iberg_traj_archfail(self, mock_rm):
@@ -1062,12 +1113,3 @@ class UtilityMethodTests(unittest.TestCase):
         self.assertEqual(mock_stamp.mock_calls, [])
         self.assertEqual(mock_rbld.mock_calls, [])
         mock_mt.assert_called_once_with(pattern='abcde', source=None)
-
-
-def main():
-    '''Main function'''
-    unittest.main(buffer=True)
-
-
-if __name__ == '__main__':
-    main()

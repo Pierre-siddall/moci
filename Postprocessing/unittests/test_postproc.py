@@ -17,6 +17,7 @@ import unittest
 import sys
 import os
 
+sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'atmos'))
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'nemocice'))
@@ -34,6 +35,7 @@ def main():
         'all':      'test_*.py',
         'main':     'test_main.py',
         'common':   'test_common_*.py',
+        'control':    'test_common_control.py',
         'suitegen': 'test_common_suitegen.py',
         'nlist':    'test_common_nlist.py',
         'utils':    'test_common_utils.py',

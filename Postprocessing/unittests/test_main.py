@@ -13,20 +13,16 @@
 *****************************COPYRIGHT******************************
 '''
 import unittest
-import mock
 import os
 import sys
 from collections import OrderedDict
+import mock
 
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'atmos'))
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'nemocice'))
-
-import runtime_environment
-runtime_environment.setup_env()
 import testing_functions as func
+import runtime_environment
 
+# Import of main_pp requires 'RUNID' from runtime environment
+runtime_environment.setup_env()
 import main_pp
 
 
@@ -138,7 +134,8 @@ class PostprocTests(unittest.TestCase):
             self.mock_atmos().suite.archive_ok = False
             with self.assertRaises(SystemExit):
                 main_pp.main()
-        self.assertIn('Exiting with errors in atmos', func.capture('err'))
+        self.assertIn('Exiting with errors in atmos_archive',
+                      func.capture('err'))
         self.assertNotIn('nemo', func.capture('err'))
         self.assertNotIn('cice', func.capture('err'))
         self.assertIn('Running method1 for nemo', func.capture())
@@ -149,10 +146,10 @@ class PostprocTests(unittest.TestCase):
         func.logtest('Assert runtime failure of nemo model:')
         sys.argv = ('script',)
         with mock.patch.dict('sys.modules', self.modules):
-            self.mock_nemo().suite.archive_ok = False
+            self.mock_nemo().debug_ok = False
             with self.assertRaises(SystemExit):
                 main_pp.main()
-        self.assertIn('Exiting with errors in nemo', func.capture('err'))
+        self.assertIn('Exiting with errors in nemo_debug', func.capture('err'))
         self.assertNotIn('cice', func.capture('err'))
         self.assertNotIn('atmos', func.capture('err'))
 
@@ -164,15 +161,7 @@ class PostprocTests(unittest.TestCase):
             self.mock_cice().suite.archive_ok = False
             with self.assertRaises(SystemExit):
                 main_pp.main()
-        self.assertIn('Exiting with errors in cice', func.capture('err'))
+        self.assertIn('Exiting with errors in cice_archive',
+                      func.capture('err'))
         self.assertNotIn('nemo', func.capture('err'))
         self.assertNotIn('atmos', func.capture('err'))
-
-
-def main():
-    '''Main function'''
-    unittest.main(buffer=True)
-
-
-if __name__ == '__main__':
-    main()

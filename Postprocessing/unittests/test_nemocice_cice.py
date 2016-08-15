@@ -14,19 +14,17 @@
 '''
 import unittest
 import os
-import sys
 import re
 import mock
 
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'cicecice'))
-
-import runtime_environment
-runtime_environment.setup_env()
 import testing_functions as func
+import runtime_environment
 
+import utils
+
+# Import of cice requires 'RUNID' from runtime environment
+runtime_environment.setup_env()
 import cice
-
 
 class StencilTests(unittest.TestCase):
     '''Unit tests relating to the CICE output filename stencils'''
@@ -263,20 +261,19 @@ class MeansProcessingTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
+        utils.set_debugmode(False)
 
     @mock.patch('utils.get_subset')
     @mock.patch('modeltemplate.ModelTemplate.move_to_share')
     def test_concat_daily(self, mock_mv, mock_set):
         '''Test method to compile list of means to concatenate'''
         func.logtest('Assert compilation of means to concatenate:')
-        mock_set.side_effect = [['END.1111-22-33.nc'], ['SET1', 'SET2'], []]
-        with mock.patch('utils.log_msg') as mock_log:
-            # Mock log_msg because it will cause an exit with insufficient
-            # components to mane a complete 30d file
-            self.cice.archive_concat_daily_means()
-            mock_log.assert_called_with(' -> Nothing to archive')
+        catsets = ['SET' + str(i) for i in range(1, 30)]
+        mock_set.side_effect = [['END.1111-22-33.nc'], catsets, []]
+        _ = self.cice.archive_concat_daily_means()
+        procsets = sorted(['./' + s for s in catsets])
         self.cice.suite.preprocess_file.assert_called_with(
-            'ncrcat', ['./END.1111-22-33.nc', './SET1', './SET2'],
+            'ncrcat', ['./END.1111-22-33.nc'] + procsets,
             outfile='./RUNIDi_1d_11112101-11112201.nc'
             )
         self.assertEqual(mock_mv.mock_calls, [])
@@ -285,32 +282,27 @@ class MeansProcessingTests(unittest.TestCase):
     def test_concat_daily_shift_year(self, mock_set):
         '''Test method to compile list of means to concatenate - year shift'''
         func.logtest('Assert compilation of means to concatenate - yr shift:')
-        mock_set.side_effect = [['END.1111-01-33.nc'], ['SET1', 'SET2'], []]
-        with mock.patch('utils.log_msg'):
-            self.cice.archive_concat_daily_means()
+        catsets = ['SET' + str(i) for i in range(1, 30)]
+        mock_set.side_effect = [['END.1111-01-33.nc'], catsets, []]
+        _ = self.cice.archive_concat_daily_means()
+        procsets = sorted(['./' + s for s in catsets])
         self.cice.suite.preprocess_file.assert_called_with(
-            'ncrcat', ['./END.1111-01-33.nc', './SET1', './SET2'],
+            'ncrcat', ['./END.1111-01-33.nc'] + procsets,
             outfile='./RUNIDi_1d_11101201-11110101.nc'
             )
 
     def test_concat_daily_patterns(self):
         '''Test method to compile list of means to concatenate - patterns'''
         func.logtest('Assert compilation of means to concatenate - patterns:')
+
         for fname in self.meanfiles:
             open(fname, 'w').close()
-        with mock.patch('utils.log_msg'):
-            self.cice.archive_concat_daily_means()
-        ncrcat = self.cice.suite.preprocess_file.mock_calls
-        infiles1 = sorted('./' + fn for fn in self.meanfiles[:2])
-        infiles2 = sorted('./' + fn for fn in self.meanfiles[2:6])
-        self.assertIn(mock.call('ncrcat',
-                                infiles1,
-                                outfile='./RUNIDi_1d_19871201-19880101.nc'),
-                      ncrcat)
-        self.assertIn(mock.call('ncrcat',
-                                infiles2,
-                                outfile='./RUNIDi_1d_19880101-19880201.nc'),
-                      ncrcat)
+        with mock.patch('utils.log_msg') as mock_log:
+            # Mock log since it would raise a SystemExit due to number of
+            # matching files being less than 30
+            _ = self.cice.archive_concat_daily_means()
+        self.assertIn('only got 2 files:', str(mock_log.mock_calls[0]))
+        self.assertIn('only got 4 files:', str(mock_log.mock_calls[1]))
 
     @mock.patch('modeltemplate.ModelTemplate.move_to_share')
     def test_concat_daily_move(self, mock_mv):
@@ -323,40 +315,54 @@ class MeansProcessingTests(unittest.TestCase):
 
     @mock.patch('utils.get_subset')
     def test_concat_daily_insuffient(self, mock_set):
-        '''Test concatenation of  means - insufficent components'''
+        '''Test concatenation of means - insufficent components'''
         func.logtest('Assert concatenation not possible:')
         mock_set.side_effect = [['END.1111-22-33.nc'], ['SET1', 'SET2']]
         with self.assertRaises(SystemExit):
             self.cice.archive_concat_daily_means()
         self.assertIn('only got 3 files', func.capture('err'))
 
+    @mock.patch('utils.get_subset')
+    def test_concat_daily_fail_debug(self, mock_set):
+        '''Test concatenation of means with insufficent components - debug'''
+        func.logtest('Assert concatenation not possible - debug mode:')
+        mock_set.side_effect = [['END.1111-22-33.nc'], ['SET1', 'SET2'], []]
+        utils.set_debugmode(True)
+        self.cice.archive_concat_daily_means()
+        self.assertIn('only got 3 files', func.capture('err'))
+
     @mock.patch('utils.remove_files')
     @mock.patch('modeltemplate.ModelTemplate.archive_files')
     @mock.patch('utils.get_subset')
     def test_concat_daily_arch(self, mock_set, mock_arch, mock_rm):
-        '''Test concatenation of  means - archive'''
+        '''Test concatenation of means - archive'''
         func.logtest('Assert archive of catted file:')
         mock_set.side_effect = [[], ['ARCH1', 'ARCH2']]
         mock_arch.return_value = {'ARCH1': 'OK', 'ARCH2': 'OK'}
         self.cice.archive_concat_daily_means()
         self.assertIn('Deleting archive', func.capture())
-        mock_rm.assert_called_with(['ARCH1', 'ARCH2'], '.')
+        mock_rm.assert_called_with(['ARCH1', 'ARCH2'], path='.')
 
+    @mock.patch('utils.remove_files')
     @mock.patch('modeltemplate.ModelTemplate.archive_files')
     @mock.patch('utils.get_subset')
-    def test_concat_daily_archfail(self, mock_set, mock_arch):
-        '''Test concatenation of  means - failed to archive'''
+    def test_concat_daily_archfail(self, mock_set, mock_arch, mock_rm):
+        '''Test concatenation of means - failed to archive'''
         func.logtest('Assert failure to archive catted file:')
         mock_set.side_effect = [[], ['ARCH1', 'ARCH2']]
         mock_arch.return_value = {'ARCH1': 'FAILED', 'ARCH2': 'OK'}
         self.cice.archive_concat_daily_means()
-        self.assertNotIn('Deleting archive', func.capture())
+        mock_rm.assert_called_with(['ARCH2'], path='.')
 
-
-def main():
-    '''Main function'''
-    unittest.main(buffer=True)
-
-
-if __name__ == '__main__':
-    main()
+    @mock.patch('os.rename')
+    @mock.patch('modeltemplate.ModelTemplate.archive_files')
+    @mock.patch('utils.get_subset')
+    def test_concat_daily_arch_debug(self, mock_set, mock_arch, mock_rm):
+        '''Test concatenation of means - archive'''
+        func.logtest('Assert archive of catted file:')
+        utils.set_debugmode(True)
+        mock_set.side_effect = [[], ['ARCH1', 'ARCH2']]
+        mock_arch.return_value = {'ARCH1': 'FAILED', 'ARCH2': 'OK'}
+        self.cice.archive_concat_daily_means()
+        self.assertIn('Deleting archive', func.capture())
+        mock_rm.assert_called_once_with('./ARCH2', './ARCH2_ARCHIVED')

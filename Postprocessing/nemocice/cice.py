@@ -120,7 +120,7 @@ class CicePostProc(mt.ModelTemplate):
         other than restarts and means.
         Returns a list of tuples: (method_name, bool)
         '''
-        return [('concat_daily_means', self.nl.cat_daily_means),]
+        return [('concat_daily_means', self.nl.cat_daily_means)]
 
     def get_date(self, fname, startdate=True):
         '''
@@ -129,7 +129,8 @@ class CicePostProc(mt.ModelTemplate):
         '''
         datestrings = re.findall(r'\d{4}-\d{2}-\d{2}|\d{4}-\d{2}', fname)
         if len(datestrings) == 0:
-            utils.log_msg('Unable to get date for file:\n\t' + fname, level=3)
+            utils.log_msg('Unable to get date for file:\n\t' + fname,
+                          level='WARN')
             return (None,)*3
 
         date = datestrings[0 if startdate else -1].split('-')
@@ -156,7 +157,7 @@ class CicePostProc(mt.ModelTemplate):
             catfiles = [end]
             end_yr, end_mo, _ = self.get_date(end)
             if end_mo == '01':
-                start_yr = str(int(end_yr)- 1)
+                start_yr = str(int(end_yr) - 1)
                 start_mo = '12'
             else:
                 start_yr = end_yr
@@ -166,29 +167,39 @@ class CicePostProc(mt.ModelTemplate):
                 in_pat.format(Y=start_yr, M=start_mo,
                               D=r'(0[2-9]|[1-3][0-9])')
                 )
-            if len(catfiles) != 30:
+
+            if len(catfiles) == 30:
+                catfiles = utils.add_path(catfiles, self.share)
+                outfile = out_pat.format(Y1=start_yr, Y2=end_yr,
+                                         M1=start_mo, M2=end_mo)
+                outfile = os.path.join(self.share, outfile)
+                icode = self.suite.preprocess_file('ncrcat', sorted(catfiles),
+                                                   outfile=outfile)
+                if icode == 0:
+                    utils.remove_files(catfiles)
+            else:
                 msg = 'concat_daily_means: Cannot create month of daily means '
                 msg += 'as only got {} files:\n{}'.format(len(catfiles),
                                                           catfiles)
-                utils.log_msg(msg, level=5)
-            catfiles = utils.add_path(catfiles, self.share)
-
-            outfile = out_pat.format(Y1=start_yr, Y2=end_yr,
-                                     M1=start_mo, M2=end_mo)
-            outfile = os.path.join(self.share, outfile)
-            self.suite.preprocess_file('ncrcat', sorted(catfiles),
-                                       outfile=outfile)
-            utils.remove_files(catfiles)
+                utils.log_msg(msg, level='ERROR')
 
         to_archive = utils.get_subset(self.share,
                                       out_pat.format(Y1=r'\d{4}', Y2=r'\d{4}',
                                                      M1=r'\d{2}', M2=r'\d{2}'))
         if to_archive:
             arch_files = self.archive_files(to_archive)
-            if not [fn for fn in arch_files if arch_files[fn] == 'FAILED']:
+            del_files = [fn for fn in arch_files if arch_files[fn] != 'FAILED']
+            if del_files:
                 msg = 'Deleting archived files: \n\t' + '\n\t'.join(to_archive)
                 utils.log_msg(msg)
-                utils.remove_files(to_archive, self.share)
+
+                if utils.get_debugmode():
+                    # Append "ARCHIVED" suffix to files, rather than deleting
+                    for fname in del_files:
+                        fname = os.path.join(self.share, fname)
+                        os.rename(fname, fname + '_ARCHIVED')
+                else:
+                    utils.remove_files(del_files, path=self.share)
         else:
             utils.log_msg(' -> Nothing to archive')
 

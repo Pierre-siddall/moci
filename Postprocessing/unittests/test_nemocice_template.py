@@ -14,18 +14,16 @@
 '''
 import unittest
 import os
-import sys
 import mock
 
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'nemocice'))
-
-import runtime_environment
-runtime_environment.setup_env()
 import testing_functions as func
+import runtime_environment
 
+import utils
+
+# Import of modeltemplate requires 'RUNID' from runtime environment
+runtime_environment.setup_env()
 import modeltemplate
-
 
 class PeriodTests(unittest.TestCase):
     '''Unit tests relating to the "get period files" methods'''
@@ -117,28 +115,24 @@ class MeansTests(unittest.TestCase):
 
     def setUp(self):
         modeltemplate.ModelTemplate._directory = mock.Mock()
-        with mock.patch('nlist.loadNamelist'):
+        with mock.patch('nlist.loadNamelist') as mock_nl:
+            mock_nl().modeltemplate.pp_run = False
             self.model = modeltemplate.ModelTemplate()
-            self.model.share = 'ShareDir'
-        self.model.suite.envars.CYLC_SUITE_INITIAL_CYCLE_POINT = \
-            '19950821T0000Z'
-        self.model.nl.debug = False
+        self.model.share = 'ShareDir'
         self.model.nl.base_component = '10d'
 
         self.model.move_to_share = mock.Mock()
-        self.model.loop_inputs = mock.Mock()
-        self.model.loop_inputs.return_value = \
-            [modeltemplate.RegexArgs(period='Annual')]
-        self.model.periodend = mock.Mock()
-        self.model.periodend.return_value = ['setend']
-        self.model.get_date = mock.Mock()
-        self.model.get_date.return_value = ('1996', '09', '01')
-        self.model.periodset = mock.Mock()
-        self.model.periodset.return_value = ['file1', 'file2',
-                                             'file3', 'file4']
-        self.model.meantemplate = mock.Mock()
-        self.model.meantemplate.return_value = 'meanfilename'
+        self.model.loop_inputs = mock.Mock(
+            return_value=[modeltemplate.RegexArgs(period='Annual')])
+        self.model.periodend = mock.Mock(return_value=['setend'])
+        self.model.get_date = mock.Mock(return_value=('1996', '09', '01'))
+        self.model.periodset = mock.Mock(return_value=['file1', 'file2',
+                                                       'file3', 'file4'])
+        self.model.meantemplate = mock.Mock(return_value='meanfilename')
         self.model.fix_mean_time = mock.Mock()
+
+        self.model.suite = mock.Mock()
+        self.model.suite.envars.INITCYCLE_OVERRIDE = '19950821T0000Z'
 
     def tearDown(self):
         for fname in runtime_environment.RUNTIME_FILES:
@@ -184,7 +178,7 @@ class MeansTests(unittest.TestCase):
             [modeltemplate.RegexArgs(period='Monthly')]
         self.model.nl.base_component = '5d'
         self.model.periodset.return_value = ['file1', 'file2', 'file3',
-                                             'file4', 'file5', 'file6',]
+                                             'file4', 'file5', 'file6']
         mock_exec.return_value = (0, '')
         mock_path.return_value = True
 
@@ -204,10 +198,6 @@ class MeansTests(unittest.TestCase):
             self.model.create_means()
         self.assertIn('Error=99', func.capture('err'))
 
-        self.model.nl.debug = True
-        self.model.create_means()
-        self.assertIn('Error=99', func.capture('err'))
-
     def test_create_means_partial(self):
         '''Test create_means function with partial period'''
         func.logtest('Assert create_means functionality with partial period:')
@@ -216,11 +206,6 @@ class MeansTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.model.create_means()
         self.assertIn('not possible as only got 3', func.capture('err'))
-
-        self.model.nl.debug = True
-        self.model.create_means()
-        self.assertIn('not possible as only got 3', func.capture('err'))
-        self.assertIn('[DEBUG]  Ignoring failed', func.capture())
 
     def test_create_means_spinup(self):
         '''Test create_means function in spinup mode'''
@@ -248,8 +233,7 @@ class MeansTests(unittest.TestCase):
         self.assertTrue(self.model.means_spinup(
             'FIELD Seasonal mean for SEASON YYYY', ('1995', '09', 'DD')))
 
-        self.model.suite.envars.CYLC_SUITE_INITIAL_CYCLE_POINT = \
-            '19950601T0000Z'
+        self.model.suite.envars.INITCYCLE_OVERRIDE = '19950601T0000Z'
         self.assertFalse(self.model.means_spinup(
             'FIELD Seasonal mean for SEASON YYYY', ('1995', '09', 'DD')))
         self.assertFalse(self.model.means_spinup(
@@ -263,8 +247,7 @@ class MeansTests(unittest.TestCase):
         self.assertFalse(self.model.means_spinup(
             'FIELD Monthly mean for MONTH YYYY', ('1995', '09', 'DD')))
 
-        self.model.suite.envars.CYLC_SUITE_INITIAL_CYCLE_POINT = \
-            '19950901T0000Z'
+        self.model.suite.envars.INITCYCLE_OVERRIDE = '19950901T0000Z'
         self.assertFalse(self.model.means_spinup(
             'FIELD Monthly mean for MONTH YYYY', ('1995', '09', 'DD')))
 
@@ -281,28 +264,23 @@ class ArchiveTests(unittest.TestCase):
     '''Unit tests relating to archiving of files'''
 
     def setUp(self):
-        modeltemplate.ModelTemplate._directory = mock.Mock()
-        with mock.patch('nlist.loadNamelist'):
+        with mock.patch('nlist.loadNamelist') as mock_nl:
+            mock_nl().modeltemplate.pp_run = False
             self.model = modeltemplate.ModelTemplate()
             self.model.share = os.getcwd()
-        self.model.suite.envars.CYLC_SUITE_INITIAL_CYCLE_POINT = \
-            '19950821T0000Z'
-        self.model.nl.debug = False
+
         self.model.nl.buffer_archive = None
         self.model.nl.compression_level = 0
 
+        self.model.loop_inputs = mock.Mock(
+            return_value=[modeltemplate.RegexArgs(period='Annual')])
+        self.model.periodend = mock.Mock(return_value=[''])
+        self.model.periodset = mock.Mock(return_value=['file1', 'file2'])
+        self.model.get_date = mock.Mock(return_value=('1996', '05', '01'))
+        self.model.timestamps = mock.Mock()
+
         self.model.suite = mock.Mock()
         self.model.suite.archive_file.return_value = 0
-        self.model.loop_inputs = mock.Mock()
-        self.model.loop_inputs.return_value = \
-            [modeltemplate.RegexArgs(period='Annual')]
-        self.model.periodend = mock.Mock()
-        self.model.periodend.return_value = ['']
-        self.model.periodset = mock.Mock()
-        self.model.periodset.return_value = ['file1', 'file2']
-        self.model.get_date = mock.Mock()
-        self.model.get_date.return_value = ('1996', '05', '01')
-        self.model.timestamps = mock.Mock()
 
     def tearDown(self):
         for fname in ['12h_field1', 'xd_field2']:
@@ -310,6 +288,7 @@ class ArchiveTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
+        utils.set_debugmode(False)
 
     def test_buffer_archive(self):
         '''Test return of archive buffer property'''
@@ -332,6 +311,26 @@ class ArchiveTests(unittest.TestCase):
                 self.model.archive_means()
                 mock_rm.assert_called_with(['file1', 'file2'],
                                            os.getcwd())
+        self.model.archive_files.assert_called_with(['file1', 'file2'])
+
+    def test_archive_means_debug(self):
+        '''Test archive means function - debug mode'''
+        func.logtest('Assert list of means files to archive - debug:')
+        utils.set_debugmode(True)
+        self.model.archive_files = mock.Mock()
+        self.model.archive_files.return_value = {
+            'file1': 'SUCCESS',
+            'file2': 'SUCCESS'
+            }
+        infiles = [os.path.join(os.getcwd(), fn) for fn in ['file2', 'file1']]
+        outfiles = [fn + '_ARCHIVED' for fn in infiles]
+        with mock.patch('modeltemplate.ModelTemplate.additional_means',
+                        new_callable=mock.PropertyMock, return_value=[]):
+            with mock.patch('os.rename') as mock_rm:
+                self.model.archive_means()
+                self.assertEqual(sorted(mock_rm.mock_calls),
+                                 sorted([mock.call(infiles[0], outfiles[0]),
+                                         mock.call(infiles[1], outfiles[1])]))
         self.model.archive_files.assert_called_with(['file1', 'file2'])
 
     def test_archive_additional_means(self):
@@ -400,7 +399,7 @@ class ArchiveTests(unittest.TestCase):
         self.assertIn('Nothing to archive', func.capture())
 
     def test_archive_restarts(self):
-        '''Test archive means function'''
+        '''Test archive restarts function'''
         func.logtest('Assert list of restart files to archive:')
         self.model.timestamps.return_value = True
         with mock.patch('utils.remove_files') as mock_rm:
@@ -409,8 +408,22 @@ class ArchiveTests(unittest.TestCase):
                                        os.getcwd())
         self.assertNotIn('Only archiving periodic', func.capture())
 
+    def test_archive_restarts_debug(self):
+        '''Test archive restarts function - debug mode'''
+        func.logtest('Assert list of restart files to archive - debug:')
+        self.model.timestamps.return_value = True
+        utils.set_debugmode(True)
+        infiles = [os.path.join(os.getcwd(), fn) for fn in ['file2', 'file1']]
+        outfiles = [fn + '_ARCHIVED' for fn in infiles]
+        with mock.patch('os.rename') as mock_rm:
+            self.model.archive_restarts()
+            self.assertEqual(sorted(mock_rm.mock_calls),
+                             sorted([mock.call(infiles[0], outfiles[0]),
+                                     mock.call(infiles[1], outfiles[1])]))
+            self.assertNotIn('Only archiving periodic', func.capture())
+
     def test_archive_restarts_periodic(self):
-        '''Test archive means function'''
+        '''Test archive restarts function'''
         func.logtest('Assert list of restart files to archive:')
         self.model.timestamps.return_value = False
         with mock.patch('utils.remove_files'):
@@ -418,7 +431,7 @@ class ArchiveTests(unittest.TestCase):
         self.assertIn('Only archiving periodic', func.capture())
 
     def test_archive_nothing(self):
-        '''Test archive means function - nothing to archive'''
+        '''Test archive restarts function - nothing to archive'''
         func.logtest('Assert function with nothing to archive:')
         self.model.periodset.return_value = []
         with mock.patch('utils.remove_files'):
@@ -653,6 +666,7 @@ class MethodsTests(unittest.TestCase):
         self.assertEqual(self.subperiod + self.subperiod, yield_subp)
         self.assertEqual(self.spvals + self.spvals, yield_spvals)
 
+
 class PropertyTests(unittest.TestCase):
     '''Unit tests relating to ModelTemplate properties'''
 
@@ -673,12 +687,3 @@ class PropertyTests(unittest.TestCase):
         self.assertEqual(self.model.additional_means, ['12h'])
         self.model.nl.means_to_archive = ['12h', '10d']
         self.assertEqual(self.model.additional_means, ['12h', '10d'])
-
-
-def main():
-    '''Main function'''
-    unittest.main(buffer=True)
-
-
-if __name__ == '__main__':
-    main()

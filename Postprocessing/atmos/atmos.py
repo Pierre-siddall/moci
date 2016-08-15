@@ -64,13 +64,15 @@ class AtmosPostProc(control.RunPostProc):
             self.suite = suite.SuiteEnvironment(self.share, input_nl)
             self.work = self._directory(self._work, 'ATMOS WORK')
 
-
             if self.suite.finalcycle:
                 dumpdate = utils.add_period_to_date(self.suite.cycledt,
                                                     self.suite.cycleperiod)
                 self.final_dumpname = self.dumpname(dumpdate)
             else:
                 self.final_dumpname = None
+
+            # Initialise debug mode - calling base class method
+            self._debug_mode(debug=self.nl.atmospp.debug)
 
     @property
     def runpp(self):
@@ -87,7 +89,8 @@ class AtmosPostProc(control.RunPostProc):
         main program
         '''
         return OrderedDict([('do_archive', self.nl.archiving.archive_switch),
-                            ('do_delete', self.nl.delete_sc.del_switch)])
+                            ('do_delete', self.nl.delete_sc.del_switch),
+                            ('finalise_debug', self.nl.atmospp.debug)])
 
     @property
     def _work(self):
@@ -167,7 +170,7 @@ class AtmosPostProc(control.RunPostProc):
         try:
             log_file = open(self.suite.logfile, action)
         except IOError:
-            utils.log_msg('Failed to open archive log file', level=5)
+            utils.log_msg('Failed to open archive log file', level='FAIL')
 
         # Get files to archive
         pp_to_archive = self.get_marked_files() if \
@@ -202,7 +205,7 @@ class AtmosPostProc(control.RunPostProc):
 
             else:
                 msg = 'File {} does not exist - cannot archive'.format(fnfull)
-                utils.log_msg(msg, level=3)
+                utils.log_msg(msg, level='WARN')
                 msg = fnfull + ' FILE NOT ARCHIVED. File does not exist\n'
                 log_file.write(msg)
 
@@ -215,8 +218,7 @@ class AtmosPostProc(control.RunPostProc):
             for fname in files_to_archive:
                 convpp = bool(convert_pattern.match(os.path.basename(fname)))
                 self.suite.archive_file(fname, logfile=log_file,
-                                        preproc=convpp,
-                                        debug=self.nl.atmospp.debug)
+                                        preproc=convpp)
         else:
             utils.log_msg(' -> Nothing to archive')
 

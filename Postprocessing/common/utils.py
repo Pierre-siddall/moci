@@ -24,10 +24,14 @@ import os
 import shutil
 import timer
 
+debug_mode = False
+debug_ok = True
 
-class Variables:
+
+class Variables(object):
     '''Object to hold a group of variables'''
-    pass
+    def __init__(self):
+        pass
 
 
 def loadEnv(*envars, **append):
@@ -45,14 +49,13 @@ def loadEnv(*envars, **append):
             no_fail = {
                 'ARCHIVE_FINAL': 'ARCHIVE_FINAL=False',
                 'CYCLEPOINT_OVERRIDE': '',
+                'INITCYCLE_OVERRIDE': '',
                 }
             if var in no_fail.keys():
-                msg = no_fail[var]
-                level = 1
+                log_msg(no_fail[var], level='INFO')
             else:
                 msg = 'LoadEnv: Unable to find environment variable: ' + var
-                level = 5
-            log_msg(msg, level=level)
+                log_msg(msg, level='FAIL')
 
     return container
 
@@ -94,17 +97,10 @@ def exec_subproc(cmd, verbose=True, cwd=os.environ['PWD']):
             output = exc.strerror
             rcode = exc.errno
         if rcode != 0:
-            log_msg('[SUBPROCESS]: Command: {}'.format(' '.join(cmd)), 4)
-            log_msg('[SUBPROCESS]: Error = {}:\n\t{}'.format(rcode, output), 4)
+            msg = '[SUBPROCESS]: Command: {}\n[SUBPROCESS]: Error = {}:\n\t{}'
+            log_msg(msg.format(' '.join(cmd), rcode, output), level='WARN')
             break
     return rcode, output
-
-
-def catch_failure(ignore=False):
-    if ignore:
-        log_msg('Ignoring failed external command. Continuing...', 0)
-    else:
-        log_msg('Command Terminated', 5)
 
 
 def get_subset(datadir, pattern):
@@ -113,7 +109,7 @@ def get_subset(datadir, pattern):
     try:
         patt = re.compile(pattern)
     except TypeError:
-        log_msg('get_subset: Incompatible pattern supplied.', 4)
+        log_msg('get_subset: Incompatible pattern supplied.', level='WARN')
         files = []
     else:
         files = [fn for fn in sorted(os.listdir(datadir)) if patt.search(fn)]
@@ -121,40 +117,55 @@ def get_subset(datadir, pattern):
 
 
 def check_directory(datadir):
+    '''
+    Ensure that a given directory actually exists.
+    Program will exit with an error if the test is unsuccessful.
+    '''
     try:
         datadir = os.path.expandvars(datadir)
     except TypeError:
-        log_msg('check_directory: Exiting - No directory provided', 5)
+        log_msg('check_directory: Exiting - No directory provided',
+                level='FAIL')
 
     if not os.path.isdir(datadir):
-        log_msg('check_directory: Exiting - Directory does not exist: '
-                + str(datadir), 5)
+        msg = 'check_directory: Exiting - Directory does not exist: '
+        log_msg(msg + str(datadir), level='FAIL')
     return datadir
 
 
 def add_path(files, path):
+    ''' Add a given path to a file or list of files provided '''
     path = check_directory(path)
-    if type(files) != list:
+    if not isinstance(files, list):
         files = [files]
 
-    return map(lambda f: os.path.join(path, f), files)
+    return [os.path.join(path, f) for f in files]
 
 
 @timer.run_timer
 def remove_files(delfiles, path=None, ignoreNonExist=False):
+    '''
+    Delete files.
+    Optional arguments:
+      path           - if not provided full path is assumed to have been
+                       provided in the filename.
+      ignoreNonExist - flag to allow a non-existent file to be ignored.
+                       Default behaviour is to provide a warning and continue.
+    '''
     if path:
         path = check_directory(path)
         delfiles = add_path(delfiles, path)
 
-    if type(delfiles) != list:
+    if not isinstance(delfiles, list):
         delfiles = [delfiles]
 
-    for fn in delfiles:
+    for fname in delfiles:
         try:
-            os.remove(fn)
+            os.remove(fname)
         except OSError:
             if not ignoreNonExist:
-                log_msg('remove_files: File does not exist: ' + fn, 3)
+                log_msg('remove_files: File does not exist: ' + fname,
+                        level='WARN')
 
 
 @timer.run_timer
@@ -163,7 +174,7 @@ def move_files(mvfiles, destination, originpath=None, fail_on_err=False):
     Move a single file or list of files to a given directory.
     Optionally a directory of origin may be specified.
     '''
-    msglevel = 5 if fail_on_err else 3
+    msglevel = 'ERROR' if fail_on_err else 'WARN'
     destination = check_directory(destination)
 
     if originpath:
@@ -176,10 +187,10 @@ def move_files(mvfiles, destination, originpath=None, fail_on_err=False):
         try:
             shutil.move(fname, destination)
         except IOError:
-            log_msg('move_files: File does not exist: ' + fname, msglevel)
+            log_msg('move_files: File does not exist: ' + fname, level=msglevel)
         except shutil.Error:
             msg = 'move_files: Attempted to overwrite original file?: ' + fname
-            log_msg(msg, msglevel)
+            log_msg(msg, level=msglevel)
 
 
 def add_period_to_date(indate, delta):
@@ -193,7 +204,7 @@ def add_period_to_date(indate, delta):
     while len(indate) < 5:
         indate.append(0)
         msg = '`rose date` requires length=5 input date array - adding zero: '
-        log_msg(msg + str(indate), level=3)
+        log_msg(msg + str(indate), level='WARN')
 
     offset = 'P'
     for elem in delta:
@@ -224,39 +235,82 @@ def add_period_to_date(indate, delta):
             '%Y,%m,%d,%H,%M'.format(dateinput, cal, offset)
             rcode, output = exec_subproc(cmd, verbose=False)
         else:
-            log_msg('add_period_to_date: Invalid date for conversion to '
-                    'ISO 8601 date representation: ' + str(indate), level=5)
-
-
+            log_msg('add_period_to_date: Invalid date for conversion to ISO '
+                    '8601 date representation: ' + str(indate), level='FAIL')
 
     if rcode == 0:
         outdate = map(int, output.split(','))
     else:
-        log_msg('`rose date` command failed:\n' + output, level=3)
+        log_msg('`rose date` command failed:\n' + output, level='WARN')
         outdate = None
 
     return outdate
 
 
-def log_msg(msg, level=1):
+def log_msg(msg, level='INFO'):
+    '''
+    Produce a message to the appropriate output stream.
+    Messages tagged with 'ERROR' and 'FAIL' will result in the program exiting,
+    unless model is running in debug_mode, in which case only 'FAIL' will exit.
+    '''
     out = sys.stdout
     err = sys.stderr
+    level = str(level).upper()
 
     output = {
-        0: (out, '[DEBUG] '),
-        1: (out, '[INFO] '),
-        2: (out, '[ OK ] '),
-        3: (err, '[WARN] '),
-        4: (err, '[ERROR] '),
-        5: (err, '[FAIL] '),
+        'DEBUG': (err, '[DEBUG] '),
+        'INFO': (out, '[INFO] '),
+        'OK': (out, '[ OK ] '),
+        'WARN': (err, '[WARN] '),
+        'ERROR': (err, '[ERROR] '),
+        'FAIL': (err, '[FAIL] '),
     }
 
     try:
         output[level][0].write('{} {}\n'.format(output[level][1], msg))
     except KeyError:
-        level = 3
+        level = 'WARN'
         msg = 'log_msg: Unknown severity level for log message.'
         output[level][0].write('{} {}\n'.format(output[level][1], msg))
 
-    if level == 5:
+    if level == 'ERROR':
+        # If in debug mode, terminate at the end of the task.
+        # Otherwise terminate now.
+        catch_failure()
+    elif level == 'FAIL':
         sys.exit(output[level][1] + 'Terminating PostProc...')
+
+
+def set_debugmode(debug):
+    '''Set method for the debug_mode global variable'''
+    global debug_mode
+    global debug_ok
+
+    debug_mode = debug
+    debug_ok = True
+
+
+def get_debugmode():
+    '''Get method for the debug_mode global variable'''
+    return debug_mode
+
+
+def get_debugok():
+    '''Get method for the debug_ok global variable'''
+    return debug_ok
+
+
+def catch_failure():
+    '''
+    Ignore errors in external subprocess commands or other failures,
+    allowing the task to continue to completion.
+    Ultimately causes the task to fail due to the global debug_ok setting.
+    '''
+    global debug_ok
+
+    if debug_mode:
+        log_msg('Ignoring failed external command. Continuing...',
+                level='DEBUG')
+        debug_ok = False
+    else:
+        log_msg('Command Terminated', level='FAIL')

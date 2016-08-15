@@ -18,7 +18,7 @@ import sys
 import shutil
 
 import testing_functions as func
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
+
 import utils
 
 DUMMY = ['fileone', 'filetwo', 'filethree']
@@ -155,15 +155,17 @@ class ExecTests(unittest.TestCase):
         self.assertEqual(rcode, 0)
         self.assertIn('MyFile', output)
 
+
 class LogTests(unittest.TestCase):
     '''Unit tests for logging output messages'''
     def setUp(self):
         self.msg = 'Hello There'
-        self.tag = {0: 'DEBUG', 1: 'INFO', 2: ' OK ',
-                    3: 'WARN', 4: 'ERROR', 5: 'FAIL'}
         if not hasattr(sys.stdout, 'getvalue'):
             msg = 'This test requires buffered mode to run (buffer=True)'
             self.fail(msg)
+
+    def tearDown(self):
+        utils.set_debugmode(False)
 
     def test_msg(self):
         '''Test content of output message'''
@@ -173,31 +175,33 @@ class LogTests(unittest.TestCase):
 
     def test_stdout(self):
         '''Test content of messages printed to stdout'''
-        for i in [0, 1, 2]:
+        for lev in ['INFO', 'OK']:
             func.logtest('Send output to sys.stdout ({} case):'.
-                         format(self.tag[i]))
-            utils.log_msg('', i)
-            self.assertIn(self.tag[i], func.capture())
+                         format(lev))
+            utils.log_msg('', level=lev)
+            self.assertIn(lev, func.capture())
 
     def test_stderr(self):
         '''Test content of messages printed to stderr'''
-        for i in [3, 4]:
+        utils.set_debugmode(True)
+        for lev in ['DEBUG', 'WARN', 'ERROR']:
             func.logtest('Send output to sys.stderr ({} case):'.
-                         format(self.tag[i]))
-            utils.log_msg('', i)
-            self.assertIn(self.tag[i], func.capture(direct='err'))
+                         format(lev))
+            utils.log_msg('', level=lev)
+            self.assertIn(lev, func.capture(direct='err'))
 
     def test_fail(self):
         '''Test content of [FAIL] messages printed to stderr'''
         func.logtest('Send output to sys.stderr: (FAIL case):')
-        with self.assertRaises(SystemExit):
-            utils.log_msg('', 5)
-            self.assertIn(self.tag[5], func.capture(direct='err'))
+        for lev in ['ERROR', 'FAIL']:
+            with self.assertRaises(SystemExit):
+                utils.log_msg('', level=lev)
+            self.assertIn(lev, func.capture(direct='err'))
 
     def test_key_err(self):
         '''Test KeyError exception handling for log_msg'''
         func.logtest('KeyError exception handling in output message:')
-        utils.log_msg(self.msg, 10)
+        utils.log_msg(self.msg, level='aaa')
         self.assertIn('[WARN]', func.capture(direct='err'))
         self.assertIn('Unknown', func.capture(direct='err'))
 
@@ -297,6 +301,7 @@ class FileManipulationTests(unittest.TestCase):
                 shutil.rmtree(dname)
             except OSError:
                 pass
+        utils.set_debugmode(False)
 
     def test_move_one_file(self):
         '''Test moving one file'''
@@ -373,6 +378,22 @@ class FileManipulationTests(unittest.TestCase):
         utils.remove_files('testfile')
         self.assertFalse(os.path.exists('testfile'))
 
+    def test_catch_failure(self):
+        '''Test performance of catch_failure method'''
+        func.logtest('Assert correct failure mode handling:')
+        with self.assertRaises(SystemExit):
+            utils.catch_failure()
+        self.assertIn('Command Terminated', func.capture('err'))
+
+    def test_catch_failure_debug(self):
+        '''Test performance of catch_failure method - debug_mode'''
+        func.logtest('Assert correct failure mode handling - debug:')
+        utils.set_debugmode(True)
+        utils.catch_failure()
+        self.assertIn('Ignoring failed external command',
+                      func.capture('err'))
+        self.assertFalse(utils.get_debugok())
+
 
 class GetSubsetTests(unittest.TestCase):
     '''Unit tests for the get_subset method'''
@@ -424,12 +445,3 @@ class GetSubsetTests(unittest.TestCase):
         files = utils.get_subset(self.dir, None)
         # Code should catch exception: TypeError
         self.assertListEqual(files, [])
-
-
-def main():
-    '''Main function'''
-    unittest.main(buffer=True)
-
-
-if __name__ == '__main__':
-    main()

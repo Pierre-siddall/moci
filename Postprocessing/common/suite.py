@@ -44,7 +44,7 @@ class SuiteEnvironment(object):
         except AttributeError:
             msg = 'SuiteEnvironment: Failed to load ' \
                 '&suitegen namelist from namelist file: ' + input_nl
-            utils.log_msg(msg, level=5)
+            utils.log_msg(msg, level='FAIL')
 
         if self.nl.archive_command.lower() == 'moose':
             try:
@@ -52,7 +52,7 @@ class SuiteEnvironment(object):
             except AttributeError:
                 msg = 'SuiteEnvironment: Failed to load ' \
                     '&moose_arch namelist from namelist file: ' + input_nl
-                utils.log_msg(msg, level=5)
+                utils.log_msg(msg, level='FAIL')
 
         self.envars = utils.loadEnv('CYLC_TASK_LOG_ROOT',
                                     'CYLC_TASK_CYCLE_POINT',
@@ -62,6 +62,8 @@ class SuiteEnvironment(object):
         self.sourcedir = sourcedir
         self.finalcycle = self._finalcycle
         self.cyclestring = self._cyclestring
+
+        # Monitoring attributes
         self.archive_ok = True
 
     @property
@@ -101,7 +103,7 @@ class SuiteEnvironment(object):
         if match:
             cyclestring = match.groups()
         else:
-            utils.log_msg('Unable to determine cycletime', level=5)
+            utils.log_msg('Unable to determine cycletime', level='FAIL')
         return cyclestring
 
     @property
@@ -133,11 +135,11 @@ class SuiteEnvironment(object):
     def monthlength(self, month):
         '''Returns length of given month in days - calendar dependent'''
         days_per_month = {
-            '360day': [None,] + [30,]*12,
+            '360day': [None, ] + [30]*12,
             '365day': [None, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
             'gregorian': [None, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
             # "integer" required for rose-stem testing mode - assumes 360day
-            'integer': [None,] + [30,]*12,
+            'integer': [None, ] + [30, ]*12,
             }
 
         date = self.cycledt
@@ -148,7 +150,7 @@ class SuiteEnvironment(object):
             return days_per_month[self.envars.CYLC_CYCLING_MODE][int(month)]
         except KeyError:
             msg = 'Calendar not recognised: ' + self.envars.CYLC_CYCLING_MODE
-            utils.log_msg('SuiteEnvironment: ' + msg, level=5)
+            utils.log_msg('SuiteEnvironment: ' + msg, level='FAIL')
 
     def __archive_command(self, filename, preproc):
         '''
@@ -163,15 +165,14 @@ class SuiteEnvironment(object):
             rcode = moo.archive_to_moose(filename, self.sourcedir,
                                          self.nl_arch, preproc)
         else:
-            utils.log_msg('Archive command not yet implemented', level=5)
+            utils.log_msg('Archive command not yet implemented', level='ERROR')
 
         return rcode
 
-    @timer.run_timer
-    def archive_file(self, archfile, logfile=None, preproc=False, debug=False):
+    def archive_file(self, archfile, logfile=None, preproc=False):
         '''Archive file and write to logfile'''
-        if debug:
-            utils.log_msg('Archiving: ' + archfile, 0)
+        if utils.get_debugmode():
+            utils.log_msg('Archiving: ' + archfile, level='DEBUG')
             log_line = '{} WOULD BE ARCHIVED\n'.format(archfile)
             arch_rcode = 0
         else:
@@ -205,13 +206,14 @@ class SuiteEnvironment(object):
         '''
         Invoke the appropriate pre-processing method prior to archiving
         '''
-        icode = 0
+        rtnval = 0
         try:
-            icode = getattr(self, 'preproc_' + cmd)(filename, **kwargs)
+            rtnval = getattr(self, 'preproc_' + cmd)(filename, **kwargs)
         except AttributeError:
-            utils.log_msg('preprocess command not yet implemented: ' + cmd, 5)
+            utils.log_msg('preprocess command not yet implemented: ' + cmd,
+                          level='ERROR')
 
-        return icode
+        return rtnval
 
     @timer.run_timer
     def preproc_nccopy(self, filename, compression=0, chunking=None):
@@ -229,21 +231,21 @@ class SuiteEnvironment(object):
                                  chunks, filename, tmpfile])
         utils.log_msg('Compressing file using command: ' + compress_cmd)
         ret_code, output = utils.exec_subproc(compress_cmd)
-        level = 2
+        level = 'OK'
         if ret_code == 0:
             msg = 'nccopy: Compression successful of file {}'.format(filename)
         else:
             msg = 'nccopy: Compression failed of file {}\n{}'.format(filename,
                                                                      output)
-            level = 5
+            level = 'ERROR'
 
         # Move the compressed file so it overwrites the original
         try:
             os.rename(tmpfile, filename)
         except OSError:
             msg = msg + '\n -> Failed to rename compressed file'
-            level = 5
-        utils.log_msg(msg, level)
+            level = 'ERROR'
+        utils.log_msg(msg, level=level)
 
         return ret_code
 
@@ -262,14 +264,14 @@ class SuiteEnvironment(object):
             cmd = ' '.join([cmd, '-' + key, val])
         cmd = ' '.join([cmd, fname])
 
-        utils.log_msg('ncdump: Getting file info: {}'.format(cmd), level=1)
+        utils.log_msg('ncdump: Getting file info: {}'.format(cmd), level='INFO')
         ret_code, output = utils.exec_subproc(cmd)
-        level = 2
+        level = 'OK'
         if ret_code == 0:
             msg = 'ncdump: Command successful'
         else:
             msg = 'ncdump: Command failed:\n{}'.format(output)
-            level = 5
+            level = 'ERROR'
         utils.log_msg(msg, level=level)
 
         return output
@@ -285,7 +287,7 @@ class SuiteEnvironment(object):
             del kwargs['outfile']
         except KeyError:
             msg = 'ncrcat: Cannot continue - output filename not provided'
-            utils.log_msg(msg, level=5)
+            utils.log_msg(msg, level='ERROR')
 
         cmd = self.nl.ncrcat_path
         if not os.path.basename(cmd) == 'ncrcat':
@@ -295,15 +297,18 @@ class SuiteEnvironment(object):
             cmd = ' '.join([cmd, '-' + key, val])
         cmd = '{} {} {}'.format(cmd, ' '.join(infiles), outfile)
 
-        utils.log_msg('ncrcat: Concatenating files: {}'.format(cmd), level=1)
+        utils.log_msg('ncrcat: Concatenating files: {}'.format(cmd),
+                      level='INFO')
         ret_code, output = utils.exec_subproc(cmd)
-        level = 2
+        level = 'OK'
         if ret_code == 0:
             msg = 'ncrcat: Command successful'
         else:
             msg = 'ncrcat: Command failed:\n{}'.format(output)
-            level = 5
+            level = 'ERROR'
         utils.log_msg(msg, level=level)
+
+        return ret_code
 
 
 class SuitePostProc(object):

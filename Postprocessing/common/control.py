@@ -35,7 +35,7 @@ class RunPostProc(object):
         ''' Placeholder for model specific runpp method'''
         msg = 'runpp - Model Post-Processing logical trigger not defined.'
         msg += '\n\t return: boolean'
-        utils.log_msg(msg, 4)
+        utils.log_msg(msg, level='FAIL')
         raise NotImplementedError
 
     @abc.abstractproperty
@@ -43,7 +43,7 @@ class RunPostProc(object):
         ''' Placeholder for model specific methods'''
         msg = 'runpp - Model Post-Processing property not defined.'
         msg += '\n\t return: OrderedDict([ ("MethodName", LogicalValue), ])'
-        utils.log_msg(msg, 4)
+        utils.log_msg(msg, level='FAIL')
         raise NotImplementedError
 
     @staticmethod
@@ -56,6 +56,16 @@ class RunPostProc(object):
         utils.log_msg('{} directory: {}'.format(title, location))
         return location
 
+    def _debug_mode(self, debug=False):
+        '''Model independent setting for global debug_mode variable'''
+        utils.set_debugmode(debug)
+        self.debug_ok = True
+
+    def finalise_debug(self):
+        '''Finalise model with global debug variable'''
+        self.debug_ok = utils.get_debugok()
+
+
 NL = {}
 
 INPUT_MODS = ['suite', 'atmosNamelist', 'nemoNamelist', 'ciceNamelist', 'moo']
@@ -67,7 +77,8 @@ for mod in INPUT_MODS:
 
     except ImportError:
         if mod == 'suite':
-            utils.log_msg('Unable to find suite module', 5)
+            utils.log_msg('Unable to find suite module', level='FAIL')
 
     except AttributeError:
-        utils.log_msg('Unable to determine default namelists for ' + mod, 3)
+        utils.log_msg('Unable to determine default namelists for ' + mod,
+                      level='WARN')

@@ -13,22 +13,19 @@
 *****************************COPYRIGHT******************************
 '''
 import unittest
-import mock
 import os
-import sys
+import mock
 
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'atmos'))
-
-import runtime_environment
-runtime_environment.setup_env()
 import testing_functions as func
+import runtime_environment
 
-import atmos
 import atmosNamelist
 import validation
 import housekeeping
-
+import utils
+# Import of atmos requires RUNID from runtime_environment
+runtime_environment.setup_env()
+import atmos
 
 class HousekeepTests(unittest.TestCase):
     '''Unit tests relating to the atmosphere housekeeping utilities'''
@@ -38,8 +35,14 @@ class HousekeepTests(unittest.TestCase):
         self.atmos = atmos.AtmosPostProc()
         self.atmos.work = 'WorkDir'
         self.atmos.share = 'ShareDir'
+        self.atmos.suite = mock.Mock()
+        self.atmos.suite.prefix = 'RUNID'
+
         self.del_inst_pp = [('INST1', True), ('INST2', False), ('INST3', True)]
         self.del_mean_pp = [('MEAN1', True), ('MEAN2', False), ('MEAN3', True)]
+        self.arch_dumps = [('DUMP1', True), ('DUMP2', False), ('DUMP3', True)]
+        self.del_dumps = ['DUMP1', 'DUMP1a', 'DUMP2', 'DUMP2a',
+                          'DUMP3', 'DUMP3a', 'DUMP.done']
 
     def tearDown(self):
         for fname in runtime_environment.RUNTIME_FILES:
@@ -47,6 +50,7 @@ class HousekeepTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
+        utils.set_debugmode(False)
 
     @mock.patch('utils.remove_files')
     def test_delete_inst_pp_archived(self, mock_rm):
@@ -58,8 +62,8 @@ class HousekeepTests(unittest.TestCase):
                                     self.del_mean_pp, True)
         self.assertEqual(
             mock_rm.mock_calls,
-            [mock.call(['INST1', 'INST3'], 'ShareDir'),
-             mock.call(['INST1.arch', 'INST3.arch'], 'WorkDir',
+            [mock.call(['INST1', 'INST3'], path='ShareDir'),
+             mock.call(['INST1.arch', 'INST3.arch'], path='WorkDir',
                        ignoreNonExist=True)]
             )
 
@@ -73,10 +77,26 @@ class HousekeepTests(unittest.TestCase):
                                     self.del_mean_pp, True)
         self.assertEqual(
             mock_rm.mock_calls,
-            [mock.call(['MEAN1', 'MEAN3'], 'ShareDir'),
-             mock.call(['MEAN1.arch', 'MEAN3.arch'], 'WorkDir',
+            [mock.call(['MEAN1', 'MEAN3'], path='ShareDir'),
+             mock.call(['MEAN1.arch', 'MEAN3.arch'], path='WorkDir',
                        ignoreNonExist=True)]
             )
+
+    @mock.patch('os.rename')
+    def test_delete_pp_archived_debug(self, mock_rm):
+        '''Test delete_ppfiles functionality - archived (debug_mode)'''
+        func.logtest('Assert successful deletion of archived ppfiles - debug:')
+        utils.set_debugmode(True)
+        self.atmos.nl.delete_sc.gcmdel = True
+        housekeeping.delete_ppfiles(self.atmos, self.del_mean_pp,
+                                    self.del_mean_pp, True)
+        calls = [
+            mock.call('ShareDir/MEAN1', 'ShareDir/MEAN1_ARCHIVED'),
+            mock.call('ShareDir/MEAN3', 'ShareDir/MEAN3_ARCHIVED'),
+            mock.call('WorkDir/MEAN1.arch', 'WorkDir/MEAN1.arch_ARCHIVED'),
+            mock.call('WorkDir/MEAN3.arch', 'WorkDir/MEAN3.arch_ARCHIVED')
+            ]
+        self.assertEqual(sorted(mock_rm.mock_calls), sorted(calls))
 
     @mock.patch('housekeeping.FILETYPE')
     @mock.patch('utils.remove_files')
@@ -85,8 +105,6 @@ class HousekeepTests(unittest.TestCase):
         func.logtest('Assert successful deletion of inst. ppfiles:')
         self.atmos.nl.delete_sc.gpdel = True
         mock_ft.__getitem__().__getitem__().return_value = 'INST'
-        self.atmos.suite = mock.Mock()
-        self.atmos.suite.prefix = ''
         self.atmos.get_marked_files = mock.Mock(
             return_value=[f[0] for f in self.del_inst_pp + self.del_mean_pp]
             )
@@ -94,9 +112,9 @@ class HousekeepTests(unittest.TestCase):
                                     self.del_mean_pp, False)
         self.assertEqual(
             mock_rm.mock_calls,
-            [mock.call(['INST1', 'INST2', 'INST3'], 'ShareDir'),
+            [mock.call(['INST1', 'INST2', 'INST3'], path='ShareDir'),
              mock.call(['INST1.arch', 'INST2.arch', 'INST3.arch'],
-                       'WorkDir', ignoreNonExist=True)]
+                       path='WorkDir', ignoreNonExist=True)]
             )
 
     @mock.patch('housekeeping.FILETYPE')
@@ -106,8 +124,6 @@ class HousekeepTests(unittest.TestCase):
         func.logtest('Assert successful deletion of mean ppfiles:')
         self.atmos.nl.delete_sc.gcmdel = True
         mock_ft.__getitem__().__getitem__().return_value = 'MEAN'
-        self.atmos.suite = mock.Mock()
-        self.atmos.suite.prefix = ''
         self.atmos.get_marked_files = mock.Mock(
             return_value=[f[0] for f in self.del_inst_pp + self.del_mean_pp]
             )
@@ -115,9 +131,9 @@ class HousekeepTests(unittest.TestCase):
                                     self.del_mean_pp, False)
         self.assertEqual(
             mock_rm.mock_calls,
-            [mock.call(['MEAN1', 'MEAN2', 'MEAN3'], 'ShareDir'),
-             mock.call(['MEAN1.arch', 'MEAN2.arch', 'MEAN3.arch'], 'WorkDir',
-                       ignoreNonExist=True)]
+            [mock.call(['MEAN1', 'MEAN2', 'MEAN3'], path='ShareDir'),
+             mock.call(['MEAN1.arch', 'MEAN2.arch', 'MEAN3.arch'],
+                       path='WorkDir', ignoreNonExist=True)]
             )
 
     def test_convert_to_pp(self):
@@ -144,6 +160,65 @@ class HousekeepTests(unittest.TestCase):
         self.assertIn('Conversion to pp format failed', func.capture('err'))
         self.assertIn('I failed', func.capture('err'))
 
+    @mock.patch('utils.get_subset')
+    @mock.patch('re.search')
+    @mock.patch('utils.remove_files')
+    def test_delete_dumps(self, mock_rm, mock_match, mock_set):
+        '''Test delete_dumps functionality'''
+        func.logtest('Assert successful deletion of dumps:')
+        mock_set.return_value = self.del_dumps
+        mock_match().group.side_effect = ['11', '22', '33', '44',
+                                          '55', '66', '77', '88']
+        self.atmos.suite.cyclestring = '44'
+        housekeeping.delete_dumps(self.atmos, self.arch_dumps, False)
+
+        housekeeping.delete_ppfiles(self.atmos, self.del_inst_pp,
+                                    self.del_mean_pp, False)
+        mock_rm.assert_called_once_with(self.del_dumps[0:4], path='ShareDir')
+
+    @mock.patch('utils.get_subset')
+    @mock.patch('utils.remove_files')
+    def test_delete_dumps_archived(self, mock_rm, mock_set):
+        '''Test delete_dumps functionality - archived files'''
+        func.logtest('Assert successful deletion of archived dumps:')
+        self.atmos.final_dumpname = 'DUMP1a'
+        mock_set.return_value = self.del_dumps
+        housekeeping.delete_dumps(self.atmos, self.arch_dumps, True)
+        self.assertEqual(
+            mock_rm.mock_calls,
+            [mock.call(['DUMP1', 'DUMP2a', 'DUMP3'], path='ShareDir')]
+            )
+
+    @mock.patch('utils.get_subset')
+    @mock.patch('utils.remove_files')
+    def test_del_dumps_archived_midrun(self, mock_rm, mock_set):
+        '''Test delete_dumps functionality - archived files from mid-run'''
+        func.logtest('Assert deletion of archived dumps - mid-run:')
+        self.atmos.final_dumpname = 'DUMP1L'
+        mock_set.return_value = self.del_dumps
+        housekeeping.delete_dumps(self.atmos, self.arch_dumps, True)
+        self.assertEqual(
+            mock_rm.mock_calls,
+            [mock.call(['DUMP1', 'DUMP1a', 'DUMP2a', 'DUMP3'], path='ShareDir')]
+            )
+
+    @mock.patch('utils.get_subset')
+    @mock.patch('utils.remove_files')
+    @mock.patch('os.rename')
+    def test_del_dumps_archived_debug(self, mock_mv, mock_rm, mock_set):
+        '''Test delete_dumps functionality - archived files (debug_mode)'''
+        func.logtest('Assert successful deletion of archived dumps - debug:')
+        utils.set_debugmode(True)
+        self.atmos.final_dumpname = 'DUMP1a'
+        mock_set.return_value = self.del_dumps
+        housekeeping.delete_dumps(self.atmos, self.arch_dumps, True)
+        self.assertEqual(
+            mock_mv.mock_calls,
+            [mock.call('ShareDir/DUMP1', 'ShareDir/DUMP1_ARCHIVED'),
+             mock.call('ShareDir/DUMP3', 'ShareDir/DUMP3_ARCHIVED')]
+            )
+        mock_rm.assert_called_once_with('DUMP2a', path='ShareDir')
+
 
 class HeaderTests(unittest.TestCase):
     '''Unit tests relating to file datestamp validity against the UM fixHD'''
@@ -161,6 +236,7 @@ class HeaderTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
+        utils.set_debugmode(False)
 
     def test_verify_header(self):
         '''Test verify_header functionality'''
@@ -186,6 +262,22 @@ class HeaderTests(unittest.TestCase):
             mock_gen.return_value = self.fixhd
             with mock.patch('validation.identify_filedate') as mock_date:
                 mock_date.return_value = ('YY', 'MM', 'DD1')
+                with self.assertRaises(SystemExit):
+                    _ = validation.verify_header(self.atmos.nl.atmospp,
+                                                 'Filename', self.logfile,
+                                                 'LogDir/job')
+        self.assertIn('Validity time mismatch', func.capture('err'))
+        self.logfile.close()
+        self.assertIn('ARCHIVE FAILED', open('logfile', 'r').read())
+
+    def test_verify_hdr_mismatch_debug(self):
+        '''Test verify_header functionality - mismatch (debug)'''
+        func.logtest('Assert mismatch date in the verify_header method:')
+        utils.set_debugmode(True)
+        with mock.patch('validation.genlist') as mock_gen:
+            mock_gen.return_value = self.fixhd
+            with mock.patch('validation.identify_filedate') as mock_date:
+                mock_date.return_value = ('YY', 'MM', 'DD1')
                 valid = validation.verify_header(self.atmos.nl.atmospp,
                                                  'Filename', self.logfile,
                                                  'LogDir/job')
@@ -202,10 +294,10 @@ class HeaderTests(unittest.TestCase):
             mock_gen.return_value = self.fixhd
             with mock.patch('validation.identify_filedate') as mock_date:
                 mock_date.return_value = ('YY', 'MM', 'DD')
-                valid = validation.verify_header(self.atmos.nl.atmospp,
+                with self.assertRaises(SystemExit):
+                    _ = validation.verify_header(self.atmos.nl.atmospp,
                                                  'Filename', self.logfile,
                                                  'LogDir/job')
-        self.assertFalse(valid)
         self.assertIn('No header information available', func.capture('err'))
         self.logfile.close()
         self.assertIn('ARCHIVE FAILED', open('logfile', 'r').read())
@@ -358,12 +450,3 @@ class DumpnameTests(unittest.TestCase):
         self.atmos.nl.archiving.arch_year_month = 'January'
         dumps = validation.make_dump_name(self.atmos)
         self.assertEqual(dumps, [])
-
-
-def main():
-    '''Main function'''
-    unittest.main(buffer=True)
-
-
-if __name__ == '__main__':
-    main()

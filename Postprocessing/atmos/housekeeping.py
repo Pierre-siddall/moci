@@ -65,12 +65,14 @@ def delete_dumps(atmos, dump_names, archived):
     if archived:
         # Pre-determined list of files available following archiving operation
         arch_succeeded = sorted([dump for dump, tag in dump_names if tag])
+        arch_failed = [dump for dump, tag in dump_names if not tag]
 
         if arch_succeeded:
             last_file = arch_succeeded[-1]
             for fname in utils.get_subset(atmos.share, r'{0}a\.da\d{{8}}'.
                                           format(atmos.suite.prefix)):
                 if fname <= os.path.basename(last_file) and \
+                        fname not in arch_failed and \
                         not fname.endswith('.done'):
                     to_delete.append(fname)
                 if atmos.final_dumpname:
@@ -90,8 +92,18 @@ def delete_dumps(atmos, dump_names, archived):
 
     if to_delete:
         msg = 'Removing dump files:\n' + '\n '.join([f for f in to_delete])
-        utils.log_msg(msg)
-        utils.remove_files(to_delete, atmos.share)
+        if utils.get_debugmode() and archived:
+            # Append "ARCHIVED" suffix to archived files, rather than deleting
+            utils.log_msg(msg, level='DEBUG')
+            for fname in to_delete:
+                if fname in arch_succeeded:
+                    fname = os.path.join(atmos.share, fname)
+                    os.rename(fname, fname + '_ARCHIVED')
+                else:
+                    utils.remove_files(fname, path=atmos.share)
+        else:
+            utils.log_msg(msg)
+            utils.remove_files(to_delete, path=atmos.share)
 
         
 @timer.run_timer
@@ -120,16 +132,34 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, archived):
 
     if to_delete:
         msg = 'Removing pp files:\n ' + '\n '.join([f for f in to_delete])
-        utils.log_msg(msg)
-        utils.remove_files(to_delete, atmos.share)
+        if utils.get_debugmode() and archived:
+            # Append "ARCHIVED" suffix to files, rather than deleting
+            utils.log_msg(msg, level='DEBUG')
+            for fname in to_delete:
+                fname = os.path.join(atmos.share, fname)
+                os.rename(fname, fname + '_ARCHIVED')
+        else:
+            utils.log_msg(msg)
+            utils.remove_files(to_delete, path=atmos.share)
 
         # Remove .arch files from work directory(s)
-        del_dot_arch = [os.path.basename(fname).rstrip('.pp') + ".arch" for
-                        fname in to_delete]
-        msg = 'Removing .arch files from work directory:\n ' + \
+        del_dot_arch = []
+        for fname in to_delete:
+            lim = -3 if fname.endswith('.pp') else None
+            del_dot_arch.append(os.path.basename(fname[:lim]) + ".arch")
+
+            msg = 'Removing .arch files from work directory:\n ' + \
             '\n '.join([f for f in del_dot_arch])
-        utils.log_msg(msg)
-        utils.remove_files(del_dot_arch, atmos.work, ignoreNonExist=True)
+        if utils.get_debugmode() and archived:
+            # Append "ARCHIVED" suffix to files, rather than deleting
+            utils.log_msg(msg, level='DEBUG')
+            for fname in del_dot_arch:
+                fname = os.path.join(atmos.work, fname)
+                os.rename(fname, fname + '_ARCHIVED')
+        else:
+            utils.log_msg(msg)
+            utils.remove_files(del_dot_arch, path=atmos.work,
+                               ignoreNonExist=True)
 
 
 @timer.run_timer
@@ -146,11 +176,9 @@ def convert_to_pp(fieldsfile, sharedir, umutils):
     if ret_code == 0:
         msg = 'convert_to_pp: Converted to pp format: ' + ppfname
         utils.remove_files(fieldsfile, path=sharedir)
-        level = 1
+        utils.log_msg(msg, level='INFO')
     else:
-        msg = 'convert_to_pp: Conversion to pp format failed: {}\n {}\n'.\
-            format(fieldsfile, output)
-        level = 5
+        msg = 'convert_to_pp: Conversion to pp format failed: {}\n {}\n'
+        utils.log_msg(msg.format(fieldsfile, output), level='ERROR')
 
-    utils.log_msg(msg, level)
     return ppfname

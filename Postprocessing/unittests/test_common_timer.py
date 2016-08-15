@@ -13,19 +13,15 @@
 *****************************COPYRIGHT******************************
 '''
 import unittest
-import sys
 import os
 import mock
 
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
-
-import runtime_environment
-runtime_environment.setup_env()
 import testing_functions as func
+import runtime_environment
 
+# Import of timer requires 'RUNID' from runtime environment
+runtime_environment.setup_env()
 import timer
-import time
-
 
 @timer.run_timer
 def decorated_method(*args, **kwargs):
@@ -245,12 +241,3 @@ class TimerMethodsTests(unittest.TestCase):
         self.assertTrue(rtn.startswith('I am a decorated class method: '))
         self.assertIn('<test_common_timer.MyClass object at', rtn)
         self.assertTrue(rtn.endswith('>'))
-
-
-def main():
-    '''Main function'''
-    unittest.main(buffer=True)
-
-
-if __name__ == '__main__':
-    main()

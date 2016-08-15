@@ -15,16 +15,17 @@
 import unittest
 import os
 from collections import OrderedDict
-import sys
 import mock
 
-sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
-
-import runtime_environment
-runtime_environment.setup_env()
 import testing_functions as func
+import runtime_environment
 
+import utils
+
+# Import of suite requires 'RUNID' from runtime environment
+runtime_environment.setup_env()
 import suite
+
 
 
 class SuiteTests(unittest.TestCase):
@@ -168,6 +169,7 @@ class ArchiveTests(unittest.TestCase):
         for fname in [self.logfile] + runtime_environment.RUNTIME_FILES:
             if os.path.exists(fname):
                 os.remove(fname)
+        utils.set_debugmode(False)
 
     def test_archive_file(self):
         '''Test archive_file command - moo is mocked out'''
@@ -208,18 +210,20 @@ class ArchiveTests(unittest.TestCase):
     def test_archive_file_debug(self):
         '''Test debug mode of archive_file command with no file handle'''
         func.logtest('File archiving - debug:')
-        rcode = self.mysuite.archive_file('TestFile', debug=True)
+        utils.set_debugmode(True)
+        rcode = self.mysuite.archive_file('TestFile')
         self.assertEqual(rcode, 0)
         log = open(self.mysuite.logfile, 'r').read()
         self.assertIn('TestFile WOULD BE ARCHIVED', log)
+        self.assertTrue(utils.get_debugok())
 
     def test_archive_debug_open_log(self):
         '''Test debug mode of archive_file command with open file handle'''
         func.logtest('File archiving - log using open file:')
+        utils.set_debugmode(True)
         logfile = 'OpenLog'
         with open(logfile, 'w') as fname:
-            rcode = self.mysuite.archive_file('TestFile',
-                                              logfile=fname, debug=True)
+            rcode = self.mysuite.archive_file('TestFile', logfile=fname)
         self.assertEqual(rcode, 0)
         self.assertIn('TestFile WOULD BE ARCHIVED', open(logfile, 'r').read())
         self.assertFalse(os.path.exists(self.logfile))
@@ -394,12 +398,3 @@ class PreProcessTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.mysuite.preproc_ncrcat(infiles, kwarg='KWARG')
         self.assertIn('ncrcat: Cannot continue', func.capture('err'))
-
-
-def main():
-    '''Main function'''
-    unittest.main(buffer=True)
-
-
-if __name__ == '__main__':
-    main()

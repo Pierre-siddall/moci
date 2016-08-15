@@ -23,14 +23,16 @@ import numpy
 
 import utils
 
+
 def get_dataset(fname, action='r'):
     '''Return dataset from netcdf Dataset.variables'''
     try:
         ncid = Dataset(fname, action)
     except RuntimeError as err:
         utils.log_msg('netcdf_utils.py: File: {} \n\t{}'.format(fname, err),
-                      level=5)
+                      level='FAIL')
     return ncid
+
 
 def get_vardata(dataset, varname, attribute=None):
     '''Return requested value or attribute from netcdf Dataset.variables'''
@@ -49,8 +51,9 @@ def get_vardata(dataset, varname, attribute=None):
                 'in dataset'.format(varname)
 
     if msg:
-        utils.log_msg(msg, level=5)
+        utils.log_msg(msg, level='FAIL')
     return rtnval
+
 
 def time_bounds_var_to_date(fname, time_var):
     '''
@@ -65,6 +68,7 @@ def time_bounds_var_to_date(fname, time_var):
         date = [num2date(bound, units, calendar) for bound in bounds]
     return date
 
+
 def first_and_last_dates(dates, target_units, calendar):
     '''
     Return the earliest and latest dates as floats using
@@ -76,10 +80,12 @@ def first_and_last_dates(dates, target_units, calendar):
     first_and_last = numpy.array([datevals.min(), datevals.max()])
     return first_and_last
 
+
 def correct_bounds(meanset, time_var, units, calendar):
     '''Return correct time bounds for meanfile'''
     dates_in = [time_bounds_var_to_date(fname, time_var) for fname in meanset]
     return first_and_last_dates(dates_in, units, calendar)
+
 
 def time_var_to_date(fname, time_var):
     '''Return netcdf.datetime object from time_var in fname'''
@@ -90,12 +96,14 @@ def time_var_to_date(fname, time_var):
         date = num2date(time[:], time_units, time_cal)
     return date
 
+
 def correct_time(meanset, time_var, target_unit, calendar):
     '''Return correct float value of time for mean file'''
     dates_in = [time_var_to_date(fname, time_var) for fname in meanset]
     # Convert date to float values
     floats = [date2num(date, target_unit, calendar) for date in dates_in]
     return numpy.array(floats).mean()
+
 
 def fix_times(meanset, meanfile, time_var, do_time=False, do_bounds=False):
     '''
@@ -129,4 +137,3 @@ def fix_times(meanset, meanfile, time_var, do_time=False, do_bounds=False):
 
     ncid.close()
     return rmsg
-

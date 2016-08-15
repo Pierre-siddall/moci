@@ -94,11 +94,11 @@ class _Moose(object):
         chkset_cmd = '{} test -sw {}'.format(
             os.path.join(self._moopath, 'moo'), self.dataset
             )
-        ret_code, output = utils.exec_subproc(chkset_cmd, verbose=False)
+        _, output = utils.exec_subproc(chkset_cmd, verbose=False)
 
         exist = True if output.strip() == 'true' else False
         if exist:
-            utils.log_msg('chkset: Using existing Moose set', 1)
+            utils.log_msg('chkset: Using existing Moose set', level='INFO')
         return exist
 
     def mkset(self):
@@ -113,16 +113,16 @@ class _Moose(object):
         utils.log_msg('mkset command: ' + mkset_cmd)
         ret_code, output = utils.exec_subproc(mkset_cmd, verbose=False)
 
-        level = 1
+        level = 'INFO'
         if ret_code == 0:
             msg = 'mkset: Successfully created set: ' + self.dataset
         elif ret_code == 10:
             msg = 'mkset: Set already exists:' + self.dataset
         else:
-            msg = 'mkset: System error (Error={})'.format(ret_code)
+            msg = 'mkset: System error (Error={})\n{}'.format(ret_code, output)
             msg += '\n\t Unable to create set:' + self.dataset
-            level = 4
-        utils.log_msg(msg, level)
+            level = 'WARN'
+        utils.log_msg(msg, level=level)
 
     def _collection(self):
         """
@@ -165,14 +165,15 @@ class _Moose(object):
                 file_id = 'ni'
             else:
                 msg = 'moo.py - ocean/sea-ice file type not recognised: '
-                utils.log_msg(msg + self._rqst_name, level=5)
+                utils.log_msg(msg + self._rqst_name, level='ERROR')
+                file_id = ''
 
         else:
             msg = 'moo.py - Model id "{}" in filename  not recognised.'.\
                 format(model_id)
             msg += '\n -> Please contact crum@metoffice.gov.uk ' \
                 'if your requirements are not being met by this script.'
-            utils.log_msg(msg, 5)
+            utils.log_msg(msg, level='ERROR')
 
         if ext == '.pp':
             self.fl_pp = True
@@ -211,18 +212,18 @@ class _Moose(object):
                     os.environ['UM_TMPDIR'] = jobtemp
                 else:
                     msg = 'JOBTEMP not set: moo, convpp, ieee likely to fail'
-                    utils.log_msg(msg, 3)
+                    utils.log_msg(msg, level='WARN')
 
             except KeyError:
                 pass
 
             utils.log_msg('The command to archive is: ' + moo_cmd)
-            ret_code, output = utils.exec_subproc(moo_cmd)
+            ret_code, _ = utils.exec_subproc(moo_cmd)
 
         else:
             msg = 'moo.py: No archiving done. Path/file does not exist:' + crn
             msg += '\n -> The command to archive would have been:\n' + moo_cmd
-            utils.log_msg(msg, 4)
+            utils.log_msg(msg, level='WARN')
             ret_code = 99
 
         put_rtncode = {
@@ -243,50 +244,53 @@ class _Moose(object):
         if ret_code == 0:
             utils.log_msg(put_rtncode[0])
             msg = '{} added to the {} collection'.format(crn, collection_name)
-            level = 1
+            level = 'INFO'
         elif ret_code == 11:
             utils.log_msg(put_rtncode[11])
             msg = '{} not added to the {} collection - it contains no fields'.\
                 format(crn, collection_name)
-            level = 3
+            level = 'INFO'
         elif ret_code in put_rtncode:
             msg = 'moo.py: {} File: {}'.format(put_rtncode[ret_code], crn)
-            level = 4
+            level = 'WARN'
         else:
             msg = 'moo.py: Unknown Error - Return Code =' + str(ret_code)
-            level = 4
-        utils.log_msg(msg, level)
+            level = 'WARN'
+        utils.log_msg(msg, level=level)
 
         return ret_code
 
 
 class CommandExec(object):
+    '''Class defining methods relating to Moose commands'''
+
     def archive(self, comms):
         """ Carry out the archiving """
-        mooInstance = _Moose(comms)
-        return mooInstance.put_data()
+        moo_instance = _Moose(comms)
+        return moo_instance.put_data()
 
-    def delete(self, fn, prior_code=None):
+    def delete(self, fname, prior_code=None):
         """ Carry out the delete command """
         if prior_code in [None, 0, 11, 99]:
             try:
-                os.remove(fn)
+                os.remove(fname)
             except OSError:
                 pass
             finally:
-                utils.log_msg('moo.py: Deleting file: ' + fn, 1)
+                utils.log_msg('moo.py: Deleting file: ' + fname, level='INFO')
         else:
-            utils.log_msg('moo.py: Not deleting un-archived file: ' + fn, 3)
-        return 1 if os.path.exists(fn) else 0
+            utils.log_msg('moo.py: Not deleting un-archived file: ' + fname,
+                          level='WARN')
+        return 1 if os.path.exists(fname) else 0
 
     def execute(self, commands):
         ''' Run the archiving and deletion as required '''
         ret_code = {}
-        if (commands['CURRENT_RQST_ACTION'] == "ARCHIVE"):
+        if commands['CURRENT_RQST_ACTION'] == "ARCHIVE":
             ret_code[commands['CURRENT_RQST_NAME']] \
                 = self.archive(commands)
 
-        elif (commands['CURRENT_RQST_ACTION'] == "DELETE"):
+        elif commands['CURRENT_RQST_ACTION'] == "DELETE":
             try:
                 prior_code = ret_code[commands['CURRENT_RQST_NAME']]
             except KeyError:
@@ -295,9 +299,9 @@ class CommandExec(object):
                                              prior_code)
         else:
             msg = 'moo.py: Neither ARCHIVE nor DELETE requested: '
-            utils.log_msg(msg + commands['CURRENT_RQST_NAME'], 3)
+            utils.log_msg(msg + commands['CURRENT_RQST_NAME'], level='WARN')
             ret_code['NO ACTION'] = 0
-        print("\n")  # for clarity in output file.
+        utils.log_msg('\n') # for clarity in output file.
 
         return ret_code
 
