@@ -443,6 +443,7 @@ class ModelTemplate(control.RunPostProc):
         A mean cannot be created if the date of the mean is too close the the
         model start time (in the spinup period) to allow all required
         components to be available.
+        The mean date is year/month taken from the end of the meaning period.
         Returns True if the model is in the spinup period for creation of
         a given mean.
         '''
@@ -451,7 +452,7 @@ class ModelTemplate(control.RunPostProc):
             initialcycle = self.suite.envars.INITCYCLE_OVERRIDE
         except AttributeError:
             initialcycle = self.suite.envars.CYLC_SUITE_INITIAL_CYCLE_POINT
-
+        second_year = str(int(meandate[0]) - 1) == initialcycle[0:4]
         if meandate[0] == initialcycle[0:4]:
             if MM in description:
                 # Spinup during the first model month if initialised
@@ -461,8 +462,10 @@ class ModelTemplate(control.RunPostProc):
             elif SS in description:
                 # Spinup during the first model season if initialised
                 # after the first month of a season.
-                mths = [str(int(meandate[1]) - 1).zfill(2),
-                        str(int(meandate[1]) - 2).zfill(2)]
+                mths = [meandate[1],
+                        str(int(meandate[1]) - 1).zfill(2)]
+                if initialcycle[6:8] != '01':
+                    mths.append(str(int(meandate[1]) - 2).zfill(2))
                 spinup = initialcycle[4:6] in mths
             elif AA in description:
                 spinup = True
@@ -471,6 +474,10 @@ class ModelTemplate(control.RunPostProc):
                 msg += '\tUnable to assess whether model is in spin up mode.'
                 utils.log_msg(msg, level='WARN')
                 spinup = False
+        elif second_year and initialcycle[4:6] == '12' and \
+                initialcycle[6:8] != '01':
+            spinup = (AA in description) or \
+                (SS in description and meandate[1] == '02')
         else:
             spinup = False
 

@@ -202,7 +202,6 @@ class MeansTests(unittest.TestCase):
         '''Test create_means function with partial period'''
         func.logtest('Assert create_means functionality with partial period:')
         self.model.periodset.return_value = ['file1', 'file2', 'file3']
-
         with self.assertRaises(SystemExit):
             self.model.create_means()
         self.assertIn('not possible as only got 3', func.capture('err'))
@@ -221,23 +220,56 @@ class MeansTests(unittest.TestCase):
         '''Test Spinup period for annual means'''
         func.logtest('Assert initial spinup period for annual means:')
 
-        self.assertTrue(self.model.means_spinup(
-            'FIELD Annual mean for YYYY', ('1995', '12', 'DD')))
-        self.assertFalse(self.model.means_spinup(
-            'FIELD Annual mean for YYYY', ('1996', '12', 'DD')))
+        for startdate in ['19941211T0000Z', '19951201T0000Z']:
+           self.model.suite.envars.INITCYCLE_OVERRIDE = startdate
+           func.logtest('Annual mean - Testing start date:' + startdate)
+           self.assertTrue(self.model.means_spinup(
+                   'FIELD Annual mean for YYYY', ('1995', '12', 'DD')))
 
-    def test_seasonal_mean_spinup(self):
-        '''Test Spinup period for seasonal means'''
-        func.logtest('Assert initial spinup period for seasonal means:')
+        for startdate in ['19941201T0000Z', '19941111T0000Z']:
+           self.model.suite.envars.INITCYCLE_OVERRIDE = startdate
+           func.logtest('Annual mean - Testing start date:' + startdate)
+           self.assertFalse(self.model.means_spinup(
+                   'FIELD Annual mean for YYYY', ('1995', '12', 'DD')))
 
-        self.assertTrue(self.model.means_spinup(
-            'FIELD Seasonal mean for SEASON YYYY', ('1995', '09', 'DD')))
+    def test_seasonal_mean_spinup_yr1(self):
+        '''Test Spinup period for seasonal means - first year'''
+        func.logtest('Assert initial spinup period for seasonal means - yr1:')
 
-        self.model.suite.envars.INITCYCLE_OVERRIDE = '19950601T0000Z'
-        self.assertFalse(self.model.means_spinup(
-            'FIELD Seasonal mean for SEASON YYYY', ('1995', '09', 'DD')))
-        self.assertFalse(self.model.means_spinup(
-            'FIELD Seasonal mean for SEASON YYYY', ('1995', '12', 'DD')))
+        for startdate in ['19950911T0000Z', '19951001T0000Z',
+                          '19951101T0000Z']:
+           self.model.suite.envars.INITCYCLE_OVERRIDE = startdate
+           func.logtest('Autumn mean - Testing start date:' + startdate)
+           self.assertTrue(self.model.means_spinup(
+                   'FIELD Seasonal mean for SEASON YYYY', ('1995', '11', 'DD')))
+
+        for startdate in ['19950801T0000Z', '19950901T0000Z']:
+           self.model.suite.envars.INITCYCLE_OVERRIDE = startdate
+           func.logtest('Autumn mean - Testing start date:' + startdate)
+           self.assertFalse(self.model.means_spinup(
+                   'FIELD Seasonal mean for SEASON YYYY', ('1995', '11', 'DD')))
+
+    def test_seasonal_mean_spinup_yr2(self):
+        '''Test Spinup period for seasonal means - second year'''
+        func.logtest('Assert initial spinup period for seasonal means - yr2:')
+
+        for startdate in ['19951211T0000Z', '19951221T0000Z']:
+           self.model.suite.envars.INITCYCLE_OVERRIDE = startdate
+           func.logtest('Autumn mean - Testing start date:' + startdate)
+           self.assertTrue(self.model.means_spinup(
+                   'FIELD Seasonal mean for SEASON YYYY', ('1996', '02', 'DD')))
+
+        for startdate in ['19951201T0000Z', '19951001T0000Z']:
+           self.model.suite.envars.INITCYCLE_OVERRIDE = startdate
+           func.logtest('Autumn mean - Testing start date:' + startdate)
+           self.assertFalse(self.model.means_spinup(
+                   'FIELD Seasonal mean for SEASON YYYY', ('1996', '02', 'DD')))
+
+        for startdate in ['199512211T0000Z', '19950901T0000Z']:
+           self.model.suite.envars.INITCYCLE_OVERRIDE = startdate
+           func.logtest('Autumn mean - Testing start date:' + startdate)
+           self.assertFalse(self.model.means_spinup(
+                   'FIELD Seasonal mean for SEASON YYYY', ('1996', '05', 'DD')))
 
     def test_monthly_mean_spinup(self):
         '''Test Spinup period for monthly means'''
