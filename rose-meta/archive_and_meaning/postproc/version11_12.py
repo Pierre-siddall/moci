@@ -134,3 +134,15 @@ class pp11_t18(rose.upgrade.MacroUpgrade):
         """Upgrade a Postproc app configuration."""
         self.remove_setting(config, ["namelist:suitegen", "tasks_per_cycle"])
         return config, self.reports
+
+
+class pp11_pp12(rose.upgrade.MacroUpgrade):
+
+    """Upgrade macro for Version 1.2 Release."""
+    BEFORE_TAG = "pp11_t18"
+    AFTER_TAG = "postproc_1.2"
+
+    def upgrade(self, config, meta_config=None):
+        """Upgrade a Postproc make app configuration."""
+        # No changes required
+        return config, self.reports
