@@ -31,7 +31,7 @@
             -l mem=2000MB
             -q = shared
 {% if SPECIFY_PROJECT %}
-            -P = climate
+            -P = {{PROJECT_NAME}}
 {% endif %}
 {% if USE_RAMDISK %}
             -l tmpsize=2gb
@@ -61,7 +61,7 @@
 {% endif %} 
             -q = shared
 {% if SPECIFY_PROJECT %}
-            -P = climate
+            -P = {{PROJECT_NAME}}
 {% endif %}
 
 
@@ -83,7 +83,7 @@ module load {{OASIS3_MCT}}/{{OASIS_MODULE_VERSION}}/{{ROSE_SUITE_REV_NO}}/{{OASI
     [[TEST_OASIS_RESOURCE]]
         inherit=XC40
         [[[directives]]]
-            -l walltime=00:10:00
+            -l walltime=00:02:00
             -l select=2
             
     [[BUILD_XIOS_SETUP]]
@@ -153,11 +153,11 @@ module load {{XIOS}}-PrgEnv/{{XIOS_PRGENV_VERSION}}
     [[TEST_XIOS_RESOURCE]]
         inherit=XC40
         [[[directives]]]
-            -l walltime=00:10:00
+            -l walltime=00:02:00
             -l select=2
             -q = normal
 {% if SPECIFY_PROJECT %}
-            -P = climate
+            -P = {{PROJECT_NAME}}
 {% endif %}
     
     [[BUILD_NEMO_RESOURCE]]
@@ -165,7 +165,7 @@ module load {{XIOS}}-PrgEnv/{{XIOS_PRGENV_VERSION}}
         [[[directives]]]
             -q = shared
 {% if SPECIFY_PROJECT %}
-            -P = climate
+            -P = {{PROJECT_NAME}}
 {% endif %}
             -l ncpus=8
             -l walltime=00:20:00
@@ -178,7 +178,7 @@ module load {{XIOS}}-PrgEnv/{{XIOS_PRGENV_VERSION}}
         [[[directives]]]
             -q = normal
 {% if SPECIFY_PROJECT %}
-            -P = climate
+            -P = {{PROJECT_NAME}}
 {% endif %}
 {% if (NEMO_TASKS_JPI*NEMO_TASKS_JPJ)%TASKS_PER_NODE == 0 %}
     {% if (XIOS_TASKS % XIOS_TASKS_PER_NODE == 0) %}
