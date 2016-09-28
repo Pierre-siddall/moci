@@ -190,6 +190,8 @@ class ModelTemplate(control.RunPostProc):
         need for processing (rebuild or archive)
         '''
         nlvar = getattr(self.nl, process + '_timestamps')
+        if not isinstance(nlvar, list):
+            nlvar = [nlvar]
         return bool([ts for ts in nlvar if [month, day] == ts.split('-')] or
                     not nlvar)
 
@@ -556,7 +558,8 @@ class ModelTemplate(control.RunPostProc):
                 if self.timestamps(month, day):
                     to_archive.append(rst)
                 else:
-                    msg = 'Only archiving periodic restarts.'
+                    msg = 'Only archiving periodic restarts: ' + \
+                        str(self.nl.archive_timestamps)
                     msg += '\n -> Deleting file:\n\t' + str(rst)
                     utils.log_msg(msg)
                     utils.remove_files(rst, self.share)

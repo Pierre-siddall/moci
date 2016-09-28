@@ -698,6 +698,40 @@ class MethodsTests(unittest.TestCase):
         self.assertEqual(self.subperiod + self.subperiod, yield_subp)
         self.assertEqual(self.spvals + self.spvals, yield_spvals)
 
+    def test_archive_timetamps_single(self):
+        '''Test return of timestamps method - archive single'''
+        func.logtest('Assert return of timestamps method - archive single:')
+        self.model.nl.archive_timestamps = '12-01'
+        print self.model.nl.archive_timestamps
+        self.assertTrue(self.model.timestamps('12', '01'))
+        self.assertFalse(self.model.timestamps('06', '01'))
+
+    def test_archive_timetamps_list(self):
+        '''Test return of timestamps method - archive list'''
+        func.logtest('Assert return of timestamps method - archive list:')
+        self.model.nl.archive_timestamps = ['06-01', '12-01']
+        print self.model.nl.archive_timestamps
+        self.assertTrue(self.model.timestamps('06', '01'))
+        self.assertTrue(self.model.timestamps('12', '01'))
+        self.assertFalse(self.model.timestamps('11', '01'))
+
+    def test_rebuild_timetamps_single(self):
+        '''Test return of timestamps method - rebuild single'''
+        func.logtest('Assert return of timestamps method - rebuild single:')
+        self.model.nl.rebuild_timestamps = '12-01'
+        print self.model.nl.rebuild_timestamps
+        self.assertTrue(self.model.timestamps('12', '01', process='rebuild'))
+        self.assertFalse(self.model.timestamps('06', '01', process='rebuild'))
+
+    def test_rebuild_timetamps_list(self):
+        '''Test return of timestamps method - rebuild list'''
+        func.logtest('Assert return of timestamps method - rebuild list:')
+        self.model.nl.rebuild_timestamps = ['06-01', '12-01']
+        print self.model.nl.rebuild_timestamps
+        self.assertTrue(self.model.timestamps('06', '01', process='rebuild'))
+        self.assertTrue(self.model.timestamps('12', '01', process='rebuild'))
+        self.assertFalse(self.model.timestamps('11', '01', process='rebuild'))
+
 
 class PropertyTests(unittest.TestCase):
     '''Unit tests relating to ModelTemplate properties'''
