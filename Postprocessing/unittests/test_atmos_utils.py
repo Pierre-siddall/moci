@@ -136,16 +136,45 @@ class HousekeepTests(unittest.TestCase):
                        path='WorkDir', ignoreNonExist=True)]
             )
 
-    def test_convert_to_pp(self):
-        '''Test convert_to_pp functionality'''
+    def test_convert_convpp(self):
+        '''Test convert_to_pp functionality with um-convpp'''
         func.logtest('Assert functionality of the convert_to_pp method:')
+        um_utils_path = 'UMDIR/vn10.4/machine/utilities'
         with mock.patch('utils.exec_subproc') as mock_exec:
             with mock.patch('utils.remove_files') as mock_rm:
                 mock_exec.return_value = (0, '')
                 ppfile = housekeeping.convert_to_pp('Filename', 'TestDir',
-                                                    self.umutils)
+                                                    um_utils_path)
                 mock_rm.assert_Called_with('Filename', path='TestDir')
-            cmd = self.umutils + '/um-ff2pp Filename Filename.pp'
+            cmd = um_utils_path + '/um-convpp Filename Filename.pp'
+            mock_exec.assert_called_with(cmd, cwd='TestDir')
+        self.assertEqual(ppfile, 'Filename.pp')
+
+    def test_convert_to_pp(self):
+        '''Test convert_to_pp functionality with default utility'''
+        func.logtest('Assert functionality of the convert_to_pp method:')
+        um_utils_path = 'UMDIR/um_version/machine/utilities'
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            with mock.patch('utils.remove_files') as mock_rm:
+                mock_exec.return_value = (0, '')
+                ppfile = housekeeping.convert_to_pp('Filename', 'TestDir',
+                                                    um_utils_path)
+                mock_rm.assert_Called_with('Filename', path='TestDir')
+            cmd = um_utils_path + '/um-convpp Filename Filename.pp'
+            mock_exec.assert_called_with(cmd, cwd='TestDir')
+        self.assertEqual(ppfile, 'Filename.pp')
+
+    def test_convert_ff2pp(self):
+        '''Test convert_to_pp functionality with um-ff2pp'''
+        func.logtest('Assert functionality of the convert_to_pp method:')
+        um_utils_path = 'UMDIR/vn10.3/machine/utilities'
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            with mock.patch('utils.remove_files') as mock_rm:
+                mock_exec.return_value = (0, '')
+                ppfile = housekeeping.convert_to_pp('Filename', 'TestDir',
+                                                    um_utils_path)
+                mock_rm.assert_Called_with('Filename', path='TestDir')
+            cmd = um_utils_path + '/um-ff2pp Filename Filename.pp'
             mock_exec.assert_called_with(cmd, cwd='TestDir')
         self.assertEqual(ppfile, 'Filename.pp')
 

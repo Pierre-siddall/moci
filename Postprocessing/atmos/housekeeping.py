@@ -105,7 +105,7 @@ def delete_dumps(atmos, dump_names, archived):
             utils.log_msg(msg)
             utils.remove_files(to_delete, path=atmos.share)
 
-        
+
 @timer.run_timer
 def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, archived):
     '''Delete pp files when finalised and archived as necessary'''
@@ -165,11 +165,20 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, archived):
 @timer.run_timer
 def convert_to_pp(fieldsfile, sharedir, umutils):
     '''
-    Create the command to call UM utility ff2pp for file
-    conversion to pp format
+    Create the command to call the appropriate UM utility for file
+    conversion to pp format.
+        UM versions up to vn10.3: um-ff2pp
+        UM versions 10.4 onwards: um-convpp
     '''
     ppfname = fieldsfile + '.pp'
-    cmd = ' '.join([os.path.join(umutils, 'um-ff2pp'),
+    try:
+        version = re.match(r'.*/(vn|VN)(\d+\.\d+).*', umutils).group(2)
+        conv_exec = 'um-convpp' if float(version) > 10.3 else 'um-ff2pp'
+    except AttributeError:
+        # Version number not in path
+        conv_exec = 'um-convpp'
+
+    cmd = ' '.join([os.path.join(umutils, conv_exec),
                     fieldsfile, ppfname])
     ret_code, output = utils.exec_subproc(cmd, cwd=sharedir)
 

@@ -33,7 +33,7 @@ class AtmosNamelist:
     try:
         um_utils = '/projects/um1/vn{}/xc40/utilities'.format(os.environ['VN'])
     except KeyError:
-        um_utils = '/projects/um1/vn10.3/xc40/utilities'
+        um_utils = '/projects/um1/vn10.5/xc40/utilities'
 
 
 class Archiving:
