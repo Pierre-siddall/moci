@@ -153,48 +153,48 @@ def make_dump_name(atmos):
     As we are only concerned with runs using an absolute datestamp the file
     name will have the form abcde.da20100101
     '''
+    dumps_to_archive = []
+
+    if atmos.final_dumpname:
+        # Perform the final dump archiving if the end of the run has been
+        # reached. Do not worry about seasonal or annual archiving at
+        # this point, as the point of archiving this last dump is so the run
+        # can be restarted from where it left off
+        dumps_to_archive.append(atmos.final_dumpname)
+
     cycledt = atmos.suite.cycledt
     dt_len = len(cycledt)
     basisdt = [int(elem) for elem in atmos.envars.MODELBASIS.split(',')]
 
     if cycledt == basisdt[:dt_len]:
-        # This is the first cycle, definitely do not archive any dumps
-        return []
+        # This is the first cycle, only archive the final cycle dump name
+        return dumps_to_archive
 
     # Process for yearly archiving to determine which month to archive
-    if atmos.nl.archiving.arch_dump_freq == 'Yearly':
+    if atmos.naml.archiving.arch_dump_freq == 'Yearly':
         months = {'January': 1, 'February': 2, 'March': 3, 'April': 4,
                   'May': 5, 'June': 6, 'July': 7, 'August': 8, 'September': 9,
                   'October': 10, 'November': 11, 'December': 12}
-        month_for_yearly_archiving = months[atmos.nl.archiving.arch_year_month]
+        month_for_yearly_arch = months[atmos.naml.archiving.arch_year_month]
     else:
         # Set a default that mimics existing behaviour
-        month_for_yearly_archiving = 1
+        month_for_yearly_arch = 1
 
     # cycledt is a tuple containing integer values
     # (year,month,day,hour,minute,second) for the start of a cycle in a
     # cycling model run.
     dumptype = {
-        'Yearly': cycledt[1] == month_for_yearly_archiving and
+        'Yearly': cycledt[1] == month_for_yearly_arch and
                   cycledt[2] == 1 and cycledt[3] == 0,
         'Seasonal': cycledt[1] in (12, 3, 6, 9) and cycledt[2] == 1 and
                     cycledt[3] == 0,
         'Monthly': cycledt >= utils.add_period_to_date(
             basisdt,
-            [0, atmos.nl.archiving.arch_dump_offset + 1])[:dt_len] and
+            [0, atmos.naml.archiving.arch_dump_offset + 1])[:dt_len] and
                    cycledt[2] == 1 and cycledt[3] == 0
     }
 
-    dumps_to_archive = []
-    if dumptype[atmos.nl.archiving.arch_dump_freq]:
+    if dumptype[atmos.naml.archiving.arch_dump_freq]:
         dumps_to_archive.append(atmos.dumpname())
-
-    # Perform the final dump archiving if the end of the run has been reached
-    # Do not worry about seasonal or annual archiving at this point, as the
-    # point of archiving this last dump is so the run can be restarted from
-    # where it left off
-    #
-    if atmos.final_dumpname:
-        dumps_to_archive.append(atmos.final_dumpname)
 
     return dumps_to_archive

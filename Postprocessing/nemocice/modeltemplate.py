@@ -597,7 +597,12 @@ class ModelTemplate(control.RunPostProc):
         Number of unprocessed files to retain after archiving
         task is complete
         '''
-        return self.naml.buffer_archive if self.naml.buffer_archive else 0
+        if self.suite.finalcycle or not self.naml.buffer_archive:
+            buffer_arch = 0
+        else:
+            buffer_arch = self.naml.buffer_archive
+
+        return buffer_arch
 
     def component(self, field):
         '''
@@ -620,6 +625,7 @@ class ModelTemplate(control.RunPostProc):
         Only delete if all files are successfully archived.
         '''
         to_archive = []
+        do_not_delete = []
         for inputs in self.loop_inputs(self.fields):
             for setend in self.periodend(inputs, archive=True):
                 inputs.start_date = self.get_date(setend) if setend else \
@@ -631,6 +637,12 @@ class ModelTemplate(control.RunPostProc):
                     to_archive.append(mean)
 
         for field in self.fields:
+            custom = '_' + field if field else ''
+            ncf = netcdf_filenames.NCFilename(self.component(field),
+                                              self.suite.prefix,
+                                              self.model_realm,
+                                              custom=custom)
+
             # Select all files in "archive ready" directory
             if os.path.exists(self.meansdir):
                 pattern = r'{}.*{}\.nc$'.format(self.prefix.lower(), field)
@@ -640,15 +652,21 @@ class ModelTemplate(control.RunPostProc):
             # Select additional means files, not in month_base or standard means
             for other_mean in self.additional_means:
                 if other_mean not in [self.month_base] + list(MEANPERIODS):
-                    ncf = netcdf_filenames.NCFilename(self.component(field),
-                                                      self.suite.prefix,
-                                                      self.model_realm,
-                                                      base=other_mean,
-                                                      custom=field)
-                    meanset = utils.get_subset(self.share,
-                                               self.mean_stencil['All'](ncf))
-                    for mean in meanset:
+                    ncf.base = other_mean
+                    pattern = self.mean_stencil['All'](ncf)
+                    for mean in utils.get_subset(self.share, pattern):
                         to_archive.append(mean)
+
+            # Final cycle only - select all standard means remaining in share
+            if self.suite.finalcycle:
+                # Archive, but do not delete means
+                for period in MEANPERIODS:
+                    ncf.base = period
+                    pattern = self.mean_stencil['All'](ncf)
+                    for mean in utils.get_subset(self.share, pattern):
+                        do_not_delete.append(mean)
+
+        to_archive += do_not_delete
 
         # Debugmode - removed already archived files from the list
         to_archive = [fn for fn in to_archive if not fn.endswith('ARCHIVED')]
@@ -662,10 +680,11 @@ class ModelTemplate(control.RunPostProc):
                         # Do not archive - failed to compress (debug_mode only)
                         continue
 
-                arch_rtn = self.archive_files(fname)
-                if arch_rtn[fname] != 'FAILED':
+                arch_rtn = self.archive_files(fname)[fname]
+                if arch_rtn != 'FAILED' and fname not in do_not_delete:
+                    # Delete successfully archived files except those to remain
+                    # after the final cycle
                     utils.log_msg('Deleting archived file: ' + fname)
-
                     dirname = os.path.dirname(fname)
                     if utils.get_debugmode():
                         # Append "ARCHIVED" suffix to file rather than delete
@@ -690,32 +709,41 @@ class ModelTemplate(control.RunPostProc):
         self.rebuild_restarts()
 
         for rsttype in self.rsttypes:
+            final_rst = None
             rstfiles = self.periodset(rsttype)
+            rstfiles = sorted(rstfiles)
             to_archive = []
             while len(rstfiles) > self.buffer_archive:
                 rst = rstfiles.pop(0)
+                if self.suite.finalcycle and len(rstfiles) == 0:
+                    final_rst = rst
                 month, day = self.get_date(rst)[1:3]
-                if self.timestamps(month, day):
+                if self.timestamps(month, day) or final_rst:
                     to_archive.append(rst)
                 else:
                     msg = 'Only archiving periodic restarts: ' + \
                         str(self.naml.archive_timestamps)
                     msg += '\n -> Deleting file:\n\t' + str(rst)
                     utils.log_msg(msg)
-                    utils.remove_files(rst, self.share)
+                    utils.remove_files(rst, path=self.share)
 
             if to_archive:
                 arch = self.archive_files(to_archive)
                 to_delete = [fn for fn in arch if arch[fn] == 'SUCCESS']
+                try:
+                    # Do not delete the final restart file following archive
+                    to_delete.remove(final_rst)
+                except ValueError:
+                    pass
                 msg = 'Deleting archived files: \n\t' + '\n\t'.join(to_delete)
                 if utils.get_debugmode():
                     # Append "ARCHIVED" suffix to files, rather than deleting
-                    for fname in to_archive:
+                    for fname in to_delete:
                         fname = os.path.join(self.share, fname)
                         os.rename(fname,
                                   fname.rstrip('_ARCHIVED') + '_ARCHIVED')
                 else:
-                    utils.remove_files(to_delete, self.share)
+                    utils.remove_files(to_delete, path=self.share)
             else:
                 msg = ' -> Nothing to archive'
                 if rstfiles:

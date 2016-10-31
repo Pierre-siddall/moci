@@ -61,6 +61,9 @@ def read_arch_logfile(logfile, prefix, inst, mean):
 @timer.run_timer
 def delete_dumps(atmos, dump_names, archived):
     ''' Delete dumps files when no longer required'''
+    patt = r'{0}a\.da[_\d]{{8,11}}$'.format(atmos.suite.prefix)
+    dumps_available = utils.get_subset(atmos.share, patt)
+
     to_delete = []
     if archived:
         # Pre-determined list of files available following archiving operation
@@ -69,11 +72,9 @@ def delete_dumps(atmos, dump_names, archived):
 
         if arch_succeeded:
             last_file = arch_succeeded[-1]
-            for fname in utils.get_subset(atmos.share, r'{0}a\.da\d{{8}}'.
-                                          format(atmos.suite.prefix)):
+            for fname in dumps_available:
                 if fname <= os.path.basename(last_file) and \
-                        fname not in arch_failed and \
-                        not fname.endswith('.done'):
+                        fname not in arch_failed:
                     to_delete.append(fname)
                 if atmos.final_dumpname:
                     # Final dump should not be deleted as it is not superseded
@@ -83,8 +84,7 @@ def delete_dumps(atmos, dump_names, archived):
                         pass
 
     else:  # Not archiving
-        for fname in utils.get_subset(atmos.share, r'{0}a\.da\d{{8}}'.
-                                      format(atmos.suite.prefix)):
+        for fname in dumps_available:
             # Delete files upto and including current cycle time
             filetime = re.search(r'a.da(\d{8})', fname).group(1)
             if filetime <= ''.join(atmos.suite.cyclestring[:3]):
@@ -112,18 +112,19 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, archived):
     to_delete = []
     if archived:
         # Pre-determined list of files available following archiving operation
-        if atmos.nl.delete_sc.gpdel:
+        if atmos.naml.delete_sc.gpdel:
             to_delete += [pp for pp, tag in pp_inst_names if tag]
-        if atmos.nl.delete_sc.gcmdel:
+        if atmos.naml.delete_sc.gcmdel:
             to_delete += [pp for pp, tag in pp_mean_names if tag]
 
     else:  # Not archiving
-        for ppfile in atmos.get_marked_files():
-            pp_inst = atmos.nl.delete_sc.gpdel and \
+        pattern = r'^{}a\.[pm][a-z1-9]*\.arch$'.format(atmos.suite.prefix)
+        for ppfile in get_marked_files(atmos.work, pattern, '.arch'):
+            pp_inst = atmos.naml.delete_sc.gpdel and \
                 re.search(FILETYPE['pp_inst_names'][REGEX](atmos.suite.prefix,
                                                            atmos.streams),
                           ppfile)
-            pp_mean = atmos.nl.delete_sc.gcmdel and \
+            pp_mean = atmos.naml.delete_sc.gcmdel and \
                 re.search(FILETYPE['pp_mean_names'][REGEX](atmos.suite.prefix,
                                                            atmos.means),
                           ppfile)
@@ -163,7 +164,7 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, archived):
 
 
 @timer.run_timer
-def convert_to_pp(fieldsfile, sharedir, umutils):
+def convert_to_pp(fieldsfile, umutils, keep_ffile):
     '''
     Create the command to call the appropriate UM utility for file
     conversion to pp format.
@@ -171,6 +172,7 @@ def convert_to_pp(fieldsfile, sharedir, umutils):
         UM versions 10.4 onwards: um-convpp
     '''
     ppfname = fieldsfile + '.pp'
+    sharedir = os.path.dirname(fieldsfile)
     try:
         version = re.match(r'.*/(vn|VN)(\d+\.\d+).*', umutils).group(2)
         conv_exec = 'um-convpp' if float(version) > 10.3 else 'um-ff2pp'
@@ -184,10 +186,26 @@ def convert_to_pp(fieldsfile, sharedir, umutils):
 
     if ret_code == 0:
         msg = 'convert_to_pp: Converted to pp format: ' + ppfname
-        utils.remove_files(fieldsfile, path=sharedir)
+        if not keep_ffile:
+            utils.remove_files(fieldsfile, path=sharedir)
         utils.log_msg(msg, level='INFO')
     else:
         msg = 'convert_to_pp: Conversion to pp format failed: {}\n {}\n'
         utils.log_msg(msg.format(fieldsfile, output), level='ERROR')
 
     return ppfname
+
+
+@timer.run_timer
+def get_marked_files(datadir, pattern, suffix):
+    '''
+    Returns a list of files marked as available for archiving.
+    Completed fieldsfiles are marked by the presence of a '.arch' suffixed file
+    in the work directory.
+    '''
+    marked_files = utils.get_subset(datadir, pattern)
+    if len(marked_files) == 0:
+        utils.log_msg('No file marked for archive', level='INFO')
+    if suffix:
+        marked_files = [fn[:-len(suffix)]for fn in marked_files]
+    return marked_files

@@ -95,17 +95,33 @@ class SuiteTests(unittest.TestCase):
         # Cycle time (from runtime_environment) = 2000,1,21,0,0,0
         self.assertListEqual(self.mysuite.cycledt, [2000, 1, 21, 0, 0])
 
+    def test_specific_cycletime(self):
+        '''Test cycletime with given cycle'''
+        func.logtest('Assert calculation of given cycletime:')
+        self.assertTupleEqual(self.mysuite._cyclestring('11112233T4455Z'),
+                              ('1111', '22', '33', '44', '55'))
+
     def test_bad_cycletime(self):
         '''Test failure mode with incorrect format for
         task cycle time environment variable'''
         func.logtest('Failure mode of cycletime property:')
         self.mysuite.envars.CYLC_TASK_CYCLE_POINT = 'Dummy'
         with self.assertRaises(SystemExit):
-            print self.mysuite._cyclestring
+            print self.mysuite._cyclestring()
 
-    def test_final_cycle(self):
-        '''Test assertion of final cycle in Cylc6 environment'''
-        func.logtest('Assert final cycle time property - TRUE:')
+    @mock.patch('utils.loadEnv')
+    def test_final_cycle_cylc(self, mock_env):
+        '''Test assertion of final cycle - defined by Cylc environment'''
+        func.logtest('Assert final cycle time property - TRUE Cylc:')
+        mock_env.return_value.ARCHIVE_FINAL = None
+        mock_env.return_value.CYCLEPOINT_OVERRIDE = '12345678T0000Z'
+        mock_env.return_value.FINALCYCLE_OVERRIDE = '12345678T0000Z'
+        testfinal = suite.SuiteEnvironment(self.mypath, self.myfile)
+        self.assertTrue(testfinal.finalcycle)
+
+    def test_final_cycle_env(self):
+        '''Test assertion of final cycle in defined by ARCHIVE_FINAL'''
+        func.logtest('Assert final cycle time property - TRUE archive_final:')
         os.environ['ARCHIVE_FINAL'] = 'true'
         testfinal = suite.SuiteEnvironment(self.mypath, self.myfile)
         self.assertTrue(testfinal.finalcycle)
@@ -194,14 +210,14 @@ class ArchiveTests(unittest.TestCase):
                           open(self.mysuite.logfile, 'r').read())
             self.assertFalse(self.mysuite.archive_ok)
 
-    def test_archive_empty_file(self):
+    def test_archive_empty_file_moo(self):
         '''Test attempt to archive an empty file - moo is mocked out'''
         func.logtest('File archiving - Empty file:')
         with mock.patch('moo.CommandExec') as dummy:
             moose_arch_inst = dummy.return_value
             moose_arch_inst.execute.return_value = {'TestFile': 11}
             rcode = self.mysuite.archive_file('TestFile')
-            self.assertEqual(rcode, 11)
+            self.assertEqual(rcode, 0)
             self.assertIn('TestFile FILE NOT ARCHIVED',
                           open(self.mysuite.logfile, 'r').read())
             self.assertTrue(self.mysuite.archive_ok)
@@ -231,7 +247,7 @@ class ArchiveTests(unittest.TestCase):
     def test_no_archive_command(self):
         '''Test attempt to archive to alternative system'''
         func.logtest('Attempt to access alternative archiving system:')
-        self.mysuite.nl.archive_command = 'Dummy'
+        self.mysuite.naml.archive_command = 'Dummy'
         with self.assertRaises(SystemExit):
             self.mysuite.archive_file('TestFile')
 
@@ -279,7 +295,7 @@ class PreProcessTests(unittest.TestCase):
         infile = 'TestDir/myMean'
         cmd = ' '.join(['PATH/nccopy -d 5 -c a/1,b/2,c/3',
                         infile, infile + '.tmp'])
-        self.mysuite.nl.nccopy_path = 'PATH/nccopy'
+        self.mysuite.naml.nccopy_path = 'PATH/nccopy'
         with mock.patch('utils.exec_subproc') as mock_exec:
             with mock.patch('os.rename') as mock_mv:
                 mock_exec.return_value = (0, '')
@@ -362,7 +378,7 @@ class PreProcessTests(unittest.TestCase):
         '''Test call to ncdump utility with util path provided'''
         func.logtest('Assert call to ncdump file utility - path provided:')
         infile = 'TestDir/myFile'
-        self.mysuite.nl.ncdump_path = 'path/to/ncutils'
+        self.mysuite.naml.ncdump_path = 'path/to/ncutils'
         with mock.patch('utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (0, '')
             self.mysuite.preproc_ncdump(infile)
@@ -406,7 +422,7 @@ class PreProcessTests(unittest.TestCase):
         '''Test call to ncrcat utility with util path provided'''
         func.logtest('Assert call to ncrcat file utility - path provided:')
         infiles = ['INfile1', 'INfile2']
-        self.mysuite.nl.ncrcat_path = 'path/to/ncutils'
+        self.mysuite.naml.ncrcat_path = 'path/to/ncutils'
         with mock.patch('utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (0, '')
             self.mysuite.preproc_ncrcat(infiles, outfile='OUTfile')

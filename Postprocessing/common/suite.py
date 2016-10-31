@@ -40,13 +40,13 @@ class SuiteEnvironment(object):
         from nlist import loadNamelist
         load_nl = loadNamelist(input_nl)
         try:
-            self.nl = load_nl.suitegen
+            self.naml = load_nl.suitegen
         except AttributeError:
             msg = 'SuiteEnvironment: Failed to load ' \
                 '&suitegen namelist from namelist file: ' + input_nl
             utils.log_msg(msg, level='FAIL')
 
-        if self.nl.archive_command.lower() == 'moose':
+        if self.naml.archive_command.lower() == 'moose':
             try:
                 self.nl_arch = load_nl.moose_arch
             except AttributeError:
@@ -56,12 +56,14 @@ class SuiteEnvironment(object):
 
         self.envars = utils.loadEnv('CYLC_TASK_LOG_ROOT',
                                     'CYLC_TASK_CYCLE_POINT',
+                                    'CYLC_SUITE_FINAL_CYCLE_POINT',
                                     'CYLC_CYCLING_MODE',
-                                    'CYCLEPOINT_OVERRIDE')
+                                    'CYCLEPOINT_OVERRIDE',
+                                    'FINALCYCLE_OVERRIDE')
 
         self.sourcedir = sourcedir
-        self.finalcycle = self._finalcycle
-        self.cyclestring = self._cyclestring
+        self.cyclestring = self._cyclestring()
+        self.finalcycle = self._finalcycle()
 
         # Monitoring attributes
         self.archive_ok = True
@@ -72,39 +74,24 @@ class SuiteEnvironment(object):
         Returns the name of the app producing the data for postprocessing.
         Provided via &suitegen namelist
         '''
-        return self.nl.umtask_name
+        return self.naml.umtask_name
 
     @property
     def prefix(self):
         '''Returns the filename prefix.  Provided via &suitegen namelist'''
-        return self.nl.prefix
+        return self.naml.prefix
+
+    @property
+    def logfile(self):
+        '''Archiving log will be sent to the suite log directory'''
+        return self.envars.CYLC_TASK_LOG_ROOT + '-archive.log'
 
     @property
     def cycleperiod(self):
         '''Returns the cycling period for the suite.
         Provided via  &suitegen namelist
         '''
-        return self.nl.cycleperiod
-
-    @property
-    def _cyclestring(self):
-        '''
-        Creates a representation of the current cycletime in string format.
-        Returns an list of strings: YYYY,MM,DD,mm,ss
-        '''
-        try:
-            # An override is required for Single Cycle suites
-            cyclepoint = self.envars.CYCLEPOINT_OVERRIDE
-        except AttributeError:
-            cyclepoint = self.envars.CYLC_TASK_CYCLE_POINT
-
-        match = re.search(r'(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})Z',
-                          cyclepoint)
-        if match:
-            cyclestring = match.groups()
-        else:
-            utils.log_msg('Unable to determine cycletime', level='FAIL')
-        return cyclestring
+        return self.naml.cycleperiod
 
     @property
     def cycledt(self):
@@ -114,7 +101,34 @@ class SuiteEnvironment(object):
         '''
         return map(int, self.cyclestring)
 
-    @property
+    def _cyclestring(self, specific_cycle=None):
+        '''
+        Creates a representation of the current cycletime in string format.
+        Return a list of strings: YYYY,MM,DD,mm,ss
+
+        Optional argument: specific_cycle
+            <type 'str'>, Format: '[YYYY][MM][DD]T[mm][hh]Z'
+            Required when the cycle string required is for a date other than
+            the current cycletime, for example the final cycle time.
+        '''
+        if specific_cycle:
+            cyclepoint = specific_cycle
+        else:
+            # Default to current cycle point
+            try:
+                # An override is required for Single Cycle suites
+                cyclepoint = self.envars.CYCLEPOINT_OVERRIDE
+            except AttributeError:
+                cyclepoint = self.envars.CYLC_TASK_CYCLE_POINT
+
+        match = re.search(r'(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})Z',
+                          cyclepoint)
+        if match:
+            cyclestring = match.groups()
+        else:
+            utils.log_msg('Unable to determine cycletime', level='FAIL')
+        return cyclestring
+
     def _finalcycle(self):
         '''
         Determine whether this cycle is the final cycle for the running suite.
@@ -124,13 +138,13 @@ class SuiteEnvironment(object):
         try:
             finalcycle = ('true' in self.envars.ARCHIVE_FINAL.lower())
         except AttributeError:
-            finalcycle = False
+            try:
+                finalpoint = self.envars.FINALCYCLE_OVERRIDE
+            except AttributeError:
+                finalpoint = self.envars.CYLC_SUITE_FINAL_CYCLE_POINT
+            finalcycle = (self._cyclestring() ==
+                          self._cyclestring(specific_cycle=finalpoint))
         return finalcycle
-
-    @property
-    def logfile(self):
-        '''Archiving log will be sent to the suite log directory'''
-        return self.envars.CYLC_TASK_LOG_ROOT + '-archive.log'
 
     def monthlength(self, month):
         '''Returns length of given month in days - calendar dependent'''
@@ -152,14 +166,14 @@ class SuiteEnvironment(object):
             msg = 'Calendar not recognised: ' + self.envars.CYLC_CYCLING_MODE
             utils.log_msg('SuiteEnvironment: ' + msg, level='FAIL')
 
-    def __archive_command(self, filename, preproc):
+    def _archive_command(self, filename, preproc):
         '''
         Executes the specific archiving system.
         Currently set up only for MOOSE
         '''
         rcode = None
 
-        if self.nl.archive_command.lower() == 'moose':
+        if self.naml.archive_command.lower() == 'moose':
             # MOOSE Archiving
             import moo
             rcode = moo.archive_to_moose(filename, self.sourcedir,
@@ -171,21 +185,21 @@ class SuiteEnvironment(object):
 
     def archive_file(self, archfile, logfile=None, preproc=False):
         '''Archive file and write to logfile'''
+        log_line = os.path.basename(archfile)
         if utils.get_debugmode():
             utils.log_msg('Archiving: ' + archfile, level='DEBUG')
-            log_line = '{} WOULD BE ARCHIVED\n'.format(archfile)
+            log_line += ' WOULD BE ARCHIVED\n'
             arch_rcode = 0
         else:
-            arch_rcode = self.__archive_command(archfile, preproc)
+            arch_rcode = self._archive_command(archfile, preproc)
             if arch_rcode == 0:
-                log_line = '{} ARCHIVE OK\n'.format(archfile)
-            elif self.nl.archive_command.lower() == 'moose' and \
+                log_line += ' ARCHIVE OK\n'
+            elif self.naml.archive_command.lower() == 'moose' and \
                     arch_rcode == 11:
-                log_line = '{} FILE NOT ARCHIVED. File contains no fields\n'.\
-                    format(archfile)
+                log_line += ' FILE NOT ARCHIVED. File contains no fields\n'
+                arch_rcode = 0
             else:
-                log_line = '{} ARCHIVE FAILED. Archive process error\n'.\
-                    format(archfile)
+                log_line += ' ARCHIVE FAILED. Archive process error\n'
                 self.archive_ok = False
 
         if not logfile:
@@ -218,10 +232,10 @@ class SuiteEnvironment(object):
     @timer.run_timer
     def preproc_nccopy(self, filename, compression=0, chunking=None):
         '''
-        Compression of standard NetCDF file output prior to archive
+        Compression of standard netCDF file output prior to archive
         '''
         tmpfile = filename + '.tmp'
-        cmd_path = self.nl.nccopy_path
+        cmd_path = self.naml.nccopy_path
         if not os.path.basename(cmd_path) == 'nccopy':
             cmd_path = os.path.join(cmd_path, 'nccopy')
 
@@ -252,11 +266,11 @@ class SuiteEnvironment(object):
     @timer.run_timer
     def preproc_ncdump(self, fname, **kwargs):
         '''
-        Invoke NetCDF utility ncdump for reading file data
-        Arguments shold be provided in the form of a dictionary
+        Invoke netCDF utility ncdump for reading file data
+        Arguments should be provided in the form of a dictionary
         '''
 
-        cmd = self.nl.ncdump_path
+        cmd = self.naml.ncdump_path
         if not os.path.basename(cmd) == 'ncdump':
             cmd = os.path.join(cmd, 'ncdump')
 
@@ -279,7 +293,7 @@ class SuiteEnvironment(object):
     @timer.run_timer
     def preproc_ncrcat(self, infiles, **kwargs):
         '''
-        Invoke NetCDF utility ncrcat for concatenating records
+        Invoke netCDF utility ncrcat for concatenating records
         Arguments should be provided in the form of a dictionary
         '''
         try:
@@ -289,7 +303,7 @@ class SuiteEnvironment(object):
             msg = 'ncrcat: Cannot continue - output filename not provided'
             utils.log_msg(msg, level='ERROR')
 
-        cmd = self.nl.ncrcat_path
+        cmd = self.naml.ncrcat_path
         if not os.path.basename(cmd) == 'ncrcat':
             cmd = os.path.join(cmd, 'ncrcat')
 

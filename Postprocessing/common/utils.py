@@ -51,6 +51,7 @@ def loadEnv(*envars, **append):
                 'ARCHIVE_FINAL': 'ARCHIVE_FINAL=False',
                 'CYCLEPOINT_OVERRIDE': '',
                 'INITCYCLE_OVERRIDE': '',
+                'FINALCYCLE_OVERRIDE': '',
                 }
             if var in no_fail.keys():
                 log_msg(no_fail[var], level='INFO')

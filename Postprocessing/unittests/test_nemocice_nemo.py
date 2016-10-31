@@ -234,7 +234,8 @@ class RebuildTests(unittest.TestCase):
         self.nemo.rebuild_fileset('ShareDir', 'field')
         self.assertIn('only rebuilding periodic', func.capture().lower())
         self.assertIn('deleting component files', func.capture().lower())
-        mock_rm.assert_called_with(['file2_19990101_'], 'ShareDir')
+        mock_rm.assert_called_once_with(['file1_19990101_', 'file2_19990101_'],
+                                        path='ShareDir')
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
     @mock.patch('utils.get_subset')
@@ -242,12 +243,14 @@ class RebuildTests(unittest.TestCase):
     def test_rebuild_all(self, mock_attr, mock_subset, mock_nl):
         '''Test rebuild all function'''
         func.logtest('Assert rebuild all function:')
-        mock_subset.return_value = ['file_19980530_yyyymmdd_0000.nc',
+        mock_subset.side_effect = [['file_19980530_yyyymmdd_0000.nc',
                                     'file_19980630_yyyymmdd_0000.nc',
-                                    'file_19980730_yyyymmdd_0000.nc']
+                                    'file_19980730_yyyymmdd_0000.nc'],
+                                   ['f1_component1', 'f1_component2'],
+                                   ['f2_component1', 'f2_component2']]
         self.nemo.rebuild_fileset('SourceDir', 'field', rebuildall=True)
         mock_nl.assert_called_with('SourceDir', 'file_19980630_yyyymmdd',
-                                   1, omp=1)
+                                   2, omp=1)
         self.assertEqual(mock_attr.mock_calls, [])
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
@@ -256,12 +259,14 @@ class RebuildTests(unittest.TestCase):
     def test_rebuild_all_shortdate(self, mock_attr, mock_subset, mock_nl):
         '''Test rebuild all function - short date format'''
         func.logtest('Assert rebuild all function:')
-        mock_subset.return_value = ['file_199805_yyyymmdd_0000.nc',
+        mock_subset.side_effect = [['file_199805_yyyymmdd_0000.nc',
                                     'file_199806_yyyymmdd_0000.nc',
-                                    'file_199807_yyyymmdd_0000.nc']
+                                    'file_199807_yyyymmdd_0000.nc'],
+                                   ['f1_component1', 'f1_component2'],
+                                   ['f2_component1', 'f2_component2']]
         self.nemo.rebuild_fileset('SourceDir', 'field', rebuildall=True)
         mock_nl.assert_called_with('SourceDir', 'file_199806_yyyymmdd',
-                                   1, omp=1)
+                                   2, omp=1)
         self.assertEqual(mock_attr.mock_calls, [])
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
@@ -353,7 +358,7 @@ class RebuildTests(unittest.TestCase):
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
     @mock.patch('utils.get_subset')
-    def test_rebuild_rst_final_cycle(self, mock_subset, mock_nl):
+    def test_rebuild_rst_finalcycle(self, mock_subset, mock_nl):
         '''Test final cycle behaviour - deleting components of restarts'''
         func.logtest('Assert component files not deleted on final cycle:')
         mock_subset.side_effect = \
@@ -372,17 +377,24 @@ class RebuildTests(unittest.TestCase):
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
     @mock.patch('utils.get_subset')
     @mock.patch('utils.remove_files')
-    def test_rebuild_means_final_cycle(self, mock_rm, mock_subset, mock_nl):
+    def test_rebuild_means_finalcycle(self, mock_rm, mock_subset, mock_nl):
         '''Test final cycle behaviour - deleting components of means'''
         func.logtest('Assert component files not deleted on final cycle:')
-        mock_subset.return_value = ['file_11112233_mean1_0000.nc',
-                                    'file_11112233_mean2_0000.nc']
+        mock_subset.side_effect = [['file_11112233_mean1_0000.nc',
+                                    'file_11112233_mean2_0000.nc'],
+                                   ['mean1_c1', 'mean1_c2'],
+                                   ['mean2_c1', 'mean2_c2']]
         mock_nl.return_value = 0
         self.nemo.suite.finalcycle = True
         self.nemo.rebuild_fileset('SourceDir', 'mean', rebuildall=True)
-        mock_nl.assert_called_with('SourceDir', 'file_11112233_mean1', 1, omp=1)
+
         self.assertIn('deleting component files', func.capture().lower())
-        mock_rm.assert_called_with(['file_11112233_mean2_0000.nc'], 'SourceDir')
+        nl_calls = [mock.call('SourceDir', 'file_11112233_mean1', 2, omp=1),
+                    mock.call('SourceDir', 'file_11112233_mean2', 2, omp=1)]
+        self.assertListEqual(mock_nl.mock_calls, nl_calls)
+        rm_calls = [mock.call(['mean1_c1', 'mean1_c2'], path='SourceDir'),
+                    mock.call(['mean2_c1', 'mean2_c2'], path='SourceDir')]
+        self.assertListEqual(mock_rm.mock_calls, rm_calls)
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
     @mock.patch('utils.get_subset')
@@ -390,14 +402,15 @@ class RebuildTests(unittest.TestCase):
     def test_rebuild_diaptr_means(self, mock_attr, mock_subset, mock_nl):
         '''Test rebuild all function - diaptr means'''
         func.logtest('Assert rebuild all function - diaptr means:')
-        mock_subset.return_value = ['file_19980530_yyyymmdd_diaptr_0000.nc',
-                                    'file_19980630_yyyymmdd_diaptr_0000.nc']
+        mock_subset.side_effect = [['file_19980530_yyyymmdd_diaptr_0000.nc',
+                                    'file_19980630_yyyymmdd_diaptr_0000.nc'],
+                                   ['component_file1', 'component_file2']]
         self.nemo.rebuild_fileset('SourceDir', 'f_diaptr', rebuildall=True)
         mock_nl.assert_called_once_with('SourceDir',
                                         'file_19980530_yyyymmdd_diaptr',
-                                        1, omp=1)
+                                        2, omp=1)
         mock_attr.assert_called_once_with(
-            'SourceDir', ['file_19980630_yyyymmdd_diaptr_0000.nc']
+            'SourceDir', ['component_file1', 'component_file2']
             )
 
     @mock.patch('utils.exec_subproc')

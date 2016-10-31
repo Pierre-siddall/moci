@@ -441,6 +441,7 @@ rm -rf {{dir1}}
             NEMO_DATA  = $CYLC_SUITE_SHARE_DIR/data/postproc/NEMOdata
             CICE_DATA  = $CYLC_SUITE_SHARE_DIR/data/postproc/CICEdata
             INITCYCLE_OVERRIDE = '19811001T0000Z'
+            FINALCYCLE_OVERRIDE = '19830101T0000Z'
 
     [[PP_COUPLED_DUMMY]]
         inherit = None, POSTPROC
@@ -453,9 +454,6 @@ rm -rf {{dir1}}
         inherit=None, POSTPROC
         [[[environment]]]
             CYCLEPOINT_OVERRIDE = {{ CYCLEPOINT }}
-  {%- if cycle == 301 %}
-            ROSE_APP_OPT_CONF_KEYS = finalcycle
-  {%- endif %}
 
     [[{{'coupled_dummy_198%s01' % (cycle)}}]]
         inherit=None, PP_COUPLED_DUMMY

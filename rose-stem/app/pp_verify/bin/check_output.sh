@@ -29,6 +29,17 @@
 #             - hg3esi.iy.YYY2-11.nc -> hg3esi.1y.YYY1-12_YYY2-11.nc
 #   MOCI #108 - Change to NEMO/CICE output filenames in accordance with
 #               filenaming convention
+#   MOCI #130 - Added additional files archived in final cycle
+#               - hg3esa.ph19830101.pp, hg3esa.ph19830111.pp, hg3esa.ph19830121.pp
+#               - hg3eso_1m_19821201_19821230_grid_V.nc, hg3eso_1m_19830101_19830130_grid_V.nc
+#               - hg3esi.1m.1982-12.nc, hg3esi.1m.1983-01.nc
+#             - Added checks to ensure final restart files, incomplete fieldsfiles and
+#               components for future higher means remain on disk
+#               - hg3esa.da19830201_00, hg3esa.ph19830121, hg3esa.pj19821201
+#               - hg3eso_1m_19821201_19821230_grid_V.nc, hg3eso_1m_19830101_19830130_grid_V.nc,
+#                hg3eso_19830230_restart.nc, hg3eso_19830230_restart_0000.nc,
+#                hg3eso_19830230_restart_0001.nc, hg3eso_19830230_restart_0002.nc
+#               - hg3esi.1m.1982-12.nc, hg3esi.1m.1983-01.nc, hg3esi.restart.1983-02-01-00000
 #
 ###############################################################################
 
@@ -47,7 +58,8 @@ hg3esa.da19820901_00
 hg3esa.da19821001_00
 hg3esa.da19821101_00
 hg3esa.da19821201_00
-hg3esa.da19830101_00"
+hg3esa.da19830101_00
+hg3esa.da19830201_00"
 
 apm="
 hg3esa.pm1981oct.pp
@@ -119,13 +131,23 @@ hg3esa.ph19821101.pp
 hg3esa.ph19821111.pp
 hg3esa.ph19821121.pp
 hg3esa.ph19821201.pp
-hg3esa.ph19821211.pp"
+hg3esa.ph19821211.pp
+hg3esa.ph19821221.pp
+hg3esa.ph19830101.pp
+hg3esa.ph19830111.pp
+hg3esa.ph19830121.pp"
 
 apj="
 a.pj19811201
 a.pj19820301
 a.pj19820601
-a.pj19820901"
+a.pj19820901
+a.pj19821201"
+
+afinal="
+hg3esa.da19830201_00
+hg3esa.ph19830121
+hg3esa.pj19821201"
 
 ipd="
 cice_hg3esi_10d_19811001-19811011.nc
@@ -185,7 +207,10 @@ cice_hg3esi_1m_19820601-19820701.nc
 cice_hg3esi_1m_19820701-19820801.nc
 cice_hg3esi_1m_19820801-19820901.nc
 cice_hg3esi_1m_19820901-19821001.nc
-cice_hg3esi_1m_19821001-19821101.nc"
+cice_hg3esi_1m_19821001-19821101.nc
+cice_hg3esi_1m_19821101-19821201.nc
+cice_hg3esi_1m_19821201-19830101.nc
+cice_hg3esi_1m_19830101-19830201.nc"
 
 ips="
 cice_hg3esi_1s_19811201-19820301.nc
@@ -198,7 +223,13 @@ ipy="cice_hg3esi_1y_19811201-19821201.nc"
 idumps="
 hg3esi.restart.1981-12-01-00000
 hg3esi.restart.1982-06-01-00000
-hg3esi.restart.1982-12-01-00000"
+hg3esi.restart.1982-12-01-00000
+hg3esi.restart.1983-02-01-00000"
+
+ifinal="
+cice_hg3esi_1m_19821201-19830101.nc
+cice_hg3esi_1m_19830101-19830201.nc
+hg3esi.restart.1983-02-01-00000"
 
 opd=""
 
@@ -216,10 +247,10 @@ nemo_hg3eso_1m_19820701-19820801_grid-V.nc
 nemo_hg3eso_1m_19820801-19820901_grid-V.nc
 nemo_hg3eso_1m_19820901-19821001_grid-V.nc
 nemo_hg3eso_1m_19821001-19821101_grid-V.nc
-nemo_hg3eso_1m_19821101-19821201_grid-V.nc"
+nemo_hg3eso_1m_19821101-19821201_grid-V.nc
+nemo_hg3eso_1m_19821201-19830101_grid-V.nc
+nemo_hg3eso_1m_19830101-19830201_grid-V.nc"
 
-#1st seasonal mean removed since MOCI #62 - start date moved to October
-#hg3eso_1s_19810901_19811130_grid_V.nc
 ops="
 nemo_hg3eso_1s_19811201-19820301_grid-V.nc 
 nemo_hg3eso_1s_19820301-19820601_grid-V.nc
@@ -232,7 +263,16 @@ nemo_hg3eso_1y_19811201-19821201_grid-V.nc"
 odumps="
 hg3eso_19811130_restart.nc
 hg3eso_19820530_restart.nc
-hg3eso_19821130_restart.nc"
+hg3eso_19821130_restart.nc
+hg3eso_19830230_restart.nc"
+
+ofinal="
+nemo_hg3eso_1m_19821201-19830101_grid-V.nc
+nemo_hg3eso_1m_19830101-19830201_grid-V.nc
+hg3eso_19830230_restart.nc
+hg3eso_19830230_restart_0000.nc
+hg3eso_19830230_restart_0001.nc
+hg3eso_19830230_restart_0002.nc"
 
 CYLC_SUITE_LOG_DIR=${CYLC_SUITE_LOG_DIR:-$HOME/cylc-run/test_postproc/log/suite}
 logfile=job/1/postproc_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/[0-9][0-9]/job-arch*.log
@@ -259,6 +299,22 @@ for fn in $adumps $aph $apj $apm $apm $aps $apy; do
     fi
 done
 
+atmosdisk=$(ls $CYLC_SUITE_SHARE_DIR/data/postproc/ATMOSdata)
+for fn in $afinal; do
+    match=false
+    for ondisk in $atmosdisk; do
+	if [[ "$ondisk" == "$fn" ]]; then
+	    match=true
+	    break
+	fi
+    done
+    if ! $match; then
+	echo "[FAIL] File not on disk: $fn"
+        RC=$((RC + 1111))
+    fi
+done
+
+echo
 echo "[INFO] Checking NEMO output all present and correct..."
 for fn in $odumps $opd $opm $ops $opy; do
     if [[ "$search" != *"$fn WOULD BE ARCHIVED"* ]] && [[ "$search" != *"$fn ARCHIVE OK"* ]]; then 
@@ -275,6 +331,22 @@ for fn in $odumps $opd $opm $ops $opy; do
     fi
 done
 
+nemodisk=$(ls $CYLC_SUITE_SHARE_DIR/data/postproc/NEMOdata)
+for fn in $ofinal; do
+    match=false
+    for ondisk in $nemodisk; do
+	if [[ "$ondisk" == "$fn" ]]; then
+	    match=true
+	    break
+	fi
+    done
+    if ! $match; then
+	echo "[FAIL] File not on disk: $fn"
+	RC=$((RC + 2222))
+    fi
+done
+
+echo
 echo "[INFO] Checking CICE output all present and correct..."
 for fn in $idumps $ipd $ipm $ips $ipy; do
     if [[ "$search" != *"$fn WOULD BE ARCHIVED"* ]] && [[ "$search" != *"$fn ARCHIVE OK"* ]]; then 
@@ -289,6 +361,21 @@ for fn in $idumps $ipd $ipm $ips $ipy; do
         echo "[FAIL] File not archived - does not exist: $fn"
         RC=$((RC + 333))
     fi
+done
+
+cicedisk=$(ls $CYLC_SUITE_SHARE_DIR/data/postproc/CICEdata)
+for fn in $ifinal; do
+    match=false
+    for ondisk in $cicedisk; do
+	if [[ "$ondisk" == "$fn" ]]; then
+	    match=true
+	    break
+	fi
+    done
+    if ! $match; then
+	echo "[FAIL] File not on disk: $fn"
+	RC=$((RC + 3333))
+    fi  
 done
 
 exit $RC

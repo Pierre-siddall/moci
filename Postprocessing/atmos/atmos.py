@@ -52,17 +52,20 @@ class AtmosPostProc(control.RunPostProc):
             Check WORK and SHARE directories exist
             Determine dumpname for final cycle: archived but not deleted
         '''
-        self.nl = nlist.loadNamelist(input_nl)
+        self.naml = nlist.loadNamelist(input_nl)
         self.convpp_streams = self._convpp_streams
 
         if self.runpp:
 
             self.envars = utils.loadEnv('CYLC_SUITE_WORK_DIR',
                                         'MODELBASIS')
-            self.share = self._directory(self.nl.atmospp.share_directory,
+            self.share = self._directory(self.naml.atmospp.share_directory,
                                          'ATMOS SHARE')
             self.suite = suite.SuiteEnvironment(self.share, input_nl)
             self.work = self._directory(self._work, 'ATMOS WORK')
+
+            self.ff_pattern = r'^{}a\.[pm][{{}}]'.format(self.suite.prefix) + \
+                r'\d{{4}}(\d{{4}}|\w{{3}})(\.pp)?(\.arch)?$'
 
             if self.suite.finalcycle:
                 dumpdate = utils.add_period_to_date(self.suite.cycledt,
@@ -72,7 +75,7 @@ class AtmosPostProc(control.RunPostProc):
                 self.final_dumpname = None
 
             # Initialise debug mode - calling base class method
-            self._debug_mode(debug=self.nl.atmospp.debug)
+            self._debug_mode(debug=self.naml.atmospp.debug)
 
     @property
     def runpp(self):
@@ -80,7 +83,7 @@ class AtmosPostProc(control.RunPostProc):
         Logical - Run postprocessing for UM Atmosphere
         Set via the atmospp namelist
         '''
-        return self.nl.atmospp.pp_run
+        return self.naml.atmospp.pp_run
 
     @property
     def methods(self):
@@ -88,9 +91,12 @@ class AtmosPostProc(control.RunPostProc):
         Returns a dictionary of methods available for this model to the
         main program
         '''
-        return OrderedDict([('do_archive', self.nl.archiving.archive_switch),
-                            ('do_delete', self.nl.delete_sc.del_switch),
-                            ('finalise_debug', self.nl.atmospp.debug)])
+        return OrderedDict([('do_archive', self.naml.archiving.archive_switch),
+                            ('do_delete', self.naml.delete_sc.del_switch),
+                            ('finalcycle_archive',
+                             self.naml.archiving.archive_switch and
+                             self.suite.finalcycle),
+                            ('finalise_debug', self.naml.atmospp.debug)])
 
     @property
     def _work(self):
@@ -104,8 +110,8 @@ class AtmosPostProc(control.RunPostProc):
         '''
         Returns a regular expression for the fieldsfile
         instantaneous streams to process'''
-        if self.nl.archiving.process_streams:
-            streams = self.nl.archiving.process_streams
+        if self.naml.archiving.process_streams:
+            streams = self.naml.archiving.process_streams
         else:
             streams = '1-9a-lp-rt-xz'
         return streams
@@ -113,8 +119,8 @@ class AtmosPostProc(control.RunPostProc):
     @property
     def means(self):
         'Returns a regular expression for the fieldsfile means to process'
-        if self.nl.archiving.process_means:
-            means = self.nl.archiving.process_means
+        if self.naml.archiving.process_means:
+            means = self.naml.archiving.process_means
         else:
             means = 'msy'
         return means
@@ -125,7 +131,7 @@ class AtmosPostProc(control.RunPostProc):
         Calculate the regular expression required to find files
         which should be converted to pp format
         '''
-        fstreams = self.nl.archiving.archive_as_fieldsfiles
+        fstreams = self.naml.archiving.archive_as_fieldsfiles
         if fstreams:
             if isinstance(fstreams, list):
                 fstreams = '^'.join(fstreams)
@@ -141,30 +147,77 @@ class AtmosPostProc(control.RunPostProc):
         return '{0}a.da{1:0>4d}{2:0>2d}{3:0>2d}_{4:0>2d}'.\
             format(self.suite.prefix, *dumpdate)
 
-    @timer.run_timer
-    def get_marked_files(self):
-        '''Returns a list of fieldsfiles marked as available for archiving'''
-        archfiles = []
-        archdumps = []
-        suffix = '.arch'
-        archfiles += utils.get_subset(
-            self.work,
-            r'^{}a\.[pm][{}].*{}$'.format(self.suite.prefix,
-                                          self.streams + self.means, suffix)
-            )
-        archdumps += utils.get_subset(
-            self.work, r'^{}a\.da.*{}$'.format(self.suite.prefix, suffix)
-            )
-        archpp = list(set(archfiles) - set(archdumps))
-        return [pp[:-len(suffix)] for pp in archpp]
+    def dumps_to_archive(self, log_file):
+        '''Returns a list of dump files to archive'''
+        arch_dumps = []
+        dump_files = validation.make_dump_name(self) if \
+            self.naml.archiving.archive_dumps else []
+
+        for fname in dump_files:
+            fnfull = os.path.join(self.share, fname)
+            if os.path.exists(fnfull):
+                # Header verification required
+                if validation.verify_header(
+                        self.naml.atmospp, fnfull, log_file,
+                        self.suite.envars.CYLC_TASK_LOG_ROOT
+                    ):
+                    arch_dumps.append(fname)
+            else:
+                # Dump file was probably archived by a previous instance
+                # of the app at this cycle
+                pass
+
+        return arch_dumps
 
     @timer.run_timer
-    def do_archive(self):
+    def pp_to_archive(self, log_file, finalcycle):
+        '''Returns a list of [fields|pp]files to archive'''
+        arch_pp = []
+        if self.naml.archiving.archive_pp:
+            datadir = self.share if finalcycle else self.work
+            suffix = '' if finalcycle else '.arch'
+            patt = self.ff_pattern.format(self.streams + self.means)
+            ppfiles = housekeeping.get_marked_files(datadir, patt, suffix)
+        else:
+            ppfiles = []
+
+        for fname in ppfiles:
+            fnfull = os.path.join(self.share, fname)
+            if os.path.exists(fnfull):
+                # Header verification required
+                if validation.verify_header(
+                        self.naml.atmospp, fnfull, log_file,
+                        self.suite.envars.CYLC_TASK_LOG_ROOT
+                    ):
+                    # Convert fieldsfile to pp if required
+                    convert_to_pp = re.match(
+                        self.ff_pattern.format(self.convpp_streams), fname
+                        )
+                    if self.naml.archiving.convert_pp and convert_to_pp:
+                        fnfull = housekeeping.convert_to_pp(
+                            fnfull,
+                            self.naml.atmospp.um_utils,
+                            finalcycle is True
+                            )
+                    arch_pp.append(fnfull)
+
+            elif os.path.exists(fnfull + '.pp'):
+                # Tidy up any ppfiles left from previous failed archive attempts
+                arch_pp.append(fnfull + '.pp')
+
+            else:
+                msg = 'File to be archived {} does not exist'.format(fnfull)
+                utils.log_msg(msg, level='WARN')
+
+        return arch_pp
+
+    @timer.run_timer
+    def do_archive(self, finalcycle=False):
         '''
         Function to collate the files to archive and pass them to the
-        MOOSE archiving script. Owing to the requirements for the pp files
-        and dump files this function will consider them separately.
-    '''
+        archiving script.
+        Optional argument: finalcycle=True when called from finalcycle_archive.
+        '''
         # Open our log files
         action = 'a' if os.path.exists(self.suite.logfile) else 'w'
         try:
@@ -173,41 +226,12 @@ class AtmosPostProc(control.RunPostProc):
             utils.log_msg('Failed to open archive log file', level='FAIL')
 
         # Get files to archive
-        pp_to_archive = self.get_marked_files() if \
-            self.nl.archiving.archive_pp else []
-        dumps_to_archive = validation.make_dump_name(self) if \
-            self.nl.archiving.archive_dumps else []
-        convert_pattern = re.compile(r'^{}a.[pm][{}]\d{{4}}.*$'.
-                                     format(self.suite.prefix,
-                                            self.convpp_streams))
+        files_to_archive = self.pp_to_archive(log_file, finalcycle)
+        if not finalcycle:
+            # Dumps are archived by first call to do_archive during final cycle
+            files_to_archive += self.dumps_to_archive(log_file)
 
-        files_to_archive = []
-        for fname in pp_to_archive + dumps_to_archive:
-            # Perform the header verification on each file
-            fnfull = os.path.join(self.share, fname)
-            if os.path.exists(fnfull):
-                if validation.verify_header(self.nl.atmospp, fnfull, log_file,
-                                            self.suite.envars.
-                                            CYLC_TASK_LOG_ROOT):
-                    if self.nl.archiving.convert_pp and \
-                            convert_pattern.match(fname):
-                        # Convert fieldsfiles to pp format
-                        fnfull = housekeeping.convert_to_pp(
-                            fnfull, self.share, self.nl.atmospp.um_utils
-                            )
-                    files_to_archive.append(fnfull)
-                else:
-                    self.suite.archiveOK = False
-
-            elif os.path.exists(fnfull + '.pp'):
-                # Tidy up any ppfiles left from previous failed archive attempts
-                files_to_archive.append(fnfull + '.pp')
-
-            else:
-                msg = 'File {} does not exist - cannot archive'.format(fnfull)
-                utils.log_msg(msg, level='WARN')
-                msg = fnfull + ' FILE NOT ARCHIVED. File does not exist\n'
-                log_file.write(msg)
+        log_file.close()
 
         # Perform the archiving
         if files_to_archive:
@@ -216,18 +240,32 @@ class AtmosPostProc(control.RunPostProc):
             utils.log_msg(msg)
 
             for fname in files_to_archive:
-                convpp = bool(convert_pattern.match(os.path.basename(fname)))
-                self.suite.archive_file(fname, logfile=log_file,
-                                        preproc=convpp)
+                # convpp should be True when the ffile is to be archived as pp
+                convpp = self.naml.archiving.convert_pp and \
+                    re.match(self.ff_pattern.format(self.convpp_streams),
+                             os.path.basename(fname))
+                rcode = self.suite.archive_file(fname, preproc=bool(convpp))
+                if finalcycle and fname.endswith('pp') and rcode == 0:
+                    if utils.get_debugmode():
+                        os.rename(fname, fname + '_ARCHIVED')
+                    else:
+                        utils.remove_files(fname)
+
         else:
             utils.log_msg(' -> Nothing to archive')
 
-        log_file.close()
+    @timer.run_timer
+    def finalcycle_archive(self):
+        '''
+        Archive but do not delete potentially incomplete fieldsfiles left
+        on disk at the completion of the final cycle.
+        '''
+        self.do_archive(finalcycle=True)
 
     @timer.run_timer
     def do_delete(self):
         '''Delete superseded or archived dumps and pp output'''
-        archived = self.nl.archiving.archive_switch
+        archived = self.naml.archiving.archive_switch
         dump = pp_inst = pp_mean = None
 
         if archived:

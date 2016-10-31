@@ -569,14 +569,19 @@ class ArchiveTests(unittest.TestCase):
         self.model.periodset = mock.Mock(return_value=['file1', 'file2'])
         self.model.get_date = mock.Mock(return_value=('1996', '05', '01'))
         self.model.timestamps = mock.Mock()
+        self.model.component = mock.Mock(return_value='component')
 
         self.model.suite = mock.Mock()
+        self.model.suite.finalcycle = False
         self.model.suite.archive_file.return_value = 0
+
+        self.all_stencil = {'All': lambda a: '{}{}$'.format(a.base, a.custom)}
 
     def tearDown(self):
         for fname in ['12h_field1', '10d_field1', 'xd_field2',
                       os.path.join(self.model.meansdir, 'runid_xd_field1.nc'),
-                      os.path.join(self.model.meansdir, 'runid_xd_field2.nc')]:
+                      os.path.join(self.model.meansdir, 'runid_xd_field2.nc'),
+                      '1m_field1', '1s_field1', '1y_field2', '1x_field2']:
             try:
                 os.remove(fname)
             except OSError:
@@ -594,6 +599,13 @@ class ArchiveTests(unittest.TestCase):
         self.model.naml.buffer_archive = 5
         self.assertEqual(self.model.buffer_archive, 5)
 
+    def test_buffer_archive_finalcycle(self):
+        '''Test return of archive buffer property - final cycle'''
+        func.logtest('Assert return of archive buffer - final cycle:')
+        self.model.naml.buffer_archive = 5
+        self.model.suite.finalcycle = True
+        self.assertEqual(self.model.buffer_archive, 0)
+
     @mock.patch('utils.remove_files')
     def test_archive_means(self, mock_rm):
         '''Test archive means function'''
@@ -601,9 +613,11 @@ class ArchiveTests(unittest.TestCase):
         self.model.archive_files = mock.Mock()
         self.model.archive_files.side_effect = [{'file1': 'SUCCESS'},
                                                 {'file2': 'SUCCESS'}]
-        with mock.patch('modeltemplate.ModelTemplate.additional_means',
-                        new_callable=mock.PropertyMock, return_value=[]):
-            self.model.archive_means()
+        with mock.patch('modeltemplate.ModelTemplate.model_realm',
+                        new_callable=mock.PropertyMock, return_value='x'):
+            with mock.patch('modeltemplate.ModelTemplate.additional_means',
+                            new_callable=mock.PropertyMock, return_value=[]):
+                self.model.archive_means()
 
         self.assertListEqual(mock_rm.mock_calls,
                              [mock.call('file1', path=os.getcwd()),
@@ -619,9 +633,12 @@ class ArchiveTests(unittest.TestCase):
         self.model.archive_files = mock.Mock()
         self.model.archive_files.side_effect = [{'file1': 'SUCCESS'},
                                                 {'file2': 'SUCCESS'}]
-        with mock.patch('modeltemplate.ModelTemplate.additional_means',
-                        new_callable=mock.PropertyMock, return_value=[]):
-            self.model.archive_means()
+
+        with mock.patch('modeltemplate.ModelTemplate.model_realm',
+                        new_callable=mock.PropertyMock, return_value='x'):
+            with mock.patch('modeltemplate.ModelTemplate.additional_means',
+                            new_callable=mock.PropertyMock, return_value=[]):
+                self.model.archive_means()
 
         infiles = [os.path.join(os.getcwd(), fn) for fn in ['file1', 'file2']]
         outfiles = [fn + '_ARCHIVED' for fn in infiles]
@@ -649,8 +666,9 @@ class ArchiveTests(unittest.TestCase):
             open(fname, 'w').close()
         self.model.fields = ('field1', 'field2')
         self.model.naml.means_to_archive = []
-
-        self.model.archive_means()
+        with mock.patch('modeltemplate.ModelTemplate.model_realm',
+                        new_callable=mock.PropertyMock, return_value='x'):
+            self.model.archive_means()
         self.assertListEqual(self.model.archive_files.mock_calls,
                              [mock.call(files[0]), mock.call(files[1])])
 
@@ -670,13 +688,12 @@ class ArchiveTests(unittest.TestCase):
         for fname in files:
             open(fname, 'w').close()
 
-        all_stencil = {'All': lambda a: '{}_{}'.format(a.base, a.custom)}
         with mock.patch('modeltemplate.ModelTemplate.model_realm',
                         new_callable=mock.PropertyMock,
                         return_value='x'):
             with mock.patch('modeltemplate.ModelTemplate.mean_stencil',
                             new_callable=mock.PropertyMock,
-                            return_value=all_stencil):
+                            return_value=self.all_stencil):
                 self.model.archive_means()
 
         self.model.archive_files.assert_called_once_with('12h_field1')
@@ -684,7 +701,37 @@ class ArchiveTests(unittest.TestCase):
         self.assertTrue(os.path.exists('10d_field1'))
         self.assertTrue(os.path.exists('xd_field2'))
 
-    def test_archive_means_compress(self):
+    def test_archive_means_finalcycle(self):
+        '''Test archive additional means for archive - final cycle'''
+        func.logtest('Assert list of means to archive - final cycle:')
+        self.model.suite.finalcycle = True
+        self.model.archive_files = mock.Mock()
+        self.model.archive_files.side_effect = [{'1m_field1': 'SUCCESS'},
+                                                {'1s_field1': 'SUCCESS'},
+                                                {'1y_field2': 'SUCCESS'},
+                                                {'1x_field2': 'SUCCESS'}]
+        self.model.periodset.return_value = []
+        files = ['1m_field1', '1s_field1', '1y_field2', '1x_field2']
+        for fname in files:
+            open(fname, 'w').close()
+        self.model.fields = ('field1', 'field2')
+
+        with mock.patch('modeltemplate.ModelTemplate.model_realm',
+                        new_callable=mock.PropertyMock, return_value='x'):
+            with mock.patch('modeltemplate.ModelTemplate.mean_stencil',
+                            new_callable=mock.PropertyMock,
+                            return_value=self.all_stencil):
+                self.model.archive_means()
+
+        self.assertListEqual(self.model.archive_files.mock_calls,
+                             [mock.call(files[0]), mock.call(files[1]),
+                              mock.call(files[2])])
+        for fname in files:
+            func.logtest('Asserting existence of {}...'.format(fname))
+            self.assertTrue(os.path.exists(fname))
+
+    @mock.patch('utils.remove_files')
+    def test_archive_means_compress(self, mock_rm):
         '''Test archive means with compression'''
         func.logtest('Assert compression of archived means:')
         self.model.archive_files = mock.Mock()
@@ -692,13 +739,15 @@ class ArchiveTests(unittest.TestCase):
                                                 {'file2': 'SUCCESS'}]
         self.model.naml.compression_level = 5
         self.model.compress_file = mock.Mock(return_value=0)
-        with mock.patch('modeltemplate.ModelTemplate.additional_means',
-                        new_callable=mock.PropertyMock, return_value=[]):
-            with mock.patch('utils.remove_files') as mock_rm:
+        with mock.patch('modeltemplate.ModelTemplate.model_realm',
+                        new_callable=mock.PropertyMock, return_value='x'):
+            with mock.patch('modeltemplate.ModelTemplate.additional_means',
+                            new_callable=mock.PropertyMock, return_value=[]):
                 self.model.archive_means()
-                self.assertListEqual(mock_rm.mock_calls,
-                                     [mock.call('file1', path=os.getcwd()),
-                                      mock.call('file2', path=os.getcwd())])
+
+        self.assertListEqual(mock_rm.mock_calls,
+                             [mock.call('file1', path=os.getcwd()),
+                              mock.call('file2', path=os.getcwd())])
         self.assertListEqual(self.model.archive_files.mock_calls,
                              [mock.call('file1'), mock.call('file2')])
         call_compress = [mock.call('file1', self.model.naml.compress_means),
@@ -711,9 +760,11 @@ class ArchiveTests(unittest.TestCase):
         self.model.archive_files = mock.Mock()
         self.model.naml.compression_level = 5
         self.model.compress_file = mock.Mock(return_value=99)
-        with mock.patch('modeltemplate.ModelTemplate.additional_means',
-                        new_callable=mock.PropertyMock, return_value=[]):
-            self.model.archive_means()
+        with mock.patch('modeltemplate.ModelTemplate.model_realm',
+                        new_callable=mock.PropertyMock, return_value='x'):
+            with mock.patch('modeltemplate.ModelTemplate.additional_means',
+                            new_callable=mock.PropertyMock, return_value=[]):
+                self.model.archive_means()
         self.assertListEqual(self.model.archive_files.mock_calls, [])
         call_compress = [mock.call('file1', self.model.naml.compress_means),
                          mock.call('file2', self.model.naml.compress_means)]
@@ -726,29 +777,43 @@ class ArchiveTests(unittest.TestCase):
         self.model.archive_files = mock.Mock()
         self.model.archive_files.side_effect = [{'file1': 'SUCCESS'},
                                                 {'file2': 'FAILED'}]
-        with mock.patch('modeltemplate.ModelTemplate.additional_means',
-                        new_callable=mock.PropertyMock, return_value=[]):
-            self.model.archive_means()
+        with mock.patch('modeltemplate.ModelTemplate.model_realm',
+                        new_callable=mock.PropertyMock, return_value='x'):
+            with mock.patch('modeltemplate.ModelTemplate.additional_means',
+                            new_callable=mock.PropertyMock, return_value=[]):
+                self.model.archive_means()
         mock_rm.assert_called_once_with('file1', path=os.getcwd())
 
     def test_no_means_to_archive(self):
         '''Test report with no means to archive'''
         func.logtest('Assert report with no means to archive:')
         self.model.periodset.return_value = []
-        with mock.patch('modeltemplate.ModelTemplate.additional_means',
-                        new_callable=mock.PropertyMock, return_value=[]):
-            self.model.archive_means()
+        with mock.patch('modeltemplate.ModelTemplate.model_realm',
+                        new_callable=mock.PropertyMock, return_value='x'):
+            with mock.patch('modeltemplate.ModelTemplate.additional_means',
+                            new_callable=mock.PropertyMock, return_value=[]):
+                self.model.archive_means()
         self.assertIn('Nothing to archive', func.capture())
 
-    def test_archive_restarts(self):
+    @mock.patch('utils.remove_files')
+    def test_archive_restarts(self, mock_rm):
         '''Test archive restarts function'''
         func.logtest('Assert list of restart files to archive:')
         self.model.timestamps.return_value = True
-        with mock.patch('utils.remove_files') as mock_rm:
-            self.model.archive_restarts()
-            mock_rm.assert_called_with(['file2', 'file1'],
-                                       os.getcwd())
+        self.model.archive_restarts()
+        mock_rm.assert_called_once_with(['file2', 'file1'], path=os.getcwd())
         self.assertNotIn('Only archiving periodic', func.capture())
+
+    @mock.patch('utils.remove_files')
+    def test_archive_restarts_final(self, mock_rm):
+        '''Test archive restarts function - finalcycle'''
+        func.logtest('Assert restart files to archive - final cycle:')
+        self.model.timestamps.return_value = False
+        self.model.suite.finalcycle = True
+        self.model.archive_restarts()
+        self.assertListEqual(mock_rm.mock_calls,
+                             [mock.call('file1', path=os.getcwd()),
+                              mock.call([], path=os.getcwd())])
 
     def test_archive_restarts_debug(self):
         '''Test archive restarts function - debug mode'''
@@ -791,7 +856,7 @@ class ArchiveTests(unittest.TestCase):
             }
         with mock.patch('utils.remove_files') as mock_rm:
             self.model.archive_restarts()
-            mock_rm.assert_called_with(['file1'], os.getcwd())
+            mock_rm.assert_called_with(['file1'], path=os.getcwd())
 
     def test_archive_single_file(self):
         '''Test archive a single file'''

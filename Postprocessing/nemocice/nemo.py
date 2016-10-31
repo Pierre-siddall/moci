@@ -132,8 +132,11 @@ class NemoPostProc(mt.ModelTemplate):
 
     def buffer_rebuild(self, filetype):
         '''Returns the rebuild buffer for the given filetype'''
-        buffer_rebuild = getattr(self.naml, 'buffer_rebuild_' + filetype)
-        return buffer_rebuild if buffer_rebuild else 0
+        if self.suite.finalcycle:
+            buffer_rebuild = 0
+        else:
+            buffer_rebuild = getattr(self.naml, 'buffer_rebuild_' + filetype)
+        return buffer_rebuild
 
     @timer.run_timer
     def move_to_share(self, pattern=None):
@@ -168,10 +171,13 @@ class NemoPostProc(mt.ModelTemplate):
     @timer.run_timer
     def rebuild_fileset(self, datadir, filetype, rebuildall=False):
         '''Rebuild partial files for given filetype'''
+        keep_components = False
         bldfiles = utils.get_subset(
             datadir,
             r'^.*{}{}$'.format(filetype, self.rebuild_suffix['ZERO'])
             )
+        bldfiles = sorted(bldfiles)
+
         buff = self.buffer_rebuild('rst') if \
             'restart' in filetype else self.buffer_rebuild('mean')
         rebuild_required = len(bldfiles) > buff
@@ -185,6 +191,12 @@ class NemoPostProc(mt.ModelTemplate):
 
             if 'diaptr' in filetype:
                 self.global_attr_to_zonal(datadir, bldset)
+
+            if self.suite.finalcycle and len(bldfiles) == 0 and \
+                    'restart' in filetype:
+                # Final restart file - Rebuild regardless of timestamp
+                #                    - Do not delete components
+                rebuildall = keep_components = True
 
             coredate = self.get_date(corename)
             if self.timestamps(coredate[1],
@@ -200,10 +212,10 @@ class NemoPostProc(mt.ModelTemplate):
                 icode = 0
 
             if icode == 0:
-                if not self.suite.finalcycle or 'restart' not in corename:
+                if not keep_components:
                     utils.log_msg('Deleting component files for: ' + corename,
                                   level='INFO')
-                    utils.remove_files(bldset, datadir)
+                    utils.remove_files(bldset, path=datadir)
 
         if bldfiles and not rebuild_required:
             msg = 'Nothing to rebuild - {} {} files available ' \

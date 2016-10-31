@@ -29,6 +29,7 @@ def setup_env():
     os.environ['CYLC_TASK_WORK_DIR'] = os.getcwd()
     os.environ['CYLC_TASK_LOG_ROOT'] = os.getcwd() + '/job'
     os.environ['CYLC_SUITE_INITIAL_CYCLE_POINT'] = '19950821T0000Z'
+    os.environ['CYLC_SUITE_FINAL_CYCLE_POINT'] = '19950901T0000Z'
     os.environ['CYLC_TASK_CYCLE_POINT'] = '20000121T0000Z'
 
     # Standard UM Setup Environment
