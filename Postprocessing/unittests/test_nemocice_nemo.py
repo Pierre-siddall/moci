@@ -20,8 +20,6 @@ import mock
 import testing_functions as func
 import runtime_environment
 
-import utils
-
 # Import of nemo requires 'RUNID' from runtime environment
 # Import of nemoNamelist requires 'DATAM' from runtime environment
 runtime_environment.setup_env()
@@ -151,7 +149,6 @@ class RebuildTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
-        utils.set_debugmode(False)
 
     def test_call_rebuild_restarts(self):
         '''Test call to rebuild_restarts method'''
@@ -209,7 +206,7 @@ class RebuildTests(unittest.TestCase):
         self.assertEqual(self.defaults.buffer_rebuild_rst, self.buffer_rst)
         self.assertEqual(self.defaults.buffer_rebuild_mean, self.buffer_mean)
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('nemo.utils.get_subset')
     def test_rbld_restart_not_required(self, mock_subset):
         '''Test rebuild restarts function retaining all files'''
         func.logtest('Assert restart files fewer than buffer are retained:')
@@ -217,7 +214,7 @@ class RebuildTests(unittest.TestCase):
         self.nemo.rebuild_fileset('ShareDir', 'restart')
         self.assertIn('{} retained'.format(self.buffer_rst), func.capture())
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('nemo.utils.get_subset')
     def test_rebuild_mean_not_required(self, mock_subset):
         '''Test rebuild means function retaining all files'''
         func.logtest('Assert means files fewer than buffer (1) are retained:')
@@ -225,8 +222,8 @@ class RebuildTests(unittest.TestCase):
         self.nemo.rebuild_fileset('ShareDir', 'field')
         self.assertIn('{} retained'.format(self.buffer_mean), func.capture())
 
-    @mock.patch('utils.remove_files')
-    @mock.patch('utils.get_subset')
+    @mock.patch('nemo.utils.remove_files')
+    @mock.patch('nemo.utils.get_subset')
     def test_rebuild_periodic_only(self, mock_subset, mock_rm):
         '''Test rebuild function for periodic files not found'''
         func.logtest('Assert only periodic files are rebuilt:')
@@ -238,7 +235,7 @@ class RebuildTests(unittest.TestCase):
                                         path='ShareDir')
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
-    @mock.patch('utils.get_subset')
+    @mock.patch('nemo.utils.get_subset')
     @mock.patch('nemo.NemoPostProc.global_attr_to_zonal')
     def test_rebuild_all(self, mock_attr, mock_subset, mock_nl):
         '''Test rebuild all function'''
@@ -254,7 +251,7 @@ class RebuildTests(unittest.TestCase):
         self.assertEqual(mock_attr.mock_calls, [])
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
-    @mock.patch('utils.get_subset')
+    @mock.patch('nemo.utils.get_subset')
     @mock.patch('nemo.NemoPostProc.global_attr_to_zonal')
     def test_rebuild_all_shortdate(self, mock_attr, mock_subset, mock_nl):
         '''Test rebuild all function - short date format'''
@@ -357,7 +354,7 @@ class RebuildTests(unittest.TestCase):
             os.remove(fname)
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
-    @mock.patch('utils.get_subset')
+    @mock.patch('nemo.utils.get_subset')
     def test_rebuild_rst_finalcycle(self, mock_subset, mock_nl):
         '''Test final cycle behaviour - deleting components of restarts'''
         func.logtest('Assert component files not deleted on final cycle:')
@@ -375,8 +372,8 @@ class RebuildTests(unittest.TestCase):
         self.assertNotIn('deleting component files', func.capture().lower())
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
-    @mock.patch('utils.get_subset')
-    @mock.patch('utils.remove_files')
+    @mock.patch('nemo.utils.get_subset')
+    @mock.patch('nemo.utils.remove_files')
     def test_rebuild_means_finalcycle(self, mock_rm, mock_subset, mock_nl):
         '''Test final cycle behaviour - deleting components of means'''
         func.logtest('Assert component files not deleted on final cycle:')
@@ -399,7 +396,7 @@ class RebuildTests(unittest.TestCase):
         self.assertListEqual(mock_rm.mock_calls, rm_calls)
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
-    @mock.patch('utils.get_subset')
+    @mock.patch('nemo.utils.get_subset')
     @mock.patch('nemo.NemoPostProc.global_attr_to_zonal')
     def test_rebuild_diaptr_means(self, mock_attr, mock_subset, mock_nl):
         '''Test rebuild all function - diaptr means'''
@@ -415,14 +412,14 @@ class RebuildTests(unittest.TestCase):
             'SourceDir', ['component_file1', 'component_file2']
             )
 
-    @mock.patch('utils.exec_subproc')
-    @mock.patch('os.path.isfile')
+    @mock.patch('nemo.utils.exec_subproc')
+    @mock.patch('nemo.os.path.isfile')
     def test_rebuild_namelist(self, mock_isfile, mock_exec):
         '''Test rebuild namelist function'''
         func.logtest('Assert behaviour of rebuild_namelist function:')
         mock_exec.return_value = (0, '')
         mock_isfile.return_value = True
-        with mock.patch('os.remove'):
+        with mock.patch('nemo.os.remove'):
             rtn = self.nemo.rebuild_namelist(os.getcwd(),
                                              'file_19980530_yyyymmdd',
                                              3)
@@ -438,14 +435,14 @@ class RebuildTests(unittest.TestCase):
         txt = open('nam_rebuild', 'r').read()
         self.assertNotIn('dims=\'1\',\'2\'', txt)
 
-    @mock.patch('utils.exec_subproc')
-    @mock.patch('os.path.isfile')
+    @mock.patch('nemo.utils.exec_subproc')
+    @mock.patch('nemo.os.path.isfile')
     def test_rebuild_namelist_options(self, mock_isfile, mock_exec):
         '''Test rebuild namelist function with options'''
         func.logtest('Assert rebuild_namelist function with options:')
         mock_exec.return_value = (0, '')
         mock_isfile.return_value = True
-        with mock.patch('os.remove'):
+        with mock.patch('nemo.os.remove'):
             rtn = self.nemo.rebuild_namelist(os.getcwd(),
                                              'file_19980530_yyyymmdd',
                                              3,
@@ -460,7 +457,7 @@ class RebuildTests(unittest.TestCase):
         self.assertIn('l_maskout=.true.', txt)
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
-    @mock.patch('utils.get_subset')
+    @mock.patch('nemo.utils.get_subset')
     def test_rebuild_mask(self, mock_subset, mock_nl):
         '''Test rebuild all function with mask option'''
         func.logtest('Assert rebuild all function with mask option:')
@@ -470,12 +467,12 @@ class RebuildTests(unittest.TestCase):
                                     'file_19980530_0001.nc',
                                     'file_19980530_0002.nc']]
         self.nemo.naml.msk_rebuild = True
-        self.nemo.rebuild_fileset(os.environ['PWD'], 'field', rebuildall=True)
-        mock_nl.assert_called_with(os.environ['PWD'], 'file_19980530',
+        self.nemo.rebuild_fileset(os.getcwd(), 'field', rebuildall=True)
+        mock_nl.assert_called_with(os.getcwd(), 'file_19980530',
                                    3, omp=1, msk=True)
 
-    @mock.patch('utils.exec_subproc')
-    @mock.patch('os.path.isfile')
+    @mock.patch('nemo.utils.exec_subproc')
+    @mock.patch('nemo.os.path.isfile')
     def test_rbld_namelist_no_namelist(self, mock_isfile, mock_exec):
         '''Test failure to create namelist file'''
         func.logtest('Assert failure to create namelist file:')
@@ -488,39 +485,39 @@ class RebuildTests(unittest.TestCase):
         self.assertIn('failed to create namelist file',
                       func.capture('err').lower())
 
-    @mock.patch('utils.exec_subproc')
+    @mock.patch('nemo.utils.exec_subproc')
     def test_rebuild_namelist_fail(self, mock_exec):
         '''Test failure mode of rebuild namelist function'''
         func.logtest('Assert failure behaviour of rebuild_namelist function:')
         mock_exec.return_value = (1, '')
-        os.path.isfile = mock.Mock(return_value=True)
-        with self.assertRaises(SystemExit):
-            _ = self.nemo.rebuild_namelist(os.getcwd(),
-                                           'file_19980530_yyyymmdd', 3)
+        with mock.patch('nemo.os.path.isfile', return_value=True):
+            with self.assertRaises(SystemExit):
+                _ = self.nemo.rebuild_namelist(os.getcwd(),
+                                               'file_19980530_yyyymmdd', 3)
         self.assertIn('failed to rebuild file', func.capture('err').lower())
         self.assertIn('file_19980530_yyyymmdd', func.capture('err').lower())
 
-    @mock.patch('utils.exec_subproc')
+    @mock.patch('nemo.utils.exec_subproc')
     def test_rebuild_nlist_fail_debug(self, mock_exec):
         '''Test failure mode of rebuild namelist function - debug_mode'''
         func.logtest('Assert debug behaviour of rebuild_namelist function:')
-        utils.set_debugmode(True)
         mock_exec.return_value = (1, '')
-        os.path.isfile = mock.Mock(return_value=True)
-        _ = self.nemo.rebuild_namelist(os.getcwd(),
-                                       'file_19980530_yyyymmdd', 3)
+        with mock.patch('nemo.utils.get_debugmode', return_value=True):
+            with mock.patch('nemo.os.path.isfile', return_value=True):
+                _ = self.nemo.rebuild_namelist(os.getcwd(),
+                                               'file_19980530_yyyymmdd', 3)
         self.assertIn('failed to rebuild file', func.capture('err').lower())
         self.assertIn('file_19980530_yyyymmdd', func.capture('err').lower())
 
     def test_rebuild_icebergs_call(self):
         '''Test call to external iceberg rebuilding routine: icb_combrest'''
         func.logtest('Assert call to external iceberg rebuilding routine:')
-        os.path.isfile = mock.Mock(return_value=True)
-        with mock.patch('utils.exec_subproc', return_value=(0, '')):
+        with mock.patch('nemo.utils.exec_subproc', return_value=(0, '')):
             with mock.patch('nemo.NemoPostProc.rebuild_icebergs') as mock_rbld:
-                mock_rbld.return_value = 0
-                self.nemo.rebuild_namelist(os.getcwd(),
-                                           'file_icebergs_yyyymmdd', 2)
+                with mock.patch('nemo.os.path.isfile', return_value=True):
+                    mock_rbld.return_value = 0
+                    self.nemo.rebuild_namelist(os.getcwd(),
+                                               'file_icebergs_yyyymmdd', 2)
         mock_rbld.assert_called_with(os.getcwd(),
                                      'file_icebergs_yyyymmdd', 2)
         self.assertIn('Successfully rebuilt', func.capture())
@@ -528,7 +525,7 @@ class RebuildTests(unittest.TestCase):
     def test_rebuild_icebergs_cmd(self):
         '''Test call to external iceberg rebuilding routine: icb_combrest'''
         func.logtest('Assert call to external iceberg rebuilding routine:')
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('nemo.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (0, '')
             self.nemo.rebuild_icebergs('TestDir', 'filebase', '1')
         cmd = 'python2.7 {} -f TestDir/filebase_ -n 1 -o TestDir/filebase.nc'.\
@@ -539,7 +536,7 @@ class RebuildTests(unittest.TestCase):
     def test_rebuild_icebergs_fail(self):
         '''Test call to external iceberg rebuilding routine: icb_combrest'''
         func.logtest('Assert call to external iceberg rebuilding routine:')
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('nemo.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (1, 'err output')
             with self.assertRaises(SystemExit):
                 self.nemo.rebuild_icebergs('TestDir', 'filebase', '1')
@@ -579,7 +576,7 @@ History_Data/NEMOhist/ae710o_10d_19780901_19780910_diaptr_0000.nc";
         '''Test method to transform global attributes to zonal ones'''
         func.logtest('Assert functionality of global_attr_to_zonal method:')
         self.nemo.suite.preprocess_file.return_value = self.ncdumpout
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('nemo.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (0, '')
             self.nemo.global_attr_to_zonal('TestDir', 'File1')
         mock_exec.assert_called_with(' '.join([
@@ -596,7 +593,7 @@ History_Data/NEMOhist/ae710o_10d_19780901_19780910_diaptr_0000.nc";
         '''Test transform global attributes to zonal - multiple files'''
         func.logtest('Assert global_attr_to_zonal method - multiple files:')
         self.nemo.suite.preprocess_file.return_value = self.ncdumpout
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('nemo.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (0, '')
             self.nemo.global_attr_to_zonal('TestDir', ['File1', 'File2'])
             mock_exec.assert_called_with(
@@ -613,7 +610,7 @@ History_Data/NEMOhist/ae710o_10d_19780901_19780910_diaptr_0000.nc";
         '''Test method to transform global attributes to zonal - failure'''
         func.logtest('Assert failure of global_attr_to_zonal method:')
         self.nemo.suite.preprocess_file.return_value = self.ncdumpout
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('nemo.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (1, '')
             with self.assertRaises(SystemExit):
                 self.nemo.global_attr_to_zonal('TestDir', 'File1')
@@ -630,7 +627,7 @@ History_Data/NEMOhist/ae710o_10d_19780901_19780910_diaptr_0000.nc";
   :dummy arg2 = some other value;
 '''
         self.nemo.suite.preprocess_file.return_value = ncdumpout
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('nemo.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (1, '')
             with self.assertRaises(SystemExit):
                 self.nemo.global_attr_to_zonal('TestDir', 'File1')
@@ -658,11 +655,10 @@ class AdditionalArchiveTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
-        utils.set_debugmode(False)
 
-    @mock.patch('utils.get_subset')
-    @mock.patch('utils.exec_subproc', return_value=(0, ''))
-    @mock.patch('utils.remove_files')
+    @mock.patch('nemo.utils.get_subset')
+    @mock.patch('nemo.utils.exec_subproc', return_value=(0, ''))
+    @mock.patch('nemo.utils.remove_files')
     def test_arch_iberg_trajectory(self, mock_rm, mock_exec, mock_set):
         '''Test call to iceberg_trajectory archive method'''
         func.logtest('Assert call to iceberg_trajectory archive method:')
@@ -687,16 +683,15 @@ class AdditionalArchiveTests(unittest.TestCase):
         self.assertIn('Successfully rebuilt iceberg trajectory',
                       func.capture())
 
-    @mock.patch('utils.get_subset')
-    @mock.patch('utils.exec_subproc', return_value=(0, ''))
-    @mock.patch('utils.remove_files')
-    @mock.patch('os.rename')
+    @mock.patch('nemo.utils.get_subset')
+    @mock.patch('nemo.utils.exec_subproc', return_value=(0, ''))
+    @mock.patch('nemo.utils.remove_files')
+    @mock.patch('nemo.os.rename')
     def test_arch_iberg_traj_debug(self, mock_name, mock_rm,
                                    mock_exec, mock_set):
         '''Test call to iceberg_trajectory archive method - debug mode'''
         func.logtest('Assert call to iceberg_traj archive method - debug:')
         # Mock results for 3 calls to utils.get_subset
-        utils.set_debugmode(True)
         mock_set.side_effect = [['file1_0000.nc'],
                                 ['file1_0000.nc', 'file1_0001.nc'],
                                 ['arch1.nc']]
@@ -705,7 +700,8 @@ class AdditionalArchiveTests(unittest.TestCase):
                                                 'arch3.nc': 'SUCCEEDED'}
 
         self.nemo.naml.archive_iceberg_trajectory = True
-        self.nemo.archive_general()
+        with mock.patch('nemo.utils.get_debugmode', return_value=True):
+            self.nemo.archive_general()
 
         cmd = 'python2.7 ICB_PP -t HERE/file1_ -n 2 -o HERE/RUNIDo_file1.nc'
         mock_exec.assert_called_once_with(cmd)
@@ -720,8 +716,8 @@ class AdditionalArchiveTests(unittest.TestCase):
         self.assertIn(mock.call('HERE/arch3.nc', 'HERE/arch3.nc_ARCHIVED'),
                       mock_name.mock_calls)
 
-    @mock.patch('utils.exec_subproc')
-    @mock.patch('utils.get_subset')
+    @mock.patch('nemo.utils.exec_subproc')
+    @mock.patch('nemo.utils.get_subset')
     def test_arch_iberg_trajectory_fail(self, mock_set, mock_exec):
         '''Test call to iceberg_trajectory archive method - fail'''
         func.logtest('Assert failed call to iceberg_trajectory method:')
@@ -737,8 +733,8 @@ class AdditionalArchiveTests(unittest.TestCase):
             self.nemo.archive_files.assert_called_with(mock.ANY)
         self.assertIn('Error=1\n\tICB_PP failed', func.capture('err'))
 
-    @mock.patch('utils.exec_subproc')
-    @mock.patch('utils.get_subset')
+    @mock.patch('nemo.utils.exec_subproc')
+    @mock.patch('nemo.utils.get_subset')
     def test_create_iberg_traj_debug(self, mock_set, mock_exec):
         '''Test call to iceberg_trajectory creation method - debug'''
         func.logtest('Assert debug build call to iceberg_trajectory method:')
@@ -747,42 +743,42 @@ class AdditionalArchiveTests(unittest.TestCase):
                                 ['file1_0000.nc', 'file1_0001.nc'],
                                 ['arch1.nc']]
         mock_exec.return_value = (1, 'ICB_PP failed')
-        utils.set_debugmode(True)
         self.nemo.naml.archive_iceberg_trajectory = True
-        self.nemo.archive_general()
+        with mock.patch('nemo.utils.get_debugmode', return_value=True):
+            self.nemo.archive_general()
         self.assertIn('Error=1\n\tICB_PP failed', func.capture('err'))
         self.nemo.archive_files.assert_called_once_with(['arch1.nc'])
 
-    @mock.patch('modeltemplate.ModelTemplate.move_to_share')
+    @mock.patch('nemo.mt.ModelTemplate.move_to_share')
     def test_arch_iberg_trajectory_move(self, mock_mv):
         '''Test call to iceberg_trajectory archive method - move files'''
         func.logtest('Assert call to archive_iceberg_trajectory with move:')
         self.nemo.naml.archive_iceberg_trajectory = True
         self.nemo.share = 'THERE'
-        with mock.patch('utils.get_subset'):
+        with mock.patch('nemo.utils.get_subset'):
             self.nemo.archive_general()
         mock_mv.assert_called_once_with(
             pattern=r'trajectory_icebergs_\d{6}_\d{4}\.nc'
             )
 
-    @mock.patch('utils.remove_files')
+    @mock.patch('nemo.utils.remove_files')
     def test_arch_iberg_traj_archpass(self, mock_rm):
         '''Test call to iceberg_trajectory archive method - arch pass'''
         func.logtest('Assert call to archive_iceberg_trajectory - arch pass:')
         self.nemo.naml.archive_iceberg_trajectory = True
         self.nemo.archive_files.return_value = {'arch1': 'SUCCESS'}
-        with mock.patch('utils.get_subset'):
+        with mock.patch('nemo.utils.get_subset'):
             self.nemo.archive_general()
         self.nemo.archive_files.assert_called_once_with(mock.ANY)
         mock_rm.assert_called_with(['arch1'], path='HERE')
 
-    @mock.patch('utils.remove_files')
+    @mock.patch('nemo.utils.remove_files')
     def test_arch_iberg_traj_archfail(self, mock_rm):
         '''Test call to iceberg_trajectory archive method - arch fail'''
         func.logtest('Assert call to archive_iceberg_trajectory - arch fail:')
         self.nemo.naml.archive_iceberg_trajectory = True
         self.nemo.archive_files.return_value = {'arch1': 'FAILED'}
-        with mock.patch('utils.get_subset'):
+        with mock.patch('nemo.utils.get_subset'):
             self.nemo.archive_general()
         self.nemo.archive_files.assert_called_once_with(mock.ANY)
         with self.assertRaises(AssertionError):
@@ -802,7 +798,6 @@ class UtilityMethodTests(unittest.TestCase):
             os.remove('nemocicepp.nl')
         except OSError:
             pass
-        utils.set_debugmode(False)
 
     def test_get_date_start(self):
         '''Test extraction of 6-10 digit strings from a filename - startdate'''
@@ -819,7 +814,7 @@ class UtilityMethodTests(unittest.TestCase):
         self.assertTupleEqual(enddate, ('4444', '44', '44', '44'))
 
     @mock.patch('nemo.NemoPostProc.rebuild_means')
-    @mock.patch('modeltemplate.ModelTemplate.move_to_share')
+    @mock.patch('nemo.mt.ModelTemplate.move_to_share')
     def test_move_to_share(self, mock_mt, mock_rbld):
         '''Test NEMO Specific move_to_share functionality'''
         func.logtest('Assert additional move_to_share processing in NEMO:')
@@ -828,7 +823,7 @@ class UtilityMethodTests(unittest.TestCase):
         mock_rbld.assert_called_once_with()
 
     @mock.patch('nemo.NemoPostProc.rebuild_means')
-    @mock.patch('modeltemplate.ModelTemplate.move_to_share')
+    @mock.patch('nemo.mt.ModelTemplate.move_to_share')
     def test_move_to_share_pattern(self, mock_mt, mock_rbld):
         '''Test move_to_share functionality - with pattern'''
         func.logtest('Assert pattern behaviour of move_to_share method:')
@@ -851,7 +846,7 @@ class UtilityMethodTests(unittest.TestCase):
         self.assertEqual(ncf.start_date, ('2000', '12', '01'))
         self.assertEqual(ncf.calc_enddate(), ('2000', '12', '11'))
 
-    @mock.patch('netcdf_filenames.NCFilename')
+    @mock.patch('nemo.netcdf_filenames.NCFilename')
     def test_components_medusa_model(self, mock_ncf):
         '''Test component extraction - medusa model identification'''
         func.logtest('Assert MEDUSA in model identification:')
@@ -865,7 +860,7 @@ class UtilityMethodTests(unittest.TestCase):
                                          start_date=('1111', '22', '33'),
                                          custom='FIELD')
 
-    @mock.patch('netcdf_filenames.NCFilename.__init__', return_value=None)
+    @mock.patch('nemo.netcdf_filenames.NCFilename.__init__', return_value=None)
     def test_components_4date_format(self, mock_ncf):
         '''Test component extraction - 4 date format filename'''
         func.logtest('Assert correct date extraction - 4 date format:')
@@ -875,7 +870,7 @@ class UtilityMethodTests(unittest.TestCase):
                                          start_date=('2222', '22', '22'),
                                          custom='grid-V')
 
-    @mock.patch('netcdf_filenames.NCFilename.__init__', return_value=None)
+    @mock.patch('nemo.netcdf_filenames.NCFilename.__init__', return_value=None)
     def test_components_10digit_format(self, mock_ncf):
         '''Test component extraction - 4 date format filename'''
         func.logtest('Assert correct date extraction - 4 date format:')

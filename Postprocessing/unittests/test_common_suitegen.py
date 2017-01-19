@@ -20,8 +20,6 @@ import mock
 import testing_functions as func
 import runtime_environment
 
-import utils
-
 # Import of suite requires 'RUNID' from runtime environment
 runtime_environment.setup_env()
 import suite
@@ -51,10 +49,6 @@ class SuiteTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
-        try:
-            del os.environ['ARCHIVE_FINAL']
-        except KeyError:
-            pass
 
     def test_suite_object(self):
         '''Test creation of suite object and assertion of Cylc6 environment'''
@@ -109,7 +103,7 @@ class SuiteTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             print self.mysuite._cyclestring()
 
-    @mock.patch('utils.loadEnv')
+    @mock.patch('suite.utils.loadEnv')
     def test_final_cycle_cylc(self, mock_env):
         '''Test assertion of final cycle - defined by Cylc environment'''
         func.logtest('Assert final cycle time property - TRUE Cylc:')
@@ -122,8 +116,8 @@ class SuiteTests(unittest.TestCase):
     def test_final_cycle_env(self):
         '''Test assertion of final cycle in defined by ARCHIVE_FINAL'''
         func.logtest('Assert final cycle time property - TRUE archive_final:')
-        os.environ['ARCHIVE_FINAL'] = 'true'
-        testfinal = suite.SuiteEnvironment(self.mypath, self.myfile)
+        with mock.patch.dict('suite.os.environ', {'ARCHIVE_FINAL': 'true'}):
+            testfinal = suite.SuiteEnvironment(self.mypath, self.myfile)
         self.assertTrue(testfinal.finalcycle)
 
     def test_not_final_cycle(self):
@@ -184,7 +178,6 @@ class ArchiveTests(unittest.TestCase):
         for fname in [self.logfile] + runtime_environment.RUNTIME_FILES:
             if os.path.exists(fname):
                 os.remove(fname)
-        utils.set_debugmode(False)
 
     def test_archive_file(self):
         '''Test archive_file command - moo is mocked out'''
@@ -225,20 +218,19 @@ class ArchiveTests(unittest.TestCase):
     def test_archive_file_debug(self):
         '''Test debug mode of archive_file command with no file handle'''
         func.logtest('File archiving - debug:')
-        utils.set_debugmode(True)
-        rcode = self.mysuite.archive_file('TestFile')
+        with mock.patch('suite.utils.get_debugmode', return_value=True):
+            rcode = self.mysuite.archive_file('TestFile')
         self.assertEqual(rcode, 0)
         log = open(self.mysuite.logfile, 'r').read()
         self.assertIn('TestFile WOULD BE ARCHIVED', log)
-        self.assertTrue(utils.get_debugok())
 
     def test_archive_debug_open_log(self):
         '''Test debug mode of archive_file command with open file handle'''
         func.logtest('File archiving - log using open file:')
-        utils.set_debugmode(True)
         logfile = 'OpenLog'
-        with open(logfile, 'w') as fname:
-            rcode = self.mysuite.archive_file('TestFile', logfile=fname)
+        with mock.patch('suite.utils.get_debugmode', return_value=True):
+            with open(logfile, 'w') as fname:
+                rcode = self.mysuite.archive_file('TestFile', logfile=fname)
         self.assertEqual(rcode, 0)
         self.assertIn('TestFile WOULD BE ARCHIVED', open(logfile, 'r').read())
         self.assertFalse(os.path.exists(self.logfile))
@@ -259,7 +251,7 @@ class PreProcessTests(unittest.TestCase):
         self.mysuite = suite.SuiteEnvironment('somePath/directory', 'input.nl')
 
     def tearDown(self):
-        utils.set_debugmode(False)
+        pass
 
     def test_preprocess_file_nccopy(self):
         '''Test preprocess_file command'''
@@ -281,8 +273,8 @@ class PreProcessTests(unittest.TestCase):
         infile = 'TestDir/myMean'
         cmd = ' '.join(['nccopy -d 5 -c a/1,b/2,c/3',
                         infile, infile + '.tmp'])
-        with mock.patch('utils.exec_subproc') as mock_exec:
-            with mock.patch('os.rename') as mock_mv:
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
+            with mock.patch('suite.os.rename') as mock_mv:
                 mock_exec.return_value = (0, '')
                 self.mysuite.preproc_nccopy(infile, compression=5,
                                             chunking=['a/1', 'b/2', 'c/3'])
@@ -296,8 +288,8 @@ class PreProcessTests(unittest.TestCase):
         cmd = ' '.join(['PATH/nccopy -d 5 -c a/1,b/2,c/3',
                         infile, infile + '.tmp'])
         self.mysuite.naml.nccopy_path = 'PATH/nccopy'
-        with mock.patch('utils.exec_subproc') as mock_exec:
-            with mock.patch('os.rename') as mock_mv:
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
+            with mock.patch('suite.os.rename') as mock_mv:
                 mock_exec.return_value = (0, '')
                 self.mysuite.preproc_nccopy(infile, compression=5,
                                             chunking=['a/1', 'b/2', 'c/3'])
@@ -310,7 +302,7 @@ class PreProcessTests(unittest.TestCase):
         infile = 'TestDir/myMean'
         cmd = ' '.join(['nccopy -d 5 -c a/1,b/2,c/3',
                         infile, infile + '.tmp'])
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (1, '')
             with self.assertRaises(SystemExit):
                 _ = self.mysuite.preproc_nccopy(infile, compression=5,
@@ -324,7 +316,7 @@ class PreProcessTests(unittest.TestCase):
         infile = 'TestDir/myMean'
         cmd = ' '.join(['nccopy -d 5 -c a/1,b/2,c/3',
                         infile, infile + '.tmp'])
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (0, '')
             with self.assertRaises(SystemExit):
                 _ = self.mysuite.preproc_nccopy(infile, compression=5,
@@ -336,15 +328,16 @@ class PreProcessTests(unittest.TestCase):
     def test_nccopy_fail_debug(self, mock_rename):
         '''Test file compression with nccopy - debug failure'''
         func.logtest('Assert file compression with nccopy - debug failure:')
-        utils.set_debugmode(True)
         infile = 'TestDir/myMean'
         cmd = ' '.join(['nccopy -d 5 -c a/1,b/2,c/3',
                         infile, infile + '.tmp'])
-        with mock.patch('utils.exec_subproc') as mock_exec:
-            mock_exec.return_value = (1, '')
-            rtn = self.mysuite.preproc_nccopy(infile, compression=5,
-                                              chunking=['a/1', 'b/2', 'c/3'])
-            mock_exec.assert_called_with(cmd)
+        with mock.patch('suite.utils.get_debugmode', return_value=True):
+            with mock.patch('suite.utils.exec_subproc') as mock_exec:
+                mock_exec.return_value = (1, '')
+                rtn = self.mysuite.preproc_nccopy(
+                    infile, compression=5, chunking=['a/1', 'b/2', 'c/3']
+                    )
+                mock_exec.assert_called_with(cmd)
         self.assertListEqual(mock_rename.mock_calls, [])
         self.assertIn('Compression failed', func.capture('err'))
         self.assertEqual(rtn, 1)
@@ -352,15 +345,16 @@ class PreProcessTests(unittest.TestCase):
     def test_nccopy_rename_fail_debug(self):
         '''Test file compression with nccopy - rename failure debug'''
         func.logtest('Assert file compression with nccopy - rename fail debug:')
-        utils.set_debugmode(True)
         infile = 'TestDir/myMean'
         cmd = ' '.join(['nccopy -d 5 -c a/1,b/2,c/3',
                         infile, infile + '.tmp'])
-        with mock.patch('utils.exec_subproc') as mock_exec:
-            mock_exec.return_value = (0, '')
-            rtn = self.mysuite.preproc_nccopy(infile, compression=5,
-                                              chunking=['a/1', 'b/2', 'c/3'])
-            mock_exec.assert_called_with(cmd)
+        with mock.patch('suite.utils.get_debugmode', return_value=True):
+            with mock.patch('suite.utils.exec_subproc') as mock_exec:
+                mock_exec.return_value = (0, '')
+                rtn = self.mysuite.preproc_nccopy(
+                    infile, compression=5, chunking=['a/1', 'b/2', 'c/3']
+                    )
+                mock_exec.assert_called_with(cmd)
         self.assertIn('Failed to rename', func.capture('err'))
         self.assertEqual(rtn, 99)
 
@@ -368,7 +362,7 @@ class PreProcessTests(unittest.TestCase):
         '''Test call to ncdump utility'''
         func.logtest('Assert call to ncdump file utility:')
         infile = 'TestDir/myFile'
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (0, 'NCDUMP output')
             rtn = self.mysuite.preproc_ncdump(infile, h='')
             mock_exec.assert_called_with('ncdump -h  TestDir/myFile')
@@ -379,7 +373,7 @@ class PreProcessTests(unittest.TestCase):
         func.logtest('Assert call to ncdump file utility - path provided:')
         infile = 'TestDir/myFile'
         self.mysuite.naml.ncdump_path = 'path/to/ncutils'
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (0, '')
             self.mysuite.preproc_ncdump(infile)
             cmdstring = 'path/to/ncutils/ncdump TestDir/myFile'
@@ -389,7 +383,7 @@ class PreProcessTests(unittest.TestCase):
         '''Test call to ncdump utility - failure'''
         func.logtest('Assert failure in call to ncdump file utility:')
         infile = 'TestDir/myFile'
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (1, 'I failed')
             with self.assertRaises(SystemExit):
                 self.mysuite.preproc_ncdump(infile, h='')
@@ -400,7 +394,7 @@ class PreProcessTests(unittest.TestCase):
         '''Test call to ncrcat utility'''
         func.logtest('Assert call to ncrcat file utility:')
         infiles = ['INfile1', 'INfile2']
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (0, '')
             self.mysuite.preproc_ncrcat(infiles, outfile='OUTfile')
             mock_exec.assert_called_with('ncrcat INfile1 INfile2 OUTfile')
@@ -410,7 +404,7 @@ class PreProcessTests(unittest.TestCase):
         '''Test call to ncrcat utility - additional arguments'''
         func.logtest('Assert call to ncrcat file utility - added args:')
         infiles = ['INfile1', 'INfile2']
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (0, '')
             self.mysuite.preproc_ncrcat(infiles, k='val', outfile='OUTfile')
             mock_exec.assert_called_with(
@@ -423,7 +417,7 @@ class PreProcessTests(unittest.TestCase):
         func.logtest('Assert call to ncrcat file utility - path provided:')
         infiles = ['INfile1', 'INfile2']
         self.mysuite.naml.ncrcat_path = 'path/to/ncutils'
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (0, '')
             self.mysuite.preproc_ncrcat(infiles, outfile='OUTfile')
             cmdstring = 'path/to/ncutils/ncrcat INfile1 INfile2 OUTfile'
@@ -433,7 +427,7 @@ class PreProcessTests(unittest.TestCase):
         '''Test call to ncrcat utility - command failure'''
         func.logtest('Assert failure in call to ncrcat file utility:')
         infiles = ['INfile1', 'INfile2']
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (1, 'I failed')
             with self.assertRaises(SystemExit):
                 self.mysuite.preproc_ncrcat(infiles, outfile='OUTfile')

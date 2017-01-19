@@ -21,10 +21,10 @@ import testing_functions as func
 import runtime_environment
 
 import atmosNamelist
-import validation
 # Import of atmos requires RUNID from runtime_environment
 runtime_environment.setup_env()
 import atmos
+
 
 class ArchiveDeleteTests(unittest.TestCase):
     '''Unit tests relating to the atmosphere archive and delete methods'''
@@ -49,15 +49,15 @@ class ArchiveDeleteTests(unittest.TestCase):
             except OSError:
                 pass
 
-    @mock.patch('atmos.AtmosPostProc.pp_to_archive',
-                return_value=['path/a.pa2000', 'path/a.pb2000.pp',
-                              'path/FF_noconv'])
-    @mock.patch('atmos.AtmosPostProc.dumps_to_archive',
-                return_value=['DumpFile'])
-    def test_do_archive(self, mock_dump, mock_pp):
+    def test_do_archive(self):
         '''Test do_archive functionality'''
         func.logtest('Assert call to archive_file')
-        self.atmos.do_archive()
+        with mock.patch('atmos.AtmosPostProc.pp_to_archive',
+                        return_value=['path/a.pa2000', 'path/a.pb2000.pp',
+                                      'path/FF_noconv']) as mock_pp:
+            with mock.patch('atmos.AtmosPostProc.dumps_to_archive',
+                            return_value=['DumpFile']) as mock_dump:
+                self.atmos.do_archive()
         self.assertListEqual(
             sorted(self.atmos.suite.archive_file.mock_calls),
             sorted([mock.call('path/a.pa2000', preproc=True),
@@ -88,7 +88,7 @@ class ArchiveDeleteTests(unittest.TestCase):
                 return_value=['path/a.pa2000', 'path/a.pb2000.pp'])
     @mock.patch('atmos.AtmosPostProc.dumps_to_archive',
                 return_value=['DumpFile'])
-    @mock.patch('utils.remove_files')
+    @mock.patch('atmos.utils.remove_files')
     def test_do_archive_finalcycle(self, mock_rm, mock_dump, mock_pp):
         '''Test do_archive functionality - final cycle'''
         func.logtest('Assert call to archive_file - final cycle')
@@ -112,20 +112,21 @@ class ArchiveDeleteTests(unittest.TestCase):
                 return_value=['path/a.pa2000', 'path/a.pb2000.pp'])
     @mock.patch('atmos.AtmosPostProc.dumps_to_archive',
                 return_value=['DumpFile'])
-    @mock.patch('os.remove')
-    def test_do_archive_final_debug(self, mock_rm, mock_dump, mock_pp):
+    @mock.patch('atmos.os.rename')
+    def test_do_archive_final_debug(self, mock_mv, mock_dump, mock_pp):
         '''Test do_archive functionality - final cycle, debug'''
         func.logtest('Assert call to archive_file - final cycle debug')
         self.atmos.suite.archive_file.return_value = 0
-        self.atmos.suite._debug_mode(True)
-        self.atmos.do_archive(finalcycle=True)
+        with mock.patch('atmos.utils.get_debugmode', return_value=True):
+            self.atmos.do_archive(finalcycle=True)
         arch_calls = [mock.call('path/a.pa2000', preproc=True),
                       mock.call('path/a.pb2000.pp', preproc=True)]
         self.assertListEqual(sorted(self.atmos.suite.archive_file.mock_calls),
                              sorted(arch_calls))
         self.assertListEqual(mock_dump.mock_calls, [])
         mock_pp.assert_called_once_with(mock.ANY, True)
-        mock_rm.assert_called_once_with('path/a.pb2000.pp')
+        mock_mv.assert_called_once_with('path/a.pb2000.pp',
+                                        'path/a.pb2000.pp_ARCHIVED')
 
     def test_do_archive_nothing(self):
         '''Test do_archive functionality - nothing to archive'''
@@ -146,31 +147,32 @@ class ArchiveDeleteTests(unittest.TestCase):
         func.logtest('Assert dump files list created for do_archive:')
         self.atmos.naml.archiving.archive_dumps = True
         open(self.dfiles[0], 'w').close()
-        with mock.patch('validation.make_dump_name',
-                        return_value=self.dfiles):
-            with mock.patch('validation.verify_header', return_value=True):
+        with mock.patch('atmos.validation.make_dump_name',
+                        return_value=self.dfiles) as mock_name:
+            with mock.patch('atmos.validation.verify_header',
+                            return_value=True) as mock_hdr:
                 with open(self.atmos.suite.logfile, 'w') as log:
                     dumps = self.atmos.dumps_to_archive(log)
-                validation.verify_header.assert_called_once_with(
+                mock_hdr.assert_called_once_with(
                     mock.ANY, os.path.join(os.getcwd(), self.dfiles[0]),
                     mock.ANY, mock.ANY
                     )
-            validation.make_dump_name.assert_called_once_with(self.atmos)
+            mock_name.assert_called_once_with(self.atmos)
         self.assertListEqual(dumps, [self.dfiles[0]])
 
     def test_archive_dump_non_existent(self):
         '''Test do_archive - dump files list - file non-existent'''
         func.logtest('Assert dumpfiles for do_archive - file non existent:')
         self.atmos.naml.archiving.archive_dumps = True
-        with mock.patch('validation.make_dump_name',
-                        return_value=self.dfiles):
+        with mock.patch('atmos.validation.make_dump_name',
+                        return_value=self.dfiles) as mock_name:
             with open(self.atmos.suite.logfile, 'w') as log:
                 dumps = self.atmos.dumps_to_archive(log)
-            validation.make_dump_name.assert_called_once_with(self.atmos)
+            mock_name.assert_called_once_with(self.atmos)
         self.assertListEqual(dumps, [])
 
-    @mock.patch('housekeeping.get_marked_files')
-    @mock.patch('housekeeping.convert_to_pp')
+    @mock.patch('atmos.housekeeping.get_marked_files')
+    @mock.patch('atmos.housekeeping.convert_to_pp')
     def test_archive_pp(self, mock_convpp, mock_getfiles):
         '''Test do_archive - pp files list - pre-conversion to pp OFF'''
         func.logtest('Assert pp files list created for do_archive:')
@@ -178,8 +180,9 @@ class ArchiveDeleteTests(unittest.TestCase):
         self.atmos.naml.archiving.convert_pp = False
         mock_getfiles.return_value = self.ffiles[1:]
 
-        with mock.patch('os.path.exists', return_value=True):
-            with mock.patch('validation.verify_header', return_value=True):
+        with mock.patch('atmos.os.path.exists', return_value=True):
+            with mock.patch('atmos.validation.verify_header',
+                            return_value=True):
                 with open(self.atmos.suite.logfile, 'w') as log:
                     ppfiles = self.atmos.pp_to_archive(log, False)
 
@@ -188,7 +191,7 @@ class ArchiveDeleteTests(unittest.TestCase):
         mock_getfiles.assert_called_once_with('WorkDir', mock.ANY, '.arch')
         self.assertListEqual(mock_convpp.mock_calls, [])
 
-    @mock.patch('housekeeping.get_marked_files')
+    @mock.patch('atmos.housekeeping.get_marked_files')
     def test_do_archive_tidy_pp(self, mock_getfiles):
         '''Test do_archive functionality - tidy up ppfiles left on disk'''
         func.logtest('Assert do_archive method - tidy left over ppfile:')
@@ -202,7 +205,7 @@ class ArchiveDeleteTests(unittest.TestCase):
         mock_getfiles.assert_called_once_with('WorkDir', mock.ANY, '.arch')
         self.assertListEqual(ppfiles, [fnfull + '.pp'])
 
-    @mock.patch('housekeeping.get_marked_files')
+    @mock.patch('atmos.housekeeping.get_marked_files')
     def test_archive_pp_non_existent(self, mock_getfiles):
         '''Test do_archive - pp files list - file non-existent'''
         func.logtest('Assert pp files list for do_archive - file non existent:')
@@ -216,8 +219,8 @@ class ArchiveDeleteTests(unittest.TestCase):
         self.assertIn('{}/FileNotHere does not exist'.format(os.getcwd()),
                       func.capture('err'))
 
-    @mock.patch('housekeeping.get_marked_files')
-    @mock.patch('housekeeping.convert_to_pp')
+    @mock.patch('atmos.housekeeping.get_marked_files')
+    @mock.patch('atmos.housekeeping.convert_to_pp')
     def test_archive_pp_finalcycle(self, mock_convpp, mock_getfiles):
         '''Test do_archive - pp files list on final cycle, pre-conversion ON'''
         func.logtest('Assert final cycle pp files list created for do_archive:')
@@ -225,8 +228,9 @@ class ArchiveDeleteTests(unittest.TestCase):
         mock_getfiles.return_value = self.ffiles[1:]
         mock_convpp.side_effect = [fn + '.pp' for fn in self.ffiles[1:]]
 
-        with mock.patch('os.path.exists', return_value=True):
-            with mock.patch('validation.verify_header', return_value=True):
+        with mock.patch('atmos.os.path.exists', return_value=True):
+            with mock.patch('atmos.validation.verify_header',
+                            return_value=True):
                 with open(self.atmos.suite.logfile, 'w') as log:
                     ppfiles = self.atmos.pp_to_archive(log, True)
 
@@ -237,7 +241,7 @@ class ArchiveDeleteTests(unittest.TestCase):
             self.assertIn(mock.call(fnfull, mock.ANY, True),
                           mock_convpp.mock_calls)
 
-    @mock.patch('housekeeping.get_marked_files')
+    @mock.patch('atmos.housekeeping.get_marked_files')
     def test_archive_pp_off(self, mock_getfiles):
         '''Test do_archive - pp files list, namelist switch = False'''
         func.logtest('Assert final pp files for do_archive - switch=False:')
@@ -247,8 +251,8 @@ class ArchiveDeleteTests(unittest.TestCase):
         self.assertListEqual(ppfiles, [])
         self.assertListEqual(mock_getfiles.mock_calls, [])
 
-    @mock.patch('housekeeping.get_marked_files')
-    @mock.patch('housekeeping.convert_to_pp')
+    @mock.patch('atmos.housekeeping.get_marked_files')
+    @mock.patch('atmos.housekeeping.convert_to_pp')
     def test_archive_pp_convert_sel(self, mock_convpp, mock_getfiles):
         '''Test do_archive - pp files list - selected pre-conversion to pp'''
         func.logtest('Assert pp files list for do_archive - some pre-convert:')
@@ -258,8 +262,9 @@ class ArchiveDeleteTests(unittest.TestCase):
         mock_getfiles.return_value = self.ffiles[1:]
         mock_convpp.side_effect = [fn + '.pp' for fn in self.ffiles[1:]]
 
-        with mock.patch('os.path.exists', return_value=True):
-            with mock.patch('validation.verify_header', return_value=True):
+        with mock.patch('atmos.os.path.exists', return_value=True):
+            with mock.patch('atmos.validation.verify_header',
+                            return_value=True):
                 with open(self.atmos.suite.logfile, 'w') as log:
                     _ = self.atmos.pp_to_archive(log, False)
 
@@ -274,8 +279,8 @@ class ArchiveDeleteTests(unittest.TestCase):
                 self.assertIn(mock.call(fnfull, mock.ANY, False),
                               mock_convpp.mock_calls)
 
-    @mock.patch('housekeeping.get_marked_files')
-    @mock.patch('housekeeping.convert_to_pp')
+    @mock.patch('atmos.housekeeping.get_marked_files')
+    @mock.patch('atmos.housekeeping.convert_to_pp')
     def test_archive_pp_convert_none(self, mock_convpp, mock_getfiles):
         '''Test do_archive - pp files list - no conversion to pp'''
         func.logtest('Assert pp files list for do_archive - ppconvert:')
@@ -283,8 +288,9 @@ class ArchiveDeleteTests(unittest.TestCase):
         self.atmos.convpp_streams = '^a-z'
         mock_getfiles.return_value = self.ffiles[1:]
 
-        with mock.patch('os.path.exists', return_value=True):
-            with mock.patch('validation.verify_header', return_value=True):
+        with mock.patch('atmos.os.path.exists', return_value=True):
+            with mock.patch('atmos.validation.verify_header',
+                            return_value=True):
                 with open(self.atmos.suite.logfile, 'w') as log:
                     ppfiles = self.atmos.pp_to_archive(log, False)
 
@@ -348,14 +354,17 @@ class PropertyTests(unittest.TestCase):
         '''Test the fieldsfile regular expression'''
         func.logtest('Assert correct return of fields file regex:')
 
-        atmos.utils.loadEnv = mock.Mock()
         mock_suite().finalcycle = False
         mock_suite().prefix = 'RUNID'
-        atmos.AtmosPostProc._directory = mock.Mock(return_value='ModelDir')
+
         with mock.patch('atmos.AtmosPostProc.runpp',
                         new_callable=mock.PropertyMock,
                         return_value=True):
-            myatmos = atmos.AtmosPostProc()
+            with mock.patch('atmos.AtmosPostProc._directory',
+                            return_value='ModelDir'):
+                with mock.patch('atmos.utils.loadEnv'):
+                    with mock.patch('atmos.utils.set_debugmode'):
+                        myatmos = atmos.AtmosPostProc()
 
         ff_pattern = r'^RUNIDa\.[pm][{}]\d{{4}}(\d{{4}}|\w{{3}})' \
             r'(_\d{{2}})?(\.pp)?(\.arch)?$'

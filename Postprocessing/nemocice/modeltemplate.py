@@ -67,6 +67,7 @@ class ModelTemplate(control.RunPostProc):
             self.suite.envars = utils.loadEnv('CYLC_SUITE_INITIAL_CYCLE_POINT',
                                               'INITCYCLE_OVERRIDE',
                                               append=self.suite.envars)
+
             # Initialise debug mode - calling base class method
             self._debug_mode(self.naml.debug)
 

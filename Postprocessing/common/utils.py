@@ -25,9 +25,9 @@ import errno
 import shutil
 import timer
 
-debug_mode = False
-debug_ok = True
 
+globals()['debug_mode'] = None
+globals()['debug_ok'] = True
 
 class Variables(object):
     '''Object to hold a group of variables'''
@@ -267,6 +267,7 @@ def add_period_to_date(indate, delta):
                     cal = '360day'
             cmd = 'rose date {} --calendar {} --offset {} --print-format ' \
                 '%Y,%m,%d,%H,%M'.format(dateinput, cal, offset)
+
             rcode, output = exec_subproc(cmd, verbose=False)
         else:
             log_msg('add_period_to_date: Invalid date for conversion to ISO '
@@ -317,11 +318,8 @@ def log_msg(msg, level='INFO'):
 
 def set_debugmode(debug):
     '''Set method for the debug_mode global variable'''
-    global debug_mode
-    global debug_ok
-
-    debug_mode = debug
-    debug_ok = True
+    globals()['debug_mode'] = debug
+    globals()['debug_ok'] = True
 
 
 def get_debugmode():
@@ -340,11 +338,9 @@ def catch_failure():
     allowing the task to continue to completion.
     Ultimately causes the task to fail due to the global debug_ok setting.
     '''
-    global debug_ok
-
-    if debug_mode:
+    if get_debugmode():
         log_msg('Ignoring failed external command. Continuing...',
                 level='DEBUG')
-        debug_ok = False
+        globals()['debug_ok'] = False
     else:
         log_msg('Command Terminated', level='FAIL')

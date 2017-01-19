@@ -16,6 +16,7 @@ import unittest
 import os
 import sys
 import shutil
+import mock
 
 import testing_functions as func
 
@@ -165,7 +166,7 @@ class LogTests(unittest.TestCase):
             self.fail(msg)
 
     def tearDown(self):
-        utils.set_debugmode(False)
+        pass
 
     def test_msg(self):
         '''Test content of output message'''
@@ -183,12 +184,12 @@ class LogTests(unittest.TestCase):
 
     def test_stderr(self):
         '''Test content of messages printed to stderr'''
-        utils.set_debugmode(True)
-        for lev in ['DEBUG', 'WARN', 'ERROR']:
-            func.logtest('Send output to sys.stderr ({} case):'.
-                         format(lev))
-            utils.log_msg('', level=lev)
-            self.assertIn(lev, func.capture(direct='err'))
+        with mock.patch('utils.get_debugmode', return_value=True):
+            for lev in ['DEBUG', 'WARN', 'ERROR']:
+                func.logtest('Send output to sys.stderr ({} case):'.
+                             format(lev))
+                utils.log_msg('', level=lev)
+                self.assertIn(lev, func.capture(direct='err'))
 
     def test_fail(self):
         '''Test content of [FAIL] messages printed to stderr'''
@@ -211,11 +212,6 @@ class DateCheckTests(unittest.TestCase):
     def setUp(self):
         self.indate = [2004, 2, 15, 0, 0]
         self.delta = [0, 0, 20, 0, 30]
-        os.environ['CYLC_CYCLING_MODE'] = '360day'
-        try:
-            del os.environ['ROSE_HOME']
-        except KeyError:
-            pass
 
     def test_date_360(self):
         '''Test adding period to 360 day calendar date'''
@@ -228,8 +224,9 @@ class DateCheckTests(unittest.TestCase):
         '''Test adding period to Gregorian date'''
         func.logtest('Cylc6 date manipulation with Gregorian calendar:')
         outdate = [2004, 3, 6, 0, 30]
-        os.environ['CYLC_CYCLING_MODE'] = 'gregorian'
-        date = utils.add_period_to_date(self.indate, self.delta)
+        with mock.patch.dict('utils.os.environ',
+                             {'CYLC_CYCLING_MODE': 'gregorian'}):
+            date = utils.add_period_to_date(self.indate, self.delta)
         self.assertListEqual(date, outdate)
 
     def test_short_date(self):
@@ -276,7 +273,7 @@ class DateCheckTests(unittest.TestCase):
 class PathTests(unittest.TestCase):
     '''Unit tests for path maniuplations'''
     def setUp(self):
-        self.path = os.environ['PWD']
+        self.path = os.getcwd()
         self.files = ['fileone', 'filetwo', 'filethree']
 
     def test_add_path_single(self):
@@ -321,7 +318,6 @@ class FileManipulationTests(unittest.TestCase):
                 shutil.rmtree(dname)
             except OSError:
                 pass
-        utils.set_debugmode(False)
 
     def test_move_one_file(self):
         '''Test moving one file'''
@@ -339,12 +335,11 @@ class FileManipulationTests(unittest.TestCase):
     def test_move_non_existent(self):
         '''Test moving non-existent file'''
         func.logtest('Move non-existent files:')
-        utils.move_files(DUMMY, os.environ['PWD'], originpath=self.dir2)
+        utils.move_files(DUMMY, os.getcwd(), originpath=self.dir2)
         for fname in DUMMY:
             self.assertFalse(os.path.exists(os.path.join(self.dir2, fname)))
             # Code should catch exception: IOError
-            self.assertFalse(os.path.exists(os.path.join(os.environ['PWD'],
-                                                         fname)))
+            self.assertFalse(os.path.exists(os.path.join(os.getcwd(), fname)))
 
     def test_move_overwrite(self):
         '''Test overwriting existing file'''
@@ -408,8 +403,8 @@ class FileManipulationTests(unittest.TestCase):
     def test_catch_failure_debug(self):
         '''Test performance of catch_failure method - debug_mode'''
         func.logtest('Assert correct failure mode handling - debug:')
-        utils.set_debugmode(True)
-        utils.catch_failure()
+        with mock.patch('utils.get_debugmode', return_value=True):
+            utils.catch_failure()
         self.assertIn('Ignoring failed external command',
                       func.capture('err'))
         self.assertFalse(utils.get_debugok())
@@ -451,7 +446,7 @@ class FileManipulationTests(unittest.TestCase):
 class GetSubsetTests(unittest.TestCase):
     '''Unit tests for the get_subset method'''
     def setUp(self):
-        self.dir = os.path.join(os.environ['PWD'], 'TestSubset')
+        self.dir = os.path.join(os.getcwd(), 'TestSubset')
         self.pattern = '^file[a-z]*$'
         os.mkdir(self.dir)
         for fname in DUMMY:
@@ -488,7 +483,7 @@ class GetSubsetTests(unittest.TestCase):
     def test_envar_expand(self):
         '''Test variable expansion in pathnames'''
         func.logtest('Verify environment variable expansion in paths:')
-        files = utils.get_subset(os.path.join(os.environ['PWD'], self.dir),
+        files = utils.get_subset(os.path.join(os.getcwd(), self.dir),
                                  self.pattern)
         self.assertListEqual(sorted(files), sorted(DUMMY))
 

@@ -20,8 +20,6 @@ import mock
 import testing_functions as func
 import runtime_environment
 
-import utils
-
 # Import of cice requires 'RUNID' from runtime environment
 runtime_environment.setup_env()
 import cice
@@ -212,12 +210,11 @@ class MeansProcessingTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
-        utils.set_debugmode(False)
 
-    @mock.patch('utils.get_subset')
-    @mock.patch('modeltemplate.ModelTemplate.move_to_share')
-    @mock.patch('utils.remove_files')
-    @mock.patch('netcdf_filenames.os.rename')
+    @mock.patch('cice.utils.get_subset')
+    @mock.patch('cice.mt.ModelTemplate.move_to_share')
+    @mock.patch('cice.utils.remove_files')
+    @mock.patch('cice.netcdf_filenames.os.rename')
     def test_concat_daily(self, mock_rn, mock_rm, mock_mv, mock_set):
         '''Test method to compile list of means to concatenate'''
         func.logtest('Assert compilation of means to concatenate:')
@@ -237,9 +234,9 @@ class MeansProcessingTests(unittest.TestCase):
                                         './cice_runidi_1d_11110101-11110201.nc')
         mock_set.assert_called_with('.', r'cice_runidi_1d_\d{8}-\d{8}\.nc')
 
-    @mock.patch('utils.get_subset')
-    @mock.patch('utils.remove_files')
-    @mock.patch('netcdf_filenames.os.rename')
+    @mock.patch('cice.utils.get_subset')
+    @mock.patch('cice.utils.remove_files')
+    @mock.patch('cice.netcdf_filenames.os.rename')
     def test_concat_daily_shift_year(self, mock_rn, mock_rm, mock_set):
         '''Test method to compile list of means to concatenate - year shift'''
         func.logtest('Assert compilation of means to concatenate - yr shift:')
@@ -272,7 +269,7 @@ class MeansProcessingTests(unittest.TestCase):
         for fname in meanfiles:
             open(fname, 'w').close()
 
-        with mock.patch('utils.log_msg') as mock_log:
+        with mock.patch('cice.utils.log_msg') as mock_log:
             # Mock log since it would raise a SystemExit due to number of
             # matching files being less than 30
             _ = self.cice.archive_concat_daily_means()
@@ -282,16 +279,16 @@ class MeansProcessingTests(unittest.TestCase):
         for fname in meanfiles:
             os.remove(fname)
 
-    @mock.patch('modeltemplate.ModelTemplate.move_to_share')
+    @mock.patch('cice.mt.ModelTemplate.move_to_share')
     def test_concat_daily_move(self, mock_mv):
         '''Test method to compile list of means to concatenate - move'''
         func.logtest('Assert compilation of means to concatenate - move:')
         self.cice.work = 'TestDir'
-        with mock.patch('utils.get_subset', return_value=[]):
+        with mock.patch('cice.utils.get_subset', return_value=[]):
             self.cice.archive_concat_daily_means()
         mock_mv.assert_called_once_with(pattern=mock.ANY)
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('cice.utils.get_subset')
     def test_concat_daily_insuffient(self, mock_set):
         '''Test concatenation of means - insufficent components'''
         func.logtest('Assert concatenation not possible:')
@@ -300,18 +297,18 @@ class MeansProcessingTests(unittest.TestCase):
             self.cice.archive_concat_daily_means()
         self.assertIn('only got 3 files', func.capture('err'))
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('cice.utils.get_subset')
     def test_concat_daily_fail_debug(self, mock_set):
         '''Test concatenation of means with insufficent components - debug'''
         func.logtest('Assert concatenation not possible - debug mode:')
         mock_set.side_effect = [['END.1111-22-33.nc'], ['SET1', 'SET2'], []]
-        utils.set_debugmode(True)
-        self.cice.archive_concat_daily_means()
+        with mock.patch('cice.utils.get_debugmode', return_value=True):
+            self.cice.archive_concat_daily_means()
         self.assertIn('only got 3 files', func.capture('err'))
 
-    @mock.patch('utils.remove_files')
-    @mock.patch('modeltemplate.ModelTemplate.archive_files')
-    @mock.patch('utils.get_subset')
+    @mock.patch('cice.utils.remove_files')
+    @mock.patch('cice.mt.ModelTemplate.archive_files')
+    @mock.patch('cice.utils.get_subset')
     def test_concat_daily_arch(self, mock_set, mock_arch, mock_rm):
         '''Test concatenation of means - archive'''
         func.logtest('Assert archive of catted file:')
@@ -321,9 +318,9 @@ class MeansProcessingTests(unittest.TestCase):
         self.assertIn('Deleting archive', func.capture())
         mock_rm.assert_called_with(['ARCH1', 'ARCH2'], path='.')
 
-    @mock.patch('utils.remove_files')
-    @mock.patch('modeltemplate.ModelTemplate.archive_files')
-    @mock.patch('utils.get_subset')
+    @mock.patch('cice.utils.remove_files')
+    @mock.patch('cice.mt.ModelTemplate.archive_files')
+    @mock.patch('cice.utils.get_subset')
     def test_concat_daily_archfail(self, mock_set, mock_arch, mock_rm):
         '''Test concatenation of means - failed to archive'''
         func.logtest('Assert failure to archive catted file:')
@@ -332,15 +329,15 @@ class MeansProcessingTests(unittest.TestCase):
         self.cice.archive_concat_daily_means()
         mock_rm.assert_called_with(['ARCH2'], path='.')
 
-    @mock.patch('os.rename')
-    @mock.patch('modeltemplate.ModelTemplate.archive_files')
-    @mock.patch('utils.get_subset')
+    @mock.patch('cice.os.rename')
+    @mock.patch('cice.mt.ModelTemplate.archive_files')
+    @mock.patch('cice.utils.get_subset')
     def test_concat_daily_arch_debug(self, mock_set, mock_arch, mock_rm):
         '''Test concatenation of means - archive'''
         func.logtest('Assert archive of catted file:')
-        utils.set_debugmode(True)
         mock_set.side_effect = [[], ['ARCH1', 'ARCH2']]
         mock_arch.return_value = {'ARCH1': 'FAILED', 'ARCH2': 'OK'}
-        self.cice.archive_concat_daily_means()
+        with mock.patch('utils.get_debugmode', return_value=True):
+            self.cice.archive_concat_daily_means()
         self.assertIn('Deleting archive', func.capture())
         mock_rm.assert_called_once_with('./ARCH2', './ARCH2_ARCHIVED')

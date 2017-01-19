@@ -25,8 +25,6 @@ runtime_environment.setup_env()
 import nlist
 
 
-
-
 class NamelistFileTests(unittest.TestCase):
     '''Unit tests relating to namelist files'''
     def setUp(self):

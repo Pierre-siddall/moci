@@ -92,8 +92,7 @@ def verify_header(atmospp, fname, logfile, logdir):
     if validfile:
         utils.log_msg('Validation OK.  File will be archived: ' + fname)
     else:
-        msg = 'Validity time mismatch in file {} to be archived: Ignoring'.\
-            format(fname)
+        msg = 'Validity time mismatch in file {} to be archived'.format(fname)
         logfile.write(fname + ' ARCHIVE FAILED. Validity mismatch \n')
         utils.log_msg(msg, level='ERROR')
 

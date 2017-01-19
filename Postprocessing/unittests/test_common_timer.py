@@ -23,6 +23,7 @@ import runtime_environment
 runtime_environment.setup_env()
 import timer
 
+
 @timer.run_timer
 def decorated_method(*args, **kwargs):
     '''Test method for run_timer decorator'''
@@ -67,14 +68,14 @@ class PostProcTimerTests(unittest.TestCase):
         self.timer.start_timer('Label')
         self.assertTrue('Label' in self.timer.timing_cache.keys())
 
-    @mock.patch('time.time', return_value=10.0)
+    @mock.patch('timer.time.time', return_value=10.0)
     def test_end_timer_existing_func(self, mock_time):
         '''test end_timer method - existing method'''
         func.logtest('Assert functionality of end_timer - existing method:')
         self.timer.end_timer('Method1')
         self.assertEqual(self.timer.timings['Method1'], [8.5, 1, 7.5, 2])
 
-    @mock.patch('time.time', return_value=10.0)
+    @mock.patch('timer.time.time', return_value=10.0)
     def test_end_timer_new_func(self, mock_time):
         '''test end_timer method - new method'''
         func.logtest('Assert functionality of end_timer - new method:')
@@ -96,7 +97,7 @@ class PostProcTimerTests(unittest.TestCase):
         self.assertIn('Function Method1', func.capture('err'))
         self.assertIn('Function Method2', func.capture('err'))
 
-    @mock.patch('time.time', return_value=100.0)
+    @mock.patch('timer.time.time', return_value=100.0)
     def test_finalise_timer(self, mock_time):
         '''test finalise method'''
         func.logtest('Assert functionality of finalise method:')

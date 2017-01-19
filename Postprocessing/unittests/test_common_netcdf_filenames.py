@@ -19,7 +19,6 @@ import testing_functions as func
 import runtime_environment
 
 import netcdf_filenames
-import utils
 
 runtime_environment.setup_env()
 
@@ -31,7 +30,7 @@ class NCFilenameTests(unittest.TestCase):
                                                start_date=('2000', '12', '11'))
 
     def tearDown(self):
-        utils.set_debugmode(False)
+        pass
 
     def test_fname_instantiation(self):
         '''Test instantiation of the filename container'''
@@ -217,8 +216,10 @@ class NCFilenameTests(unittest.TestCase):
         '''Test method for enforcing the netCDF filename convention - fail'''
         func.logtest('Assert conversion of filename - failure mode:')
         self.ncf.base = '1d'
-        with self.assertRaises(SystemExit):
-            self.ncf.rename_ncf('here/filename')
+        with mock.patch('netcdf_filenames.utils.get_debugmode',
+                        return_value=False):
+            with self.assertRaises(SystemExit):
+                self.ncf.rename_ncf('here/filename')
         self.assertIn('Failed to rename file: here/filename',
                       func.capture('err'))
 
@@ -226,8 +227,9 @@ class NCFilenameTests(unittest.TestCase):
         '''Test method for enforcing netCDF filename convention - debug fail'''
         func.logtest('Assert conversion of filename - debug failure mode:')
         self.ncf.base = '1d'
-        utils.set_debugmode(True)
-        self.ncf.rename_ncf('here/filename')
+        with mock.patch('netcdf_filenames.utils.get_debugmode',
+                        return_value=True):
+            self.ncf.rename_ncf('here/filename')
         self.assertIn('Failed to rename file: here/filename',
                       func.capture('err'))
 

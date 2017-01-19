@@ -41,7 +41,8 @@ class StencilTests(unittest.TestCase):
             'model_runido_1y_19951201-19961201_FIELD.nc',
             ]
 
-        with mock.patch('nlist.loadNamelist'):
+        with mock.patch('modeltemplate.nlist.loadNamelist') as mock_nl:
+            mock_nl().modeltemplate.debug = False
             self.model = modeltemplate.ModelTemplate()
         self.ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'o',
                                                base='XX',
@@ -163,7 +164,8 @@ class PeriodTests(unittest.TestCase):
     '''Unit tests relating to the "get period files" methods'''
 
     def setUp(self):
-        with mock.patch('nlist.loadNamelist'):
+        with mock.patch('modeltemplate.nlist.loadNamelist') as mock_nl:
+            mock_nl().modeltemplate.debug = False
             self.model = modeltemplate.ModelTemplate()
             self.model.share = 'ShareDir'
             self.model.naml.base_component = '10d'
@@ -186,7 +188,7 @@ class PeriodTests(unittest.TestCase):
     def tearDown(self):
         pass
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodset_monthly(self, mock_subset):
         '''Test function of the periodset method - month'''
         func.logtest('Assert pattern produced by periodset method - month:')
@@ -195,7 +197,7 @@ class PeriodTests(unittest.TestCase):
             'ShareDir', netcdf_filenames.month_set(self.basefile)
             )
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodset_seasonal(self, mock_subset):
         '''Test function of the periodset method - season'''
         func.logtest('Assert pattern produced by periodset method - season:')
@@ -203,7 +205,7 @@ class PeriodTests(unittest.TestCase):
         mock_subset.assert_called_with('ShareDir',
                                        netcdf_filenames.season_set(self.sfile))
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodset_annual(self, mock_subset):
         '''Test function of the periodset method - year'''
         func.logtest('Assert pattern produced by periodset method - year:')
@@ -211,7 +213,7 @@ class PeriodTests(unittest.TestCase):
         mock_subset.assert_called_with('ShareDir',
                                        netcdf_filenames.year_set(self.yfile))
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodset_datadir(self, mock_subset):
         '''Test function of the periodset method - with datadir'''
         func.logtest('Assert pattern produced by periodset method - datadir:')
@@ -220,7 +222,7 @@ class PeriodTests(unittest.TestCase):
             'MyDir', netcdf_filenames.month_set(self.basefile)
             )
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodset_restarts(self, mock_subset):
         '''Test function of the periodset method - with restart file'''
         func.logtest('Assert pattern produced by periodset method - restart:')
@@ -231,7 +233,7 @@ class PeriodTests(unittest.TestCase):
             _ = self.model.periodset('restart-type')
         mock_subset.assert_called_with('ShareDir', 'restart-type_date')
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodset_arch_monthly(self, mock_subset):
         '''Test function of the periodset method - monthly archive'''
         func.logtest('Assert pattern produced by periodset - archive month:')
@@ -240,7 +242,7 @@ class PeriodTests(unittest.TestCase):
             'ShareDir', netcdf_filenames.season_set(self.basefile)
             )
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodset_arch_seasonal(self, mock_subset):
         '''Test function of the periodset method - seasonal archive'''
         func.logtest('Assert pattern produced by periodset - archive season:')
@@ -248,7 +250,7 @@ class PeriodTests(unittest.TestCase):
         mock_subset.assert_called_with('ShareDir',
                                        netcdf_filenames.year_set(self.sfile))
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodset_arch_annual(self, mock_subset):
         '''Test function of the periodset method - annual archive'''
         func.logtest('Assert pattern produced by periodset - archive year:')
@@ -257,7 +259,7 @@ class PeriodTests(unittest.TestCase):
             'ShareDir', netcdf_filenames.mean_stencil(self.yfile)
             )
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodend_monthly(self, mock_subset):
         '''Test function of the periodend method - month'''
         func.logtest('Assert pattern produced by periodend method - month:')
@@ -266,7 +268,7 @@ class PeriodTests(unittest.TestCase):
             'ShareDir', netcdf_filenames.month_end(self.basefile)
             )
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodend_seasonal(self, mock_subset):
         '''Test function of the periodend method - season'''
         func.logtest('Assert pattern produced by periodend method - season:')
@@ -274,7 +276,7 @@ class PeriodTests(unittest.TestCase):
         mock_subset.assert_called_with('ShareDir',
                                        netcdf_filenames.season_end(self.sfile))
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodend_annual(self, mock_subset):
         '''Test function of the periodend method - year'''
         func.logtest('Assert pattern produced by periodend method - year:')
@@ -282,7 +284,7 @@ class PeriodTests(unittest.TestCase):
         mock_subset.assert_called_with('ShareDir',
                                        netcdf_filenames.year_end(self.yfile))
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodend_datadir(self, mock_subset):
         '''Test function of the periodend method - with datadir'''
         func.logtest('Assert pattern produced by periodend method - datadir:')
@@ -291,7 +293,7 @@ class PeriodTests(unittest.TestCase):
             'MyDir', netcdf_filenames.month_end(self.basefile)
             )
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodend_arch_monthly(self, mock_subset):
         '''Test function of the periodend method - monthly archive'''
         func.logtest('Assert pattern produced by periodend - archive month:')
@@ -300,7 +302,7 @@ class PeriodTests(unittest.TestCase):
             'ShareDir', netcdf_filenames.season_end(self.basefile)
             )
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodend_arch_seasonal(self, mock_subset):
         '''Test function of the periodend method - seasonal archive'''
         func.logtest('Assert pattern produced by periodend - archive season:')
@@ -308,7 +310,7 @@ class PeriodTests(unittest.TestCase):
         mock_subset.assert_called_with('ShareDir',
                                        netcdf_filenames.year_end(self.sfile))
 
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_periodend_arch_annual(self, mock_subset):
         '''Test function of the periodend method - annual archive'''
         func.logtest('Assert pattern produced by periodend - archive year:')
@@ -321,10 +323,10 @@ class MeansTests(unittest.TestCase):
     '''Unit tests relating to creation of means'''
 
     def setUp(self):
-        with mock.patch('nlist.loadNamelist'):
+        with mock.patch('modeltemplate.nlist.loadNamelist') as mock_nl:
+            mock_nl().modeltemplate.debug = False
             self.model = modeltemplate.ModelTemplate()
 
-        self.model._debug_mode(False)
         self.model.share = 'ShareDir'
         self.model.naml.base_component = '10d'
 
@@ -353,8 +355,8 @@ class MeansTests(unittest.TestCase):
 
     @mock.patch('modeltemplate.utils.create_dir')
     @mock.patch('modeltemplate.os.path')
-    @mock.patch('utils.exec_subproc', side_effect=[(0, 'None')])
-    @mock.patch('utils.move_files')
+    @mock.patch('modeltemplate.utils.exec_subproc', side_effect=[(0, 'None')])
+    @mock.patch('modeltemplate.utils.move_files')
     def test_create_annual_mean(self, mock_mv, mock_exec, mock_path, mock_dir):
         '''Test successful creation of annual mean'''
         func.logtest('Assert successful creation of annual mean:')
@@ -377,9 +379,9 @@ class MeansTests(unittest.TestCase):
                                         'ModelDir/archive_ready_means',
                                         originpath='ShareDir')
 
-    @mock.patch('utils.remove_files')
+    @mock.patch('modeltemplate.utils.remove_files')
     @mock.patch('modeltemplate.os.path')
-    @mock.patch('utils.exec_subproc', side_effect=[(0, 'None')])
+    @mock.patch('modeltemplate.utils.exec_subproc', side_effect=[(0, 'None')])
     def test_create_monthly_mean_10d(self, mock_exec, mock_path, mock_rm):
         '''Test successful creation of monthly mean - 10day base'''
         func.logtest('Assert successful creation of monthly mean - 10d base:')
@@ -399,9 +401,9 @@ class MeansTests(unittest.TestCase):
         cmd = str(self.model.means_cmd) + ' file1 file2 file3 MonthlyMean'
         mock_exec.assert_called_once_with(cmd, cwd='ShareDir')
 
-    @mock.patch('utils.remove_files')
+    @mock.patch('modeltemplate.utils.remove_files')
     @mock.patch('modeltemplate.os.path')
-    @mock.patch('utils.exec_subproc', side_effect=[(0, 'None')])
+    @mock.patch('modeltemplate.utils.exec_subproc', side_effect=[(0, 'None')])
     def test_create_monthly_mean_5dbase(self, mock_exec, mock_path, mock_rm):
         '''Test successful creation of monthly mean - 5day base'''
         func.logtest('Assert successful creation of monthly mean - 5d base:')
@@ -426,7 +428,7 @@ class MeansTests(unittest.TestCase):
         mock_exec.assert_called_once_with(cmd, cwd='ShareDir')
 
     @mock.patch('modeltemplate.os.path')
-    @mock.patch('utils.exec_subproc', side_effect=[(99, 'None')])
+    @mock.patch('modeltemplate.utils.exec_subproc', side_effect=[(99, 'None')])
     def test_create_annual_mean_fail(self, mock_exec, mock_path):
         '''Test failed creation of annual mean'''
         func.logtest('Assert failed creation of annual mean:')
@@ -555,7 +557,8 @@ class ArchiveTests(unittest.TestCase):
     def setUp(self):
         modeltemplate.ModelTemplate._directory = mock.\
             Mock(return_value='ModelDir')
-        with mock.patch('nlist.loadNamelist'):
+        with mock.patch('modeltemplate.nlist.loadNamelist') as mock_nl:
+            mock_nl().modeltemplate.debug = False
             self.model = modeltemplate.ModelTemplate()
             self.model.share = os.getcwd()
             self.model._debug_mode(False)
@@ -606,7 +609,7 @@ class ArchiveTests(unittest.TestCase):
         self.model.suite.finalcycle = True
         self.assertEqual(self.model.buffer_archive, 0)
 
-    @mock.patch('utils.remove_files')
+    @mock.patch('modeltemplate.utils.remove_files')
     def test_archive_means(self, mock_rm):
         '''Test archive means function'''
         func.logtest('Assert list of means to archive:')
@@ -625,7 +628,7 @@ class ArchiveTests(unittest.TestCase):
         self.assertListEqual(self.model.archive_files.mock_calls,
                              [mock.call('file1'), mock.call('file2')])
 
-    @mock.patch('os.rename')
+    @mock.patch('modeltemplate.os.rename')
     def test_archive_means_debug(self, mock_rm):
         '''Test archive means function'''
         func.logtest('Assert list of means to archive:')
@@ -730,7 +733,7 @@ class ArchiveTests(unittest.TestCase):
             func.logtest('Asserting existence of {}...'.format(fname))
             self.assertTrue(os.path.exists(fname))
 
-    @mock.patch('utils.remove_files')
+    @mock.patch('modeltemplate.utils.remove_files')
     def test_archive_means_compress(self, mock_rm):
         '''Test archive means with compression'''
         func.logtest('Assert compression of archived means:')
@@ -770,7 +773,7 @@ class ArchiveTests(unittest.TestCase):
                          mock.call('file2', self.model.naml.compress_means)]
         self.assertListEqual(self.model.compress_file.mock_calls, call_compress)
 
-    @mock.patch('utils.remove_files')
+    @mock.patch('modeltemplate.utils.remove_files')
     def test_archive_means_partial_fail(self, mock_rm):
         '''Test archive means function with partial failure'''
         func.logtest('Assert partially successful archive of file list:')
@@ -795,7 +798,7 @@ class ArchiveTests(unittest.TestCase):
                 self.model.archive_means()
         self.assertIn('Nothing to archive', func.capture())
 
-    @mock.patch('utils.remove_files')
+    @mock.patch('modeltemplate.utils.remove_files')
     def test_archive_restarts(self, mock_rm):
         '''Test archive restarts function'''
         func.logtest('Assert list of restart files to archive:')
@@ -804,7 +807,7 @@ class ArchiveTests(unittest.TestCase):
         mock_rm.assert_called_once_with(['file2', 'file1'], path=os.getcwd())
         self.assertNotIn('Only archiving periodic', func.capture())
 
-    @mock.patch('utils.remove_files')
+    @mock.patch('modeltemplate.utils.remove_files')
     def test_archive_restarts_final(self, mock_rm):
         '''Test archive restarts function - finalcycle'''
         func.logtest('Assert restart files to archive - final cycle:')
@@ -822,7 +825,7 @@ class ArchiveTests(unittest.TestCase):
         self.model._debug_mode(True)
         infiles = [os.path.join(os.getcwd(), fn) for fn in ['file2', 'file1']]
         outfiles = [fn + '_ARCHIVED' for fn in infiles]
-        with mock.patch('os.rename') as mock_rm:
+        with mock.patch('modeltemplate.os.rename') as mock_rm:
             self.model.archive_restarts()
             self.assertEqual(sorted(mock_rm.mock_calls),
                              sorted([mock.call(infiles[0], outfiles[0]),
@@ -833,7 +836,7 @@ class ArchiveTests(unittest.TestCase):
         '''Test archive restarts function'''
         func.logtest('Assert list of restart files to archive:')
         self.model.timestamps.return_value = False
-        with mock.patch('utils.remove_files'):
+        with mock.patch('modeltemplate.utils.remove_files'):
             self.model.archive_restarts()
         self.assertIn('Only archiving periodic', func.capture())
 
@@ -841,7 +844,7 @@ class ArchiveTests(unittest.TestCase):
         '''Test archive restarts function - nothing to archive'''
         func.logtest('Assert function with nothing to archive:')
         self.model.periodset.return_value = []
-        with mock.patch('utils.remove_files'):
+        with mock.patch('modeltemplate.utils.remove_files'):
             self.model.archive_restarts()
         self.assertIn(' -> Nothing to archive', func.capture())
         self.assertNotIn('Deleting', func.capture())
@@ -854,7 +857,7 @@ class ArchiveTests(unittest.TestCase):
             'file1': 'SUCCESS',
             'file2': 'FAILED'
             }
-        with mock.patch('utils.remove_files') as mock_rm:
+        with mock.patch('modeltemplate.utils.remove_files') as mock_rm:
             self.model.archive_restarts()
             mock_rm.assert_called_with(['file1'], path=os.getcwd())
 
@@ -887,8 +890,9 @@ class PreprocessTests(unittest.TestCase):
     def setUp(self):
         modeltemplate.ModelTemplate._directory = mock.\
             Mock(return_value='ModelDir')
-        with mock.patch('nlist.loadNamelist'):
-            with mock.patch('suite.SuiteEnvironment'):
+        with mock.patch('modeltemplate.nlist.loadNamelist') as mock_nl:
+            mock_nl().modeltemplate.debug = False
+            with mock.patch('modeltemplate.suite.SuiteEnvironment'):
                 self.model = modeltemplate.ModelTemplate()
                 self.model.share = 'ShareDir'
                 self.model._debug_mode(False)
@@ -935,7 +939,7 @@ class PreprocessTests(unittest.TestCase):
         self.model.naml.correct_time_variables = True
         self.model.naml.correct_time_bounds_variables = True
         self.model.naml.time_bounds_suffix = '_bounds'
-        with mock.patch('netcdf_utils.fix_times') as mock_fix:
+        with mock.patch('modeltemplate.netcdf_utils.fix_times') as mock_fix:
             self.model.fix_mean_time('Filename', 'meanfile')
             mock_fix.assert_called_with('Filename', 'meanfile', 'time_counter',
                                         do_time=True, do_bounds=True)
@@ -946,7 +950,7 @@ class PreprocessTests(unittest.TestCase):
         self.model.naml.time_vars = 'time_counter', 'time_centered'
         self.model.naml.correct_time_variables = True
         self.model.naml.correct_time_bounds_variables = True
-        with mock.patch('netcdf_utils.fix_times') as mock_fix:
+        with mock.patch('modeltemplate.netcdf_utils.fix_times') as mock_fix:
             self.model.fix_mean_time('Filename', 'meanfile')
             mock_fix.assert_called_with('Filename', 'meanfile',
                                         'time_centered',
@@ -958,7 +962,7 @@ class PreprocessTests(unittest.TestCase):
         self.model.naml.time_vars = 'time_counter', 'time_centered'
         self.model.naml.correct_time_variables = True
         self.model.naml.correct_time_bounds_variables = False
-        with mock.patch('netcdf_utils.fix_times') as mock_fix:
+        with mock.patch('modeltemplate.netcdf_utils.fix_times') as mock_fix:
             self.model.fix_mean_time('Filename', 'meanfile')
             mock_fix.assert_called_with('Filename', 'meanfile',
                                         'time_centered', do_time=True,
@@ -970,7 +974,7 @@ class PreprocessTests(unittest.TestCase):
         self.model.naml.time_vars = 'time'
         self.model.naml.correct_time_variables = False
         self.model.naml.correct_time_bounds_variables = True
-        with mock.patch('netcdf_utils.fix_times') as mock_fix:
+        with mock.patch('modeltemplate.netcdf_utils.fix_times') as mock_fix:
             self.model.fix_mean_time('Filename', 'meanfile')
             mock_fix.assert_called_with('Filename', 'meanfile', 'time',
                                         do_time=False, do_bounds=True)
@@ -980,7 +984,7 @@ class MethodsTests(unittest.TestCase):
     '''Unit tests relating to ModelTemplate methods'''
 
     def setUp(self):
-        with mock.patch('nlist.loadNamelist') as mock_nl:
+        with mock.patch('modeltemplate.nlist.loadNamelist') as mock_nl:
             mock_nl().suitegen.prefix = 'RUNID'
             mock_nl().modeltemplate.debug = False
             self.model = modeltemplate.ModelTemplate()
@@ -1046,8 +1050,8 @@ class MethodsTests(unittest.TestCase):
         self.assertListEqual(mock_set.mock_calls,
                              [mock.call('WorkDir'), mock.call('ShareDir')])
 
-    @mock.patch('utils.move_files')
-    @mock.patch('utils.get_subset')
+    @mock.patch('modeltemplate.utils.move_files')
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_move_to_share_pattern(self, mock_set, mock_mv):
         '''Test move_to_share functionality'''
         func.logtest('Assert behaviour of move_to_share method:')
@@ -1143,7 +1147,7 @@ class MethodsTests(unittest.TestCase):
         self.assertIn('Annual mean for year ending December 1111',
                       self.model.describe_mean(ncf))
 
-    @mock.patch('netcdf_filenames.NCFilename')
+    @mock.patch('modeltemplate.netcdf_filenames.NCFilename')
     def test_components(self, mock_ncf):
         '''Test component extraction'''
         func.logtest('Assert correct extraction of filename components:')
@@ -1160,7 +1164,7 @@ class MethodsTests(unittest.TestCase):
                                          start_date=('1111', '22', '33'),
                                          custom='F-1')
 
-    @mock.patch('netcdf_filenames.NCFilename')
+    @mock.patch('modeltemplate.netcdf_filenames.NCFilename')
     def test_components_nofields(self, mock_ncf):
         '''Test component extraction - no fields'''
         func.logtest('Assert correct extraction of filename components:')
@@ -1177,7 +1181,7 @@ class MethodsTests(unittest.TestCase):
                                          start_date=('1111', '22', '33'),
                                          custom='')
 
-    @mock.patch('netcdf_filenames.NCFilename')
+    @mock.patch('modeltemplate.netcdf_filenames.NCFilename')
     def test_components_rebuild(self, mock_ncf):
         '''Test component extraction - with rebuild suffix'''
         func.logtest('Assert correct extraction of components - rebld suffix:')
@@ -1209,7 +1213,8 @@ class MethodsTests(unittest.TestCase):
                     )
         self.assertIn('unable to extract "component"', func.capture('err'))
 
-    @mock.patch('netcdf_filenames.NCFilename.__init__', return_value=None)
+    @mock.patch('modeltemplate.netcdf_filenames.NCFilename.__init__',
+                return_value=None)
     def test_components_fail_debug(self, mock_ncf):
         '''Test component extraction - failure in model identification'''
         func.logtest('Assert failure in model identification:')
@@ -1263,7 +1268,8 @@ class PropertyTests(unittest.TestCase):
     '''Unit tests relating to ModelTemplate properties'''
 
     def setUp(self):
-        with mock.patch('nlist.loadNamelist'):
+        with mock.patch('modeltemplate.nlist.loadNamelist') as mock_nl:
+            mock_nl().modeltemplate.debug = False
             self.model = modeltemplate.ModelTemplate()
 
     def tearDown(self):

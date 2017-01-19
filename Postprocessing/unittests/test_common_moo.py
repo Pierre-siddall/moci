@@ -51,7 +51,7 @@ class CommandTests(unittest.TestCase):
         self.assertIsInstance(self.inst, moo.CommandExec)
 
     @mock.patch('moo._Moose.put_data')
-    @mock.patch('utils.exec_subproc')
+    @mock.patch('moo.utils.exec_subproc')
     def test_archive(self, mock_subproc, mock_putdata):
         '''Test archive request'''
         func.logtest('Test archive request:')
@@ -131,14 +131,14 @@ class MooseTests(unittest.TestCase):
             cmd['CURRENT_RQST_NAME'] = 'RUNIDo.YYYY-MM-DD-00000.nc'
         elif 'tracer' in self.id():
             cmd['CURRENT_RQST_NAME'] = 'RUNIDo_YYYYMMDD_restart_trc.nc'
-        os.environ['PREFIX'] = 'PATH/'
-        with mock.patch('utils.exec_subproc', return_value=(0, '')):
-            self.inst = moo._Moose(cmd)
+        with mock.patch('moo.utils.exec_subproc', return_value=(0, '')):
+            with mock.patch.dict('moo.os.environ', {'PREFIX': 'PATH/'}):
+                self.inst = moo._Moose(cmd)
 
     def tearDown(self):
         pass
 
-    @mock.patch('utils.exec_subproc')
+    @mock.patch('moo.utils.exec_subproc')
     def test_instance_moose(self, mock_subproc):
         '''Test creation of a Moose archiving object'''
         func.logtest('test creation of a Moose archiving object:')
@@ -147,7 +147,7 @@ class MooseTests(unittest.TestCase):
         self.assertEqual(self.inst._file_id, 'daTestFile')
         self.assertTrue(self.inst.chkset())
 
-    @mock.patch('utils.exec_subproc')
+    @mock.patch('moo.utils.exec_subproc')
     def test_create_set(self, mock_subproc):
         '''Test creation of a Moose data set'''
         func.logtest('test creation of a Moose set:')
@@ -155,7 +155,7 @@ class MooseTests(unittest.TestCase):
         self.assertFalse(self.inst.chkset())
         self.assertIn('mkset:', func.capture())
 
-    @mock.patch('utils.exec_subproc')
+    @mock.patch('moo.utils.exec_subproc')
     def test_mkset_project(self, mock_subproc):
         '''Test mkset function with project'''
         func.logtest('test mkset function, with project:')
@@ -166,7 +166,7 @@ class MooseTests(unittest.TestCase):
         mock_subproc.assert_called_with(cmd, verbose=False)
         self.assertIn('created set', func.capture())
 
-    @mock.patch('utils.exec_subproc')
+    @mock.patch('moo.utils.exec_subproc')
     def test_mkset_category_fail(self, mock_subproc):
         '''Test mkset function with category - Failed operation'''
         func.logtest('test mkset with category - Failed operation:')
@@ -177,7 +177,7 @@ class MooseTests(unittest.TestCase):
         mock_subproc.assert_called_with(cmd, verbose=False)
         self.assertIn('Unable to create', func.capture(direct='err'))
 
-    @mock.patch('utils.exec_subproc')
+    @mock.patch('moo.utils.exec_subproc')
     def test_mkset_pre_existing(self, mock_subproc):
         '''Test mkset function with pre-existing set'''
         func.logtest('test mkset function, with pre-existing set:')
@@ -266,8 +266,8 @@ class MooseTests(unittest.TestCase):
         self.assertEqual(collection, 'ins.nc.file')
         self.assertFalse(self.inst.fl_pp)
 
-    @mock.patch('utils.exec_subproc')
-    @mock.patch('os.path.exists')
+    @mock.patch('moo.utils.exec_subproc')
+    @mock.patch('moo.os.path.exists')
     def test_putdata_prefix(self, mock_exist, mock_subproc):
         '''Test put_data function with $PREFIX$RUNID crn'''
         func.logtest('test put_data function with $PREFIX$RUNID crn:')
@@ -279,7 +279,7 @@ class MooseTests(unittest.TestCase):
         dest = os.path.expandvars('moose:myclass/runid/$RUNID.daTestfile')
         mock_subproc.assert_called_with('moo put -f -vv ' + src + ' ' + dest)
 
-    @mock.patch('utils.exec_subproc')
+    @mock.patch('moo.utils.exec_subproc')
     def test_putdata_pp(self, mock_subproc):
         '''Test put_data function with fieldsfile'''
         func.logtest('test put_data function with fieldsfile:')
@@ -287,7 +287,7 @@ class MooseTests(unittest.TestCase):
         self.inst._model_id = 'a'
         self.inst._file_id = 'pm'
         mock_subproc.return_value = (0, '')
-        with mock.patch('os.path.exists', return_value=True):
+        with mock.patch('moo.os.path.exists', return_value=True):
             self.inst.put_data()
         cmd = 'moo put -f -vv -c=umpp '
         src = 'TestDir/RUNIDa.pmTestfile'
@@ -295,7 +295,7 @@ class MooseTests(unittest.TestCase):
         mock_subproc.assert_called_with(cmd + os.path.expandvars(
             src + ' ' + dest))
 
-    @mock.patch('utils.exec_subproc')
+    @mock.patch('moo.utils.exec_subproc')
     def test_putdata_pp_no_convert(self, mock_subproc):
         '''Test put_data function with converted fieldsfile'''
         func.logtest('test put_data function with converted fieldsfile:')
@@ -303,13 +303,13 @@ class MooseTests(unittest.TestCase):
         self.inst.fl_pp = True
         mock_subproc.return_value = (0, '')
         with mock.patch('moo._Moose._collection', return_value='apm.pp'):
-            with mock.patch('os.path.exists', return_value=True):
+            with mock.patch('moo.os.path.exists', return_value=True):
                 self.inst.put_data()
         cmd = 'moo put -f -vv TestDir/RUNIDa.pmTestfile.pp ' \
             'moose:myclass/runid/apm.pp'
         mock_subproc.assert_called_with(cmd)
 
-    @mock.patch('utils.exec_subproc')
+    @mock.patch('moo.utils.exec_subproc')
     def test_putdata_ff_no_convert(self, mock_subproc):
         '''Test put_data function with unconverted fieldsfile'''
         func.logtest('test put_data function with unconverted fieldsfile:')
@@ -317,13 +317,13 @@ class MooseTests(unittest.TestCase):
         self.inst.fl_pp = False
         mock_subproc.return_value = (0, '')
         with mock.patch('moo._Moose._collection', return_value='apm.file'):
-            with mock.patch('os.path.exists', return_value=True):
+            with mock.patch('moo.os.path.exists', return_value=True):
                 self.inst.put_data()
         cmd = 'moo put -f -vv TestDir/RUNIDa.pmTestfile ' \
             'moose:myclass/runid/apm.file'
         mock_subproc.assert_called_with(cmd)
 
-    @mock.patch('utils.exec_subproc')
+    @mock.patch('moo.utils.exec_subproc')
     def test_putdata_non_existent(self, mock_subproc):
         '''Test put_data with non-existent file'''
         func.logtest('test put_data function with non-existent file:')
@@ -332,22 +332,22 @@ class MooseTests(unittest.TestCase):
         self.assertIn('does not exist', func.capture(direct='err'))
         self.assertEqual(rtn, 99)
 
-    @mock.patch('os.path.exists')
+    @mock.patch('moo.os.path.exists')
     def test_putdata_jobtemp(self, mock_exist):
         '''Test put_data function with JOBTEMP'''
         func.logtest('test put_data function with JOBTEMP:')
-        os.environ['JOBTEMP'] = 'jobtemp'
         mock_exist.return_value = True
-        self.inst.put_data()
-        self.assertEqual(os.environ['UM_TMPDIR'], 'jobtemp')
+        with mock.patch.dict('moo.os.environ', {'JOBTEMP': 'jobtemp'}):
+            self.inst.put_data()
+            self.assertEqual(os.environ['UM_TMPDIR'], 'jobtemp')
 
-    @mock.patch('os.path.exists')
+    @mock.patch('moo.os.path.exists')
     def test_putdata_jobtemp_empty(self, mock_exist):
         '''Test put_data function with empty JOBTEMP'''
         func.logtest('test put_data function with empty JOBTEMP:')
-        os.environ['JOBTEMP'] = ''
         mock_exist.return_value = True
-        self.inst.put_data()
+        with mock.patch.dict('moo.os.environ', {'JOBTEMP': ''}):
+            self.inst.put_data()
         self.assertIn('likely to fail', func.capture(direct='err'))
 
 
@@ -367,19 +367,19 @@ class PutCommandTests(unittest.TestCase):
             'PROJECT':             '',
             'CONVERTPP':           True
             }
-        os.environ['PREFIX'] = 'PATH/'
         self.moocmd = 'moo put -f -vv '
         self.testfile = os.path.join(cmd['DATAM'], cmd['CURRENT_RQST_NAME'])
         self.archdest = os.path.join(cmd['DATACLASS'], cmd['SETNAME'],
                                      'ada.file')
-        with mock.patch('moo._Moose.chkset', return_value=True):
-            self.inst = moo._Moose(cmd)
+        with mock.patch.dict('moo.os.environ', {'PREFIX': 'PATH/'}):
+            with mock.patch('moo._Moose.chkset', return_value=True):
+                self.inst = moo._Moose(cmd)
 
     def tearDown(self):
         pass
 
-    @mock.patch('utils.exec_subproc')
-    @mock.patch('os.path.exists')
+    @mock.patch('moo.utils.exec_subproc')
+    @mock.patch('moo.os.path.exists')
     def test_put_no_options(self, mock_exist, mock_subproc):
         '''Test put_data with standard options'''
         func.logtest('test moo command with standard options:')
@@ -389,8 +389,8 @@ class PutCommandTests(unittest.TestCase):
         outcmd = self.moocmd + self.testfile + ' moose:' + self.archdest
         self.assertIn(outcmd, func.capture())
 
-    @mock.patch('utils.exec_subproc')
-    @mock.patch('os.path.exists')
+    @mock.patch('moo.utils.exec_subproc')
+    @mock.patch('moo.os.path.exists')
     def test_put_moopath_option(self, mock_exist, mock_subproc):
         '''Test put_data with project option'''
         func.logtest('test moo command with project option:')
@@ -402,8 +402,8 @@ class PutCommandTests(unittest.TestCase):
                                                   self.archdest)
         self.assertIn(outcmd, func.capture())
 
-    @mock.patch('utils.exec_subproc')
-    @mock.patch('os.path.exists')
+    @mock.patch('moo.utils.exec_subproc')
+    @mock.patch('moo.os.path.exists')
     def test_put_ensemble_option(self, mock_exist, mock_subproc):
         '''Test put_data with ensemble ID option'''
         func.logtest('test moo command with ensemble ID option:')

@@ -23,7 +23,7 @@ import runtime_environment
 import atmosNamelist
 import validation
 import housekeeping
-import utils
+
 # Import of atmos requires RUNID from runtime_environment
 runtime_environment.setup_env()
 import atmos
@@ -51,9 +51,8 @@ class HousekeepTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
-        utils.set_debugmode(False)
 
-    @mock.patch('utils.remove_files')
+    @mock.patch('housekeeping.utils.remove_files')
     def test_delete_inst_pp_archived(self, mock_rm):
         '''Test delete_ppfiles functionality - archived instantaneous files'''
         func.logtest('Assert successful deletion of archived inst. ppfiles:')
@@ -68,7 +67,7 @@ class HousekeepTests(unittest.TestCase):
                        ignoreNonExist=True)]
             )
 
-    @mock.patch('utils.remove_files')
+    @mock.patch('housekeeping.utils.remove_files')
     def test_delete_mean_pp_archived(self, mock_rm):
         '''Test delete_ppfiles functionality - archived mean ppfiles'''
         func.logtest('Assert successful deletion of archived mean ppfiles:')
@@ -83,14 +82,14 @@ class HousekeepTests(unittest.TestCase):
                        ignoreNonExist=True)]
             )
 
-    @mock.patch('os.rename')
+    @mock.patch('housekeeping.os.rename')
     def test_delete_pp_archived_debug(self, mock_rm):
         '''Test delete_ppfiles functionality - archived (debug_mode)'''
         func.logtest('Assert successful deletion of archived ppfiles - debug:')
-        utils.set_debugmode(True)
         self.atmos.naml.delete_sc.gcmdel = True
-        housekeeping.delete_ppfiles(self.atmos, self.del_mean_pp,
-                                    self.del_mean_pp, True)
+        with mock.patch('housekeeping.utils.get_debugmode', return_value=True):
+            housekeeping.delete_ppfiles(self.atmos, self.del_mean_pp,
+                                        self.del_mean_pp, True)
         calls = [
             mock.call('ShareDir/MEAN1', 'ShareDir/MEAN1_ARCHIVED'),
             mock.call('ShareDir/MEAN3', 'ShareDir/MEAN3_ARCHIVED'),
@@ -101,7 +100,7 @@ class HousekeepTests(unittest.TestCase):
 
     @mock.patch('housekeeping.get_marked_files')
     @mock.patch('housekeeping.FILETYPE')
-    @mock.patch('utils.remove_files')
+    @mock.patch('housekeeping.utils.remove_files')
     def test_delete_inst_ppfiles(self, mock_rm, mock_ft, mock_mark):
         '''Test delete_ppfiles functionality - instantaneous files'''
         func.logtest('Assert successful deletion of inst. ppfiles:')
@@ -120,7 +119,7 @@ class HousekeepTests(unittest.TestCase):
 
     @mock.patch('housekeeping.get_marked_files')
     @mock.patch('housekeeping.FILETYPE')
-    @mock.patch('utils.remove_files')
+    @mock.patch('housekeeping.utils.remove_files')
     def test_delete_mean_ppfiles(self, mock_rm, mock_ft, mock_mark):
         '''Test delete_ppfiles functionality - mean files'''
         func.logtest('Assert successful deletion of mean ppfiles:')
@@ -148,8 +147,8 @@ class HousekeepTests(unittest.TestCase):
         '''Test convert_to_pp functionality with um-convpp'''
         func.logtest('Assert functionality of the convert_to_pp method:')
         um_utils_path = 'UMDIR/vn10.4/machine/utilities'
-        with mock.patch('utils.exec_subproc') as mock_exec:
-            with mock.patch('utils.remove_files') as mock_rm:
+        with mock.patch('housekeeping.utils.exec_subproc') as mock_exec:
+            with mock.patch('housekeeping.utils.remove_files') as mock_rm:
                 mock_exec.return_value = (0, '')
                 ppfile = housekeeping.convert_to_pp('Filename', um_utils_path,
                                                     False)
@@ -161,8 +160,8 @@ class HousekeepTests(unittest.TestCase):
     def test_convert_to_pp(self):
         '''Test convert_to_pp functionality - default utility, keeping ffile'''
         func.logtest('Assert functionality of the convert_to_pp method:')
-        with mock.patch('utils.exec_subproc') as mock_exec:
-            with mock.patch('utils.remove_files') as mock_rm:
+        with mock.patch('housekeeping.utils.exec_subproc') as mock_exec:
+            with mock.patch('housekeeping.utils.remove_files') as mock_rm:
                 mock_exec.return_value = (0, '')
                 ppfile = housekeeping.convert_to_pp('Here/Filename',
                                                     self.umutils, True)
@@ -175,8 +174,8 @@ class HousekeepTests(unittest.TestCase):
         '''Test convert_to_pp functionality with um-ff2pp'''
         func.logtest('Assert functionality of the convert_to_pp method:')
         um_utils_path = 'UMDIR/vn10.3/machine/utilities'
-        with mock.patch('utils.exec_subproc') as mock_exec:
-            with mock.patch('utils.remove_files') as mock_rm:
+        with mock.patch('housekeeping.utils.exec_subproc') as mock_exec:
+            with mock.patch('housekeeping.utils.remove_files') as mock_rm:
                 mock_exec.return_value = (0, '')
                 ppfile = housekeeping.convert_to_pp('Here/Filename',
                                                     um_utils_path, False)
@@ -188,7 +187,7 @@ class HousekeepTests(unittest.TestCase):
     def test_convert_to_pp_fail(self):
         '''Test convert_to_pp failure capture'''
         func.logtest('Assert failure capture of the convert_to_pp method:')
-        with mock.patch('utils.exec_subproc') as mock_exec:
+        with mock.patch('housekeeping.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (1, 'I failed')
             with self.assertRaises(SystemExit):
                 housekeeping.convert_to_pp('Filename', 'TestDir',
@@ -196,9 +195,9 @@ class HousekeepTests(unittest.TestCase):
         self.assertIn('Conversion to pp format failed', func.capture('err'))
         self.assertIn('I failed', func.capture('err'))
 
-    @mock.patch('utils.get_subset')
-    @mock.patch('re.search')
-    @mock.patch('utils.remove_files')
+    @mock.patch('housekeeping.utils.get_subset')
+    @mock.patch('housekeeping.re.search')
+    @mock.patch('housekeeping.utils.remove_files')
     def test_delete_dumps(self, mock_rm, mock_match, mock_set):
         '''Test delete_dumps functionality'''
         func.logtest('Assert successful deletion of dumps:')
@@ -212,8 +211,8 @@ class HousekeepTests(unittest.TestCase):
                                     self.del_mean_pp, False)
         mock_rm.assert_called_once_with(self.del_dumps[0:4], path='ShareDir')
 
-    @mock.patch('utils.get_subset')
-    @mock.patch('utils.remove_files')
+    @mock.patch('housekeeping.utils.get_subset')
+    @mock.patch('housekeeping.utils.remove_files')
     def test_delete_dumps_archived(self, mock_rm, mock_set):
         '''Test delete_dumps functionality - archived files'''
         func.logtest('Assert successful deletion of archived dumps:')
@@ -225,8 +224,8 @@ class HousekeepTests(unittest.TestCase):
             [mock.call(['DUMP1', 'DUMP2a', 'DUMP3'], path='ShareDir')]
             )
 
-    @mock.patch('utils.get_subset')
-    @mock.patch('utils.remove_files')
+    @mock.patch('housekeeping.utils.get_subset')
+    @mock.patch('housekeeping.utils.remove_files')
     def test_del_dumps_archived_midrun(self, mock_rm, mock_set):
         '''Test delete_dumps functionality - archived files from mid-run'''
         func.logtest('Assert deletion of archived dumps - mid-run:')
@@ -238,16 +237,16 @@ class HousekeepTests(unittest.TestCase):
             [mock.call(['DUMP1', 'DUMP1a', 'DUMP2a', 'DUMP3'], path='ShareDir')]
             )
 
-    @mock.patch('utils.get_subset')
-    @mock.patch('utils.remove_files')
-    @mock.patch('os.rename')
+    @mock.patch('housekeeping.utils.get_subset')
+    @mock.patch('housekeeping.utils.remove_files')
+    @mock.patch('housekeeping.os.rename')
     def test_del_dumps_archived_debug(self, mock_mv, mock_rm, mock_set):
         '''Test delete_dumps functionality - archived files (debug_mode)'''
         func.logtest('Assert successful deletion of archived dumps - debug:')
-        utils.set_debugmode(True)
         self.atmos.final_dumpname = 'DUMP1a'
         mock_set.return_value = self.del_dumps
-        housekeeping.delete_dumps(self.atmos, self.arch_dumps, True)
+        with mock.patch('housekeeping.utils.get_debugmode', return_value=True):
+            housekeeping.delete_dumps(self.atmos, self.arch_dumps, True)
         self.assertEqual(
             mock_mv.mock_calls,
             [mock.call('ShareDir/DUMP1', 'ShareDir/DUMP1_ARCHIVED'),
@@ -255,7 +254,8 @@ class HousekeepTests(unittest.TestCase):
             )
         mock_rm.assert_called_once_with('DUMP2a', path='ShareDir')
 
-    @mock.patch('utils.get_subset', return_value=['File1.sfx', 'File2.sfx'])
+    @mock.patch('housekeeping.utils.get_subset',
+                return_value=['File1.sfx', 'File2.sfx'])
     def test_get_marked_files(self, mock_getfiles):
         '''Test list created by get_marked_files'''
         func.logtest('Assert creation of marked files list:')
@@ -263,7 +263,8 @@ class HousekeepTests(unittest.TestCase):
         self.assertListEqual(marked, ['File1', 'File2'])
         mock_getfiles.assert_caleld_once_with('TestDir', 'pattern')
 
-    @mock.patch('utils.get_subset', return_value=['File1.sfx', 'File2.sfx'])
+    @mock.patch('housekeeping.utils.get_subset',
+                return_value=['File1.sfx', 'File2.sfx'])
     def test_get_marked_files_nosuffix(self, mock_getfiles):
         '''Test list created by get_marked_files - no suffix'''
         func.logtest('Assert creation of marked files list - no suffix:')
@@ -271,7 +272,7 @@ class HousekeepTests(unittest.TestCase):
         self.assertListEqual(marked, ['File1.sfx', 'File2.sfx'])
         mock_getfiles.assert_caleld_once_with('TestDir', 'pattern')
 
-    @mock.patch('utils.get_subset', return_value=[])
+    @mock.patch('housekeeping.utils.get_subset', return_value=[])
     def test_get_marked_files_none(self, mock_getfiles):
         '''Test list created by get_marked_files - empty list'''
         func.logtest('Assert creation of marked files list - empty list:')
@@ -296,7 +297,6 @@ class HeaderTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
-        utils.set_debugmode(False)
 
     def test_verify_header(self):
         '''Test verify_header functionality'''
@@ -333,14 +333,15 @@ class HeaderTests(unittest.TestCase):
     def test_verify_hdr_mismatch_debug(self):
         '''Test verify_header functionality - mismatch (debug)'''
         func.logtest('Assert mismatch date in the verify_header method:')
-        utils.set_debugmode(True)
         with mock.patch('validation.genlist') as mock_gen:
             mock_gen.return_value = self.fixhd
             with mock.patch('validation.identify_filedate') as mock_date:
                 mock_date.return_value = ('YY', 'MM', 'DD1')
-                valid = validation.verify_header(self.atmos.naml.atmospp,
-                                                 'Filename', self.logfile,
-                                                 'LogDir/job')
+                with mock.patch('validation.utils.get_debugmode',
+                                return_value=True):
+                    valid = validation.verify_header(self.atmos.naml.atmospp,
+                                                     'Filename', self.logfile,
+                                                     'LogDir/job')
         self.assertFalse(valid)
         self.assertIn('Validity time mismatch', func.capture('err'))
         self.logfile.close()
@@ -368,10 +369,10 @@ class DumpnameTests(unittest.TestCase):
 
     def setUp(self):
         self.atmos = atmos.AtmosPostProc()
-        atmos.AtmosPostProc.dumpname = mock.Mock(return_value='CYCLEDUMP')
         self.atmos.suite = mock.Mock()
         self.atmos.envars = mock.Mock()
         self.atmos.envars.MODELBASIS = '1980,09,01,00,00,00'
+        self.atmos.suite.prefix = 'RUNID'
         self.atmos.final_dumpname = None
         if 'monthly' in self.id():
             self.atmos.naml.archiving.arch_dump_freq = 'Monthly'
@@ -383,17 +384,17 @@ class DumpnameTests(unittest.TestCase):
     def tearDown(self):
         pass
 
-    @mock.patch('utils.add_period_to_date')
+    @mock.patch('validation.utils.add_period_to_date')
     def test_monthly_dumpname(self, mock_adddate):
         '''Test creation of a dumpname for monthly archive'''
         func.logtest('Assert creation of dumpname for monthly archive')
         mock_adddate.return_value = [1980, 10, 1, 0, 0, 0]
         self.atmos.suite.cycledt = [1980, 10, 1, 0, 0, 0]
         dumps = validation.make_dump_name(self.atmos)
-        self.assertEqual(dumps, ['CYCLEDUMP'])
+        self.assertEqual(dumps, ['RUNIDa.da19801001_00'])
         mock_adddate.assert_called_with([1980, 9, 1, 0, 0, 0], [0, 1])
 
-    @mock.patch('utils.add_period_to_date')
+    @mock.patch('validation.utils.add_period_to_date')
     def test_monthly_dumpname12h(self, mock_adddate):
         '''Test to ensure no creation of a dumpname with 12h timestamp
         when running 12h cycling'''
@@ -404,7 +405,7 @@ class DumpnameTests(unittest.TestCase):
         dumps = validation.make_dump_name(self.atmos)
         self.assertEqual(dumps, [])
 
-    @mock.patch('utils.add_period_to_date')
+    @mock.patch('validation.utils.add_period_to_date')
     def test_monthly_offset_dumpname(self, mock_adddate):
         '''Test creation of a dumpname for monthly archive - offset'''
         func.logtest('Assert creation of dumpname for monthly archive')
@@ -412,10 +413,10 @@ class DumpnameTests(unittest.TestCase):
         self.atmos.suite.cycledt = [1980, 10, 1, 0, 0, 0]
         self.atmos.naml.archiving.arch_dump_offset = 6
         dumps = validation.make_dump_name(self.atmos)
-        self.assertEqual(dumps, ['CYCLEDUMP'])
+        self.assertEqual(dumps, ['RUNIDa.da19801001_00'])
         mock_adddate.assert_called_with([1980, 9, 1, 0, 0, 0], [0, 7])
 
-    @mock.patch('utils.add_period_to_date')
+    @mock.patch('validation.utils.add_period_to_date')
     def test_monthly_dump_finalcycle(self, mock_adddate):
         '''Test creation of dumpnames for monthly archive - final cycle'''
         func.logtest('Assert dumpname creation for monthly archive - final')
@@ -423,10 +424,11 @@ class DumpnameTests(unittest.TestCase):
         self.atmos.final_dumpname = 'FINALDUMP'
         self.atmos.suite.cycledt = [1980, 10, 1, 0, 0, 0]
         dumps = validation.make_dump_name(self.atmos)
-        self.assertListEqual(sorted(dumps), ['CYCLEDUMP', 'FINALDUMP'])
+        self.assertListEqual(sorted(dumps),
+                             ['FINALDUMP', 'RUNIDa.da19801001_00'])
         mock_adddate.assert_called_with([1980, 9, 1, 0, 0, 0], [0, 1])
 
-    @mock.patch('utils.add_period_to_date')
+    @mock.patch('validation.utils.add_period_to_date')
     def test_monthly_dump_firstcycle(self, mock_adddate):
         '''Test creation of dumpnames for monthly archive - first cycle'''
         func.logtest('Assert dumpname creation for monthly archive - first')
@@ -435,7 +437,7 @@ class DumpnameTests(unittest.TestCase):
         self.assertEqual(dumps, [])
         self.assertEqual(mock_adddate.mock_calls, [])
 
-    @mock.patch('utils.add_period_to_date')
+    @mock.patch('validation.utils.add_period_to_date')
     def test_monthly_dump_mid_month(self, mock_adddate):
         '''Test creation of no dumpnames for monthly archive (mid month)'''
         func.logtest('Assert dumpname creation for monthly arch - mid month')
@@ -444,7 +446,7 @@ class DumpnameTests(unittest.TestCase):
         dumps = validation.make_dump_name(self.atmos)
         self.assertEqual(dumps, [])
 
-    @mock.patch('utils.add_period_to_date')
+    @mock.patch('validation.utils.add_period_to_date')
     def test_monthly_dump_before_basis(self, mock_adddate):
         '''Test creation of no dumpnames for monthly archive (before basis)'''
         func.logtest('Assert dumpname creation for monthly arch - early')
@@ -458,7 +460,7 @@ class DumpnameTests(unittest.TestCase):
         func.logtest('Assert creation of dumpname for seasonal archive')
         self.atmos.suite.cycledt = [1980, 12, 1, 0, 0, 0]
         dumps = validation.make_dump_name(self.atmos)
-        self.assertEqual(dumps, ['CYCLEDUMP'])
+        self.assertEqual(dumps, ['RUNIDa.da19801201_00'])
 
     def test_seasonal_dumpname12h(self):
         '''Test to ensure no creation of a dumpname with 12h timestamp
@@ -482,7 +484,7 @@ class DumpnameTests(unittest.TestCase):
         self.atmos.suite.cycledt = [1981, 1, 1, 0, 0, 0]
         self.atmos.naml.archiving.arch_year_month = 'January'
         dumps = validation.make_dump_name(self.atmos)
-        self.assertEqual(dumps, ['CYCLEDUMP'])
+        self.assertEqual(dumps, ['RUNIDa.da19810101_00'])
 
     def test_annual_jan_dumpname12h(self):
         '''Test to ensure no creation of a dumpname with 12h timestamp
@@ -500,7 +502,7 @@ class DumpnameTests(unittest.TestCase):
         self.atmos.suite.cycledt = [1981, 7, 1, 0, 0, 0]
         self.atmos.naml.archiving.arch_year_month = 'July'
         dumps = validation.make_dump_name(self.atmos)
-        self.assertEqual(dumps, ['CYCLEDUMP'])
+        self.assertEqual(dumps, ['RUNIDa.da19810701_00'])
 
     def test_annual_dumpname_none(self):
         '''Test creation of no dumpnames for annual archive'''

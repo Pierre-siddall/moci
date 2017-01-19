@@ -54,7 +54,6 @@ class AtmosPostProc(control.RunPostProc):
         '''
         self.naml = nlist.loadNamelist(input_nl)
         self.convpp_streams = self._convpp_streams
-
         if self.runpp:
 
             self.envars = utils.loadEnv('CYLC_SUITE_WORK_DIR',
