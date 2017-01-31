@@ -30,6 +30,11 @@ import inc_days
 import common
 import error
 
+# Here, "top" refers to the NEMO TOP passive tracer system. It does not
+# imply anything to do with being in overall control or at the head of
+# any form of control heirarchy.
+import top_controller
+
 # Define errors for the NEMO driver only
 SERIAL_MODE_ERROR = 99
 
@@ -110,6 +115,10 @@ def _load_environment_variables(nemo_envar):
     _ = nemo_envar.load_envar('NEMO_START', '')
     _ = nemo_envar.load_envar('NEMO_ICEBERG_START', '')
     _ = nemo_envar.load_envar('CONTINUE', '')
+
+
+    # Check switch to see if TOP/MEDUSA is switched on. Default to OFF.
+    _ = nemo_envar.load_envar('L_OCN_PASS_TRC', 'false')
 
     return nemo_envar
 
@@ -196,9 +205,13 @@ def _setup_executable(common_envar):
                              direc)
             os.makedirs(direc)
 
-    # grab the nemo restart files
+    # Compile a list of the NEMO restart files, if any exist.
+    # We look for files conforming to the naming convention:
+    # <arbitrary suite name>_yyyymmdd_restart_<PE rank>.nc where
+    # <arbitrary suite name> may itself contain underscores, hence we
+    # do not parse details based on counting the number of underscores.
     nemo_restart_files = [f for f in os.listdir(nemo_rst) if
-                          re.findall(r'[^_]{6}_[^_]{8}_restart_\d+.nc', f)]
+                          re.findall(r'.+_\d{8}_restart_\d+.nc', f)]
     nemo_restart_files.sort()
     if len(nemo_restart_files) > 0:
         latest_nemo_dump = nemo_rst + '/' + nemo_restart_files[-1]
@@ -251,10 +264,15 @@ def _setup_executable(common_envar):
     _, last_step_val = common.exec_subproc(['grep', gl_last_step_match,
                                             history_nemo_nl])
     nemo_last_step = re.findall(r'.+=(.+),', last_step_val)[0]
-    if 'set_by_system' in nemo_last_step:
-        nemo_last_step = 0
-    else:
+
+    # The string in the nemo time step field might have any one of
+    # a number of variants. e.g. "set_by_rose", "set_by_system",
+    # "set_by_um", etc. Hence we just check for the presence of
+    # purely numeric characters to see if we start from zero or not.
+    if nemo_last_step.isdigit():
         nemo_last_step = int(nemo_last_step)
+    else:
+        nemo_last_step = 0
 
     # Determine (as an integer) the number of seconds per model timestep
     _, nemo_step_int_val = common.exec_subproc(['grep', gl_step_int_match,
@@ -274,20 +292,25 @@ def _setup_executable(common_envar):
     # The initial date of the model run (YYYYMMDD)
     nemo_ndate0 = '%04d%02d%02d' % tuple(model_basis[:3])
 
+    nemo_dump_time = "00000000"
+
     if os.path.isfile(latest_nemo_dump):
         nemo_dump_time = re.findall(r'_(\d*)_restart', latest_nemo_dump)[0]
-        # link restart files no that the last output one becomes next input one
+
+        # Link restart files no that the last output one becomes next input one
         if os.path.islink('restart.nc'):
             os.remove('restart.nc')
+
         if os.path.islink('restart_ice_in.nc'):
             os.remove('restart_ice_in.nc')
-        # sort out the processor restart files
+
+        # Sort out the processor restart files
         if int(nemo_envar['NEMO_NPROC']) == 1:
             sys.stderr.write('[FAIL] NEMO driver does not support the running'
                              ' of NEMO in serial mode\n')
             sys.exit(SERIAL_MODE_ERROR)
         else:
-            # nemo has multiple processors
+            # Nemo has multiple processors
             for i_proc in xrange(int(nemo_envar['NEMO_NPROC'])):
                 tag = str(i_proc).zfill(4)
                 nemo_rst_source = '%s/%so_%s_restart_%s.nc' % \
@@ -334,13 +357,28 @@ def _setup_executable(common_envar):
         # This is an NRUN
         if nemo_envar['NEMO_START'] != '':
             if os.path.isfile(nemo_envar['NEMO_START']):
+
+                # We need to make sure there isn't already
+		# a restart file link set up, and if there is, get
+		# rid of it because symlink wont work otherwise!
+                if os.path.isfile('restart.nc'):
+                    os.remove('restart.nc')
+
                 os.symlink(nemo_envar['NEMO_START'], 'restart.nc')
                 ln_restart = ".true."
+
             elif os.path.isfile('%s_0000.nc' %
                                 nemo_envar['NEMO_START']):
                 for fname in glob.glob('%s_????.nc' %
                                        nemo_envar['NEMO_START']):
                     proc_number = fname.split('.')[-2][-4:]
+
+                    # We need to make sure there isn't already
+	  	    # a restart file link set up, and if there is, get
+		    # rid of it because symlink wont work otherwise!
+                    if os.path.isfile('restart_%s.nc' % proc_number):
+                        os.remove('restart_%s.nc' % proc_number)
+
                     os.symlink(fname, 'restart_%s.nc' % proc_number)
                 ln_restart = ".true."
             else:
@@ -355,6 +393,13 @@ def _setup_executable(common_envar):
 
         if nemo_envar['NEMO_ICEBERG_START'] != '':
             if os.path.isfile(nemo_envar['NEMO_ICEBERG_START']):
+
+                # We need to make sure there isn't already
+	  	# an iceberg restart file link set up, and if there is, get
+		# rid of it because symlink wont work otherwise!
+                if os.path.isfile('restart_icebergs.nc'):
+                    os.remove('restart_icebergs.nc')
+
                 os.symlink(nemo_envar['NEMO_ICEBERG_START'],
                            'restart_icebergs.nc')
             elif os.path.isfile('%s_0000.nc' %
@@ -362,6 +407,13 @@ def _setup_executable(common_envar):
                 for fname in glob.glob('%s_????.nc' %
                                        nemo_envar['NEMO_ICEBERG_START']):
                     proc_number = fname.split('.')[-2][-4:]
+
+                    # We need to make sure there isn't already
+	      	    # an iceberg restart file link set up, and if there is, get
+		    # rid of it because symlink wont work otherwise!
+                    if os.path.isfile('restart_icebergs_%s.nc' % proc_number):
+                        os.remove('restart_icebergs_%s.nc' % proc_number)
+
                     os.symlink(fname, 'restart_icebergs_%s.nc' % proc_number)
             else:
                 sys.stderr.write('[FAIL] file %s not found\n' %
@@ -405,6 +457,23 @@ def _setup_executable(common_envar):
         sys.stderr.write('[FAIL] Error updating nemo namelist\n')
         sys.exit(error.SUBPROC_ERROR)
 
+    # We just check for the presence of T or t (as in TRUE, True or true)
+    # in the L_OCN_PASS_TRC value.
+    if ('T' in nemo_envar['L_OCN_PASS_TRC']) or \
+       ('t' in nemo_envar['L_OCN_PASS_TRC']):
+
+        sys.stdout.write('[INFO] nemo_driver: Passive tracer code is active.')
+
+        controller_mode = "run_controller"
+
+        top_controller.run_controller(restart_ctl,\
+				      int(nemo_envar['NEMO_NPROC']),\
+				      common_envar['RUNID'],\
+				      nemo_dump_time,\
+				      controller_mode)
+    else:
+        sys.stdout.write('[INFO] nemo_driver: Passive tracer code not active.')
+
     return nemo_envar
 
 
@@ -427,7 +496,7 @@ def _set_launcher_command(nemo_envar):
 
 def _finalize_executable(_):
     '''
-    Finalize the NEMO run, move the nemo namelist to the restart directory
+    Finalize the NEMO run, copy the nemo namelist to the restart directory
     for the next cycle, update standard out, and ensure that no errors
     have been found in the NEMO execution.
     '''
@@ -465,6 +534,18 @@ def _finalize_executable(_):
                          ' details\n')
         sys.exit(error.COMPONENT_MODEL_ERROR)
 
+    # The only way to check if TOP is active is by checking the
+    # passive tracer env var.
+    _ = nemo_envar_fin.load_envar('L_OCN_PASS_TRC', 'false')
+
+    # Check whether we need to finalize the TOP controller
+    if ('T' in nemo_envar_fin['L_OCN_PASS_TRC']) or \
+       ('t' in nemo_envar_fin['L_OCN_PASS_TRC']):
+
+        sys.stdout.write('[INFO] nemo_driver: Finalize TOP controller.')
+
+        controller_mode = "finalize"
+        top_controller.run_controller([], [], [], [], controller_mode)
 
 def run_driver(common_envar, mode):
     '''

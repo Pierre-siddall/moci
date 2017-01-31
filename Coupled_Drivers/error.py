@@ -33,6 +33,9 @@ SUBPROC_ERROR = 102
 # Invalid environment variable
 INVALID_EVAR_ERROR = 103
 
+# Invalid local variable
+INVALID_LOCAL_ERROR = 110
+
 # Missing Driver
 MISSING_DRIVER_ERROR = 200
 
@@ -41,6 +44,9 @@ MISSING_DRIVER_FILE_ERROR = 201
 
 # Invalid argument to driver script
 INVALID_DRIVER_ARG_ERROR = 202
+
+# Missing file required by a controller
+MISSING_CONTROLLER_FILE_ERROR = 251
 
 # Type conversion error
 TYPE_COVERSION_ERROR = 300
@@ -56,3 +62,7 @@ INVALID_FUNC_ARG_ERROR = 500
 
 # Invalid component version
 INVALID_COMPONENT_VER_ERROR = 600
+
+# Restart date error
+MISMATCH_RESTART_DATE_ERROR = 700
+
