@@ -373,7 +373,10 @@ class ModelTemplate(control.RunPostProc):
                 # No processor number
                 pass
 
-        base = re.split(r'[._\-]', filename)[1]
+        for elem in re.split(r'[._\-]', filename):
+            if re.match(r'\d+[hdmsyxHDMSYX]', elem):
+                base = elem
+                break
         startdate = self.get_date(filename)
 
         try:

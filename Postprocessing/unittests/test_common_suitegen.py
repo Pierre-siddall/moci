@@ -182,21 +182,21 @@ class ArchiveTests(unittest.TestCase):
     def test_archive_file(self):
         '''Test archive_file command - moo is mocked out'''
         func.logtest('File archiving - success:')
-        with mock.patch('moo.CommandExec') as dummy:
-            moose_arch_inst = dummy.return_value
-            moose_arch_inst.execute.return_value = {'TestFile': 0}
+        with mock.patch('moo.archive_to_moose', return_value=0) as dummy:
             rcode = self.mysuite.archive_file('TestFile')
             self.assertEqual(rcode, 0)
             self.assertIn('TestFile ARCHIVE OK',
                           open(self.mysuite.logfile, 'r').read())
             self.assertTrue(self.mysuite.archive_ok)
+            dummy.assert_called_once_with(
+                'TestFile', 'TESTP', 'somePath/directory',
+                self.mysuite.nl_arch, False
+                )
 
     def test_archive_file_fail(self):
         '''Test failure mode of archive_file command - moo is mocked out'''
         func.logtest('File archiving - failure:')
-        with mock.patch('moo.CommandExec') as dummy:
-            moose_arch_inst = dummy.return_value
-            moose_arch_inst.execute.return_value = {'TestFile': -1}
+        with mock.patch('moo.archive_to_moose', return_value=-1) as dummy:
             rcode = self.mysuite.archive_file('TestFile')
             self.assertNotEqual(rcode, 0)
             self.assertIn('TestFile ARCHIVE FAILED',
@@ -206,9 +206,7 @@ class ArchiveTests(unittest.TestCase):
     def test_archive_empty_file_moo(self):
         '''Test attempt to archive an empty file - moo is mocked out'''
         func.logtest('File archiving - Empty file:')
-        with mock.patch('moo.CommandExec') as dummy:
-            moose_arch_inst = dummy.return_value
-            moose_arch_inst.execute.return_value = {'TestFile': 11}
+        with mock.patch('moo.archive_to_moose', return_value=11) as dummy:
             rcode = self.mysuite.archive_file('TestFile')
             self.assertEqual(rcode, 0)
             self.assertIn('TestFile FILE NOT ARCHIVED',

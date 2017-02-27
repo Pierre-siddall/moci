@@ -1151,6 +1151,8 @@ class MethodsTests(unittest.TestCase):
     def test_components(self, mock_ncf):
         '''Test component extraction'''
         func.logtest('Assert correct extraction of filename components:')
+        self.model.suite = mock.Mock()
+        self.model.suite.prefix = 'u_RUNID'
         with mock.patch('modeltemplate.ModelTemplate.model_components',
                         new_callable=mock.PropertyMock,
                         return_value={'model': ['F_1', 'F_2']}):
@@ -1158,9 +1160,9 @@ class MethodsTests(unittest.TestCase):
                             new_callable=mock.PropertyMock,
                             return_value='x'):
                 _ = self.model.filename_components(
-                    'RUNIDx.Xp.11112233_44445566_F_1.nc'
+                    'u_RUNIDx.1x.11112233_44445566_F_1.nc'
                     )
-        mock_ncf.assert_called_once_with('model', 'RUNID', 'x', base='Xp',
+        mock_ncf.assert_called_once_with('model', 'u_RUNID', 'x', base='1x',
                                          start_date=('1111', '22', '33'),
                                          custom='F-1')
 
@@ -1175,9 +1177,9 @@ class MethodsTests(unittest.TestCase):
                             new_callable=mock.PropertyMock,
                             return_value='x'):
                 _ = self.model.filename_components(
-                    'RUNIDx.Xp.11112233.44445566.nc'
+                    'RUNIDx.10x.11112233.44445566.nc'
                     )
-        mock_ncf.assert_called_once_with('model', 'RUNID', 'x', base='Xp',
+        mock_ncf.assert_called_once_with('model', 'RUNID', 'x', base='10x',
                                          start_date=('1111', '22', '33'),
                                          custom='')
 
@@ -1185,7 +1187,7 @@ class MethodsTests(unittest.TestCase):
     def test_components_rebuild(self, mock_ncf):
         '''Test component extraction - with rebuild suffix'''
         func.logtest('Assert correct extraction of components - rebld suffix:')
-        testfile = 'RUNIDx_Xp_11111111_22222222_F_1-33333333_444444444_9876.nc'
+        testfile = 'RUNIDx_1x_11111111_22222222_F_1-33333333_444444444_9876.nc'
         with mock.patch('modeltemplate.ModelTemplate.model_components',
                         new_callable=mock.PropertyMock,
                         return_value={'model': ['F_1']}):
@@ -1197,7 +1199,7 @@ class MethodsTests(unittest.TestCase):
                                 return_value={'REGEX': r'_\d{4}\.nc'}):
                     _ = self.model.filename_components(testfile)
 
-        mock_ncf.assert_called_once_with('model', 'RUNID', 'x', base='Xp',
+        mock_ncf.assert_called_once_with('model', 'RUNID', 'x', base='1x',
                                          start_date=('3333', '33', '33'),
                                          custom='F-1_9876')
 
@@ -1209,7 +1211,7 @@ class MethodsTests(unittest.TestCase):
                         return_value={'model': ['field1', 'field2']}):
             with self.assertRaises(SystemExit):
                 _ = self.model.filename_components(
-                    'RUNIDx.Xp.11112233_44445566_FIELD.nc'
+                    'RUNIDx.1x.11112233_44445566_FIELD.nc'
                     )
         self.assertIn('unable to extract "component"', func.capture('err'))
 

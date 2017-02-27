@@ -70,7 +70,12 @@ class NCFilename(object):
         self.custom = custom
 
     def _prefix(self, component, suitename, realm):
-        ''' Return the filename prefix - independent of datestamp '''
+        '''
+        Return the filename prefix - independent of datestamp.
+        Component and suitename should be lowercase.
+        Suitenames should be changed to replace any '_' or '.' with '-'.
+        '''
+        suitename = suitename.replace('_', '-').replace('.', '-')
         return '{C}_{S}{R}'.format(C=component.lower(),
                                    S=suitename.lower(),
                                    R=realm.lower())
@@ -138,7 +143,7 @@ class NCFilename(object):
 
         <model>     - model name.
                       Lowercase alphanumeric plus "-". Controlled value list.
-        <suite>     - 5char + 1char for UM realm represented by model.
+        <suite>     - char, + 1char for UM realm represented by model.
                       Lowercase alphanumeric plus "-".
                       Realm from controlled value list.
         <frequency> - Data frequency.
@@ -259,6 +264,7 @@ def month_set(fvars):
     return NCF_REGEX.format(P=fvars.prefix, B=fvars.base,
                             S=start_yyyymm + r'\d{2}', E=enddate,
                             C=fvars.custom)
+
 
 def season_set(fvars):
     '''

@@ -18,6 +18,7 @@ import os
 RUNTIME_FILES = ['atmospp.nl', 'input.nl', 'monitorpp.nl',
                  'nemocicepp.nl']
 
+
 def setup_env():
     '''Set up the runtime environment required to run the postproc unittests'''
 
@@ -33,5 +34,5 @@ def setup_env():
     os.environ['CYLC_TASK_CYCLE_POINT'] = '20000121T0000Z'
 
     # Standard UM Setup Environment
-    os.environ['RUNID'] = 'testp'
+    os.environ['RUNID'] = 'TESTP'
     os.environ['DATAM'] = os.environ['CYLC_TASK_WORK_DIR']

@@ -30,9 +30,10 @@ class CommandTests(unittest.TestCase):
     def setUp(self):
         self.cmd = {
             'CURRENT_RQST_ACTION': 'ARCHIVE',
-            'CURRENT_RQST_NAME':   'atmos_runida.daTestFile',
+            'CURRENT_RQST_NAME':   'atmos_testpa.daTestFile',
+            'FILENAME_PREFIX':     'TESTP',
             'DATAM':               'TestDir',
-            'SETNAME':             'runid',
+            'SETNAME':             'mysuite',
             'CATEGORY':            'UNCATEGORISED',
             'DATACLASS':           'myclass',
             'ENSEMBLEID':          '',
@@ -111,9 +112,10 @@ class MooseTests(unittest.TestCase):
     def setUp(self):
         cmd = {
             'CURRENT_RQST_ACTION': 'ARCHIVE',
-            'CURRENT_RQST_NAME':   'full/path/to/atmos_runida.daTestFile',
+            'CURRENT_RQST_NAME':   'full/path/to/TESTPa.daTestFile',
+            'FILENAME_PREFIX':     'TESTP',
             'DATAM':               'TestDir',
-            'SETNAME':             'runid',
+            'SETNAME':             'mysuite',
             'CATEGORY':            'UNCATEGORISED',
             'DATACLASS':           'myclass',
             'ENSEMBLEID':          '',
@@ -122,15 +124,18 @@ class MooseTests(unittest.TestCase):
             'CONVERTPP':           True
         }
         if 'iceberg' in self.id():
-            cmd['CURRENT_RQST_NAME'] = 'RUNIDo_icebergs_YYYYMMDD_restart.nc'
+            cmd['CURRENT_RQST_NAME'] = \
+                'nemo_testpo_icebergs_YYYYMMDD_restart.nc'
         elif 'ocean' in self.id():
-            cmd['CURRENT_RQST_NAME'] = 'RUNIDo_YYYYMMDD_restart.nc'
+            cmd['FILENAME_PREFIX'] = 'u-TESTP'
+            cmd['CURRENT_RQST_NAME'] = 'u-TESTPo_YYYYMMDD_restart.nc'
         elif 'seaice' in self.id():
-            cmd['CURRENT_RQST_NAME'] = 'RUNIDi.restart.YYYY-MM-DD-00000.nc'
+            cmd['FILENAME_PREFIX'] = 'u_TESTP'
+            cmd['CURRENT_RQST_NAME'] = 'u_TESTPi.restart.YYYY-MM-DD-00000.nc'
         elif 'oi_fail' in self.id():
-            cmd['CURRENT_RQST_NAME'] = 'RUNIDo.YYYY-MM-DD-00000.nc'
+            cmd['CURRENT_RQST_NAME'] = 'TESTPo.YYYY-MM-DD-00000.nc'
         elif 'tracer' in self.id():
-            cmd['CURRENT_RQST_NAME'] = 'RUNIDo_YYYYMMDD_restart_trc.nc'
+            cmd['CURRENT_RQST_NAME'] = 'TESTPo_YYYYMMDD_restart_trc.nc'
         with mock.patch('moo.utils.exec_subproc', return_value=(0, '')):
             with mock.patch.dict('moo.os.environ', {'PREFIX': 'PATH/'}):
                 self.inst = moo._Moose(cmd)
@@ -146,6 +151,61 @@ class MooseTests(unittest.TestCase):
         self.assertEqual(self.inst._model_id, 'a')
         self.assertEqual(self.inst._file_id, 'daTestFile')
         self.assertTrue(self.inst.chkset())
+
+    def test_model_id(self):
+        '''Test model_id of a Moose archiving object'''
+        func.logtest('assert correct model_id for Moose arch object:')
+        cmd = {
+            'CURRENT_RQST_ACTION': 'ARCHIVE',
+            'DATAM':               'TestDir',
+            'SETNAME':             'mysuite',
+            'CATEGORY':            'UNCATEGORISED',
+            'DATACLASS':           'myclass',
+            'ENSEMBLEID':          '',
+            'MOOPATH':             '',
+            'PROJECT':             '',
+            'CONVERTPP':           True
+        }
+
+        func.logtest('Testing raw output filename - fileprefix="medus"...')
+        cmd['CURRENT_RQST_NAME'] = 'full/path/to/medusa.daYYYYMMDD'
+        cmd['FILENAME_PREFIX'] = 'medus'
+        with mock.patch('moo._Moose.chkset', return_value=True):
+            inst = moo._Moose(cmd)
+            self.assertEqual(inst._model_id, 'a')
+            self.assertEqual(inst._file_id, 'daYYYYMMDD')
+
+        func.logtest('Testing raw output filename - fileprefix="nem"...')
+        cmd['CURRENT_RQST_NAME'] = 'full/path/to/nemo_YYYYMMDD_restart.nc'
+        cmd['FILENAME_PREFIX'] = 'nem'
+        with mock.patch('moo._Moose.chkset', return_value=True):
+            inst = moo._Moose(cmd)
+            self.assertEqual(inst._model_id, 'o')
+            self.assertEqual(inst._file_id, 'YYYYMMDD_restart.nc')
+
+        func.logtest('Testing raw output filename - fileprefix="nemo"...')
+        cmd['CURRENT_RQST_NAME'] = 'full/path/to/nemoo_YYYYMMDD_restart.nc'
+        cmd['FILENAME_PREFIX'] = 'nemo'
+        with mock.patch('moo._Moose.chkset', return_value=True):
+            inst = moo._Moose(cmd)
+            self.assertEqual(inst._model_id, 'o')
+            self.assertEqual(inst._file_id, 'YYYYMMDD_restart.nc')
+
+        func.logtest('Testing netCDF output filename - fileprefix="nem"...')
+        cmd['CURRENT_RQST_NAME'] = 'full/path/to/nemo_nemo_YYYYMMDD...nc'
+        cmd['FILENAME_PREFIX'] = 'nem'
+        with mock.patch('moo._Moose.chkset', return_value=True):
+            inst = moo._Moose(cmd)
+            self.assertEqual(inst._model_id, 'o')
+            self.assertEqual(inst._file_id, 'YYYYMMDD...nc')
+
+        func.logtest('Testing netCDF output filename - prefix="FN-PREFIX"...')
+        cmd['CURRENT_RQST_NAME'] = 'full/path/to/cice_fn-prefixi_YYYYMMDD...nc'
+        cmd['FILENAME_PREFIX'] = 'FN-PREFIX'
+        with mock.patch('moo._Moose.chkset', return_value=True):
+            inst = moo._Moose(cmd)
+            self.assertEqual(inst._model_id, 'i')
+            self.assertEqual(inst._file_id, 'YYYYMMDD...nc')
 
     @mock.patch('moo.utils.exec_subproc')
     def test_create_set(self, mock_subproc):
@@ -276,22 +336,22 @@ class MooseTests(unittest.TestCase):
         mock_exist.return_value = True
         self.inst.put_data()
         src = os.path.expandvars('TestDir/$PREFIX$RUNID.daTestfile')
-        dest = os.path.expandvars('moose:myclass/runid/$RUNID.daTestfile')
+        dest = os.path.expandvars('moose:myclass/mysuite/$RUNID.daTestfile')
         mock_subproc.assert_called_with('moo put -f -vv ' + src + ' ' + dest)
 
     @mock.patch('moo.utils.exec_subproc')
     def test_putdata_pp(self, mock_subproc):
         '''Test put_data function with fieldsfile'''
         func.logtest('test put_data function with fieldsfile:')
-        self.inst._rqst_name = 'RUNIDa.pmTestfile'
+        self.inst._rqst_name = 'TESTPa.pmTestfile'
         self.inst._model_id = 'a'
         self.inst._file_id = 'pm'
         mock_subproc.return_value = (0, '')
         with mock.patch('moo.os.path.exists', return_value=True):
             self.inst.put_data()
         cmd = 'moo put -f -vv -c=umpp '
-        src = 'TestDir/RUNIDa.pmTestfile'
-        dest = 'moose:myclass/runid/apm.pp/RUNIDa.pmTestfile.pp'
+        src = 'TestDir/TESTPa.pmTestfile'
+        dest = 'moose:myclass/mysuite/apm.pp/TESTPa.pmTestfile.pp'
         mock_subproc.assert_called_with(cmd + os.path.expandvars(
             src + ' ' + dest))
 
@@ -299,28 +359,28 @@ class MooseTests(unittest.TestCase):
     def test_putdata_pp_no_convert(self, mock_subproc):
         '''Test put_data function with converted fieldsfile'''
         func.logtest('test put_data function with converted fieldsfile:')
-        self.inst._rqst_name = 'RUNIDa.pmTestfile.pp'
+        self.inst._rqst_name = 'TESTPa.pmTestfile.pp'
         self.inst.fl_pp = True
         mock_subproc.return_value = (0, '')
         with mock.patch('moo._Moose._collection', return_value='apm.pp'):
             with mock.patch('moo.os.path.exists', return_value=True):
                 self.inst.put_data()
-        cmd = 'moo put -f -vv TestDir/RUNIDa.pmTestfile.pp ' \
-            'moose:myclass/runid/apm.pp'
+        cmd = 'moo put -f -vv TestDir/TESTPa.pmTestfile.pp ' \
+            'moose:myclass/mysuite/apm.pp'
         mock_subproc.assert_called_with(cmd)
 
     @mock.patch('moo.utils.exec_subproc')
     def test_putdata_ff_no_convert(self, mock_subproc):
         '''Test put_data function with unconverted fieldsfile'''
         func.logtest('test put_data function with unconverted fieldsfile:')
-        self.inst._rqst_name = 'RUNIDa.pmTestfile'
+        self.inst._rqst_name = 'TESTPa.pmTestfile'
         self.inst.fl_pp = False
         mock_subproc.return_value = (0, '')
         with mock.patch('moo._Moose._collection', return_value='apm.file'):
             with mock.patch('moo.os.path.exists', return_value=True):
                 self.inst.put_data()
-        cmd = 'moo put -f -vv TestDir/RUNIDa.pmTestfile ' \
-            'moose:myclass/runid/apm.file'
+        cmd = 'moo put -f -vv TestDir/TESTPa.pmTestfile ' \
+            'moose:myclass/mysuite/apm.file'
         mock_subproc.assert_called_with(cmd)
 
     @mock.patch('moo.utils.exec_subproc')
@@ -357,9 +417,10 @@ class PutCommandTests(unittest.TestCase):
     def setUp(self):
         cmd = {
             'CURRENT_RQST_ACTION': 'ARCHIVE',
-            'CURRENT_RQST_NAME':   'RUNIDa.daTestFile',
+            'CURRENT_RQST_NAME':   'FN-PREFIXa.daTestFile',
+            'FILENAME_PREFIX':     'FN-PREFIX',
             'DATAM':               'TestDir',
-            'SETNAME':             'runid',
+            'SETNAME':             'mysuite',
             'CATEGORY':            'UNCATEGORISED',
             'DATACLASS':           'classname',
             'ENSEMBLEID':          '',
@@ -411,7 +472,7 @@ class PutCommandTests(unittest.TestCase):
         mock_subproc.return_value = (0, 'true')
         self.inst._ens_id = 'MyEnsemble'
         self.inst.put_data()
-        archdest = self.archdest.replace('runid/', 'runid/MyEnsemble/')
+        archdest = self.archdest.replace('mysuite/', 'mysuite/MyEnsemble/')
         outcmd = '{}{} moose:{}'.format(self.moocmd, self.testfile, archdest)
         self.assertIn(outcmd, func.capture())
 
@@ -424,6 +485,7 @@ class Utilitytests(unittest.TestCase):
         self.cmd = {
             'CURRENT_RQST_ACTION': 'ARCHIVE',
             'CURRENT_RQST_NAME':   'FILE',
+            'FILENAME_PREFIX':     'FN-PREFIX',
             'DATAM':               'SOURCEDIR',
             'SETNAME':             self.nlist.archive_set,
             'CATEGORY':            'UNCATEGORISED',
@@ -441,7 +503,8 @@ class Utilitytests(unittest.TestCase):
     def test_archive_to_moose(self, mock_exec):
         '''Test call to archive a file to the Moose system'''
         func.logtest('Assert call to archive file to Moose')
-        moo.archive_to_moose('FILE', 'SOURCEDIR', self.nlist, False)
+        moo.archive_to_moose('FILE', 'FN-PREFIX', 'SOURCEDIR',
+                             self.nlist, False)
         mock_exec.assert_called_with(self.cmd)
 
     @mock.patch('moo.CommandExec.execute')
@@ -449,5 +512,6 @@ class Utilitytests(unittest.TestCase):
         '''Test call to archive a file to the Moose system'''
         func.logtest('Assert call to archive file to Moose')
         self.cmd['CONVERTPP'] = True
-        moo.archive_to_moose('FILE', 'SOURCEDIR', self.nlist, True)
+        moo.archive_to_moose('FILE', 'FN-PREFIX', 'SOURCEDIR',
+                             self.nlist, True)
         mock_exec.assert_called_with(self.cmd)

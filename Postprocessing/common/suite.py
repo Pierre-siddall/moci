@@ -176,7 +176,7 @@ class SuiteEnvironment(object):
         if self.naml.archive_command.lower() == 'moose':
             # MOOSE Archiving
             import moo
-            rcode = moo.archive_to_moose(filename, self.sourcedir,
+            rcode = moo.archive_to_moose(filename, self.prefix, self.sourcedir,
                                          self.nl_arch, preproc)
         else:
             utils.log_msg('Archive command not yet implemented', level='ERROR')

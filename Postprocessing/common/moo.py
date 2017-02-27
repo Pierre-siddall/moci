@@ -42,11 +42,12 @@ MODELS = ['atmos', 'jules', 'nemo', 'medusa', 'cice']
 
 
 @timer.run_timer
-def archive_to_moose(filename, sourcedir, nlist, convertpp):
+def archive_to_moose(filename, fnprefix, sourcedir, nlist, convertpp):
     '''Assemble the dictionary of variables required to archive'''
     cmd = {
         'CURRENT_RQST_ACTION': 'ARCHIVE',
         'CURRENT_RQST_NAME':   filename,
+        'FILENAME_PREFIX':     fnprefix,
         'DATAM':               sourcedir,
         'SETNAME':             nlist.archive_set,
         'CATEGORY':            'UNCATEGORISED',
@@ -81,11 +82,31 @@ class _Moose(object):
         self.convertpp = comms['CONVERTPP']
 
         # Define the collection name
-        splitname = re.split('[._]', os.path.basename(self._rqst_name))
-        index = 1 if splitname[0] in MODELS else 0
-        self._model_id = splitname[index][-1]
-        self._file_id = '_'.join(splitname[index+1:])
+        rqst = os.path.basename(self._rqst_name)
+        fnprefix = comms['FILENAME_PREFIX']
+        if re.match('^({})_'.format('|'.join(MODELS)), rqst):
+            # netCDF convention files - filename prefixed with "<component>_"
+            # Please note:
+            # This IF statement is vulnerable in the highly specific and
+            # unlikely event of fnprefix='nem' - incorrectly evaluating to True
+            # for NEMO raw model outputfiles (<fnprefix>o_[iceberg_]YYYYMMDD_*).
+            # Vulnerability is corrected by checking against fnprefix.
+            splitname = re.split('_', rqst)
+            if fnprefix in [m[:-1] for m in MODELS] and \
+                    splitname[0] != splitname[1]:
+                # Catch filenames incorrectly evaluated as netCDF convention
+                id_split = 0
+            else:
+                id_split = 1
+            self._model_id = splitname[id_split][-1]
+            self._file_id = '_'.join(splitname[id_split+1:])
+        else:
+            # Non-netCDF convention files
+            self._model_id = rqst[len(fnprefix):len(fnprefix) + 1]
+            self._file_id = rqst[len(fnprefix) + 2:]
+
         self.fl_pp = False
+
         if not self.chkset():
             self.mkset()  # Create a set
 
@@ -132,7 +153,7 @@ class _Moose(object):
     def _collection(self):
         """
         Create the file extension based on the three letters following
-        the runid in the filename
+        the filename prefix.
         """
         ext = ''
         msg = ''

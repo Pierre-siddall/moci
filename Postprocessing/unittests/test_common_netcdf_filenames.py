@@ -26,7 +26,8 @@ runtime_environment.setup_env()
 class NCFilenameTests(unittest.TestCase):
     '''Unit tests for the netCDF filename variables container'''
     def setUp(self):
-        self.ncf = netcdf_filenames.NCFilename('model', 'suite', 'x', base='1x',
+        self.ncf = netcdf_filenames.NCFilename('model', 'my_SUITE', 'x',
+                                               base='1x',
                                                start_date=('2000', '12', '11'))
 
     def tearDown(self):
@@ -35,7 +36,7 @@ class NCFilenameTests(unittest.TestCase):
     def test_fname_instantiation(self):
         '''Test instantiation of the filename container'''
         func.logtest('Assert successful creation of the filename container:')
-        self.assertEqual(self.ncf.prefix, 'model_suitex')
+        self.assertEqual(self.ncf.prefix, 'model_my-suitex')
         self.assertEqual(self.ncf.base, '1x')
         self.assertEqual(self.ncf.start_date, ('2000', '12', '11'))
         self.assertEqual(self.ncf.custom, '')
@@ -170,9 +171,9 @@ class NCFilenameTests(unittest.TestCase):
         self.ncf.rename_ncf('here/filename')
         mock_mv.assert_called_once_with(
             'here/filename',
-            'here/model_suitex_1d_20001211-20001212.nc'
+            'here/model_my-suitex_1d_20001211-20001212.nc'
             )
-        self.assertIn('Renaming here/filename as model_suitex_1d'
+        self.assertIn('Renaming here/filename as model_my-suitex_1d'
                       '_20001211-20001212.nc', func.capture())
 
     @mock.patch('netcdf_filenames.os.rename')
@@ -184,9 +185,9 @@ class NCFilenameTests(unittest.TestCase):
         self.ncf.rename_ncf('here/filename')
         mock_mv.assert_called_once_with(
             'here/filename',
-            'here/model_suitex_1m_20001201-20010101.nc'
+            'here/model_my-suitex_1m_20001201-20010101.nc'
             )
-        self.assertIn('Renaming here/filename as model_suitex_1m'
+        self.assertIn('Renaming here/filename as model_my-suitex_1m'
                       '_20001201-20010101.nc', func.capture())
 
     @mock.patch('netcdf_filenames.os.rename')
@@ -197,9 +198,9 @@ class NCFilenameTests(unittest.TestCase):
         self.ncf.rename_ncf('here/filename', target='1m')
         mock_mv.assert_called_once_with(
             'here/filename',
-            'here/model_suitex_1d_20001211-20010111.nc'
+            'here/model_my-suitex_1d_20001211-20010111.nc'
             )
-        self.assertIn('Renaming here/filename as model_suitex_1d'
+        self.assertIn('Renaming here/filename as model_my-suitex_1d'
                       '_20001211-20010111.nc', func.capture())
 
     @mock.patch('netcdf_filenames.os.rename')
