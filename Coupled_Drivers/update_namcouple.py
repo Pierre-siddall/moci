@@ -101,9 +101,9 @@ class _UpdateComponents(object):
         ignore_line = False
 
         for line in namc_file_in.readlines():
-            # Look for the run time header section starting in the 2nd
-            # column.
-            if r'^ \$RUNTIME' in line:
+            # Look for the run time header $RUNTIME. This is always indented by
+            # a single space in the namcouple file
+            if re.match(r'^ \$RUNTIME', line):
                 edit_runtime = True
                 namc_file_out.write(line)
             elif edit_runtime:
@@ -119,7 +119,10 @@ class _UpdateComponents(object):
                 edit_runtime = False
                 ignore_line = True
             elif ignore_line:
-                if r'^ \$END' in line:
+                # Look for the end of the $RUNTIME section signified by $END.
+                # As for the header this is always indented by a single space
+                # in the namcouple file
+                if re.match(r'^ \$END', line):
                     ignore_line = False
             else:
                 namc_file_out.write(line)
