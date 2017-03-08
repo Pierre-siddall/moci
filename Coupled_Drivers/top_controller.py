@@ -167,9 +167,11 @@ def _setup_top_controller(restart_ctl,
 
     # Identify the TOP restart files. These should conform
     # to the format
-    # <some arbitrary name>_yyyymmdd_restart_trc_<PE rank>.c"
+    # <some arbitrary name>_yyyymmdd_restart_trc_<PE rank>.nc" or
+    # <some arbitrary name>_yyyymmdd_restart_trc.nc" in the case
+    # of the restart file having been rebuilt.
     top_restart_files = [f for f in os.listdir(top_rst) if
-                         re.findall(r'.+_\d{8}_restart_trc_(\d*).nc', f)]
+                         re.findall(r'.+_\d{8}_restart_trc', f)]
     top_restart_files.sort()
 
     if top_restart_files:
@@ -256,6 +258,8 @@ def _setup_top_controller(restart_ctl,
 
         # For each PE, set up a link to the appropriate sub-domain
         # restart file.
+        top_restart_count = 0
+
         for i_proc in xrange(nemo_nproc):
             tag = str(i_proc).zfill(4)
             top_rst_source = '%s/%so_%s_restart_trc_%s.nc' % \
@@ -263,7 +267,29 @@ def _setup_top_controller(restart_ctl,
             top_rst_link = 'restart_trc_%s.nc' % tag
             if os.path.isfile(top_rst_link):
                 os.remove(top_rst_link)
-            os.symlink(top_rst_source, top_rst_link)
+            if os.path.isfile(top_rst_source):
+                os.symlink(top_rst_source, top_rst_link)
+                top_restart_count += 1
+
+        if top_restart_count < 1:
+            sys.stdout.write('[INFO] No TOP sub-PE restarts found\n')
+            # We found no passive tracer restart sub-domain files let's
+            # look for a full domain file.
+            top_rst_source = '%s/%so_%s_restart_trc.nc' % \
+                (top_init_dir, runid, top_dump_time)
+
+            if os.path.isfile(top_rst_source):
+                sys.stdout.write('[INFO] Using rebuilt TOP restart '\
+                     'file: %s\n' % top_rst_source)
+                top_rst_link = 'restart_trc.nc'
+                if os.path.isfile(top_rst_link):
+                    os.remove(top_rst_link)
+                os.symlink(top_rst_source, top_rst_link)
+
+        # We don't issue an error if we don't find any restart file
+        # because it can be legitimate to want to start from
+        # climatology although the likelihood of wanting to do that
+        # during a CRUN seems pretty slim.
 
     else:
         sys.stderr.write('[FAIL] top_controller: No restart data avaliable in '

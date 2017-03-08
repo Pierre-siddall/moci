@@ -22,7 +22,7 @@ DESCRIPTION
 '''
 
 # File I/O errors
-IOERROR  =  100
+IOERROR = 100
 
 # Missing Environment variable
 MISSING_EVAR_ERROR = 101

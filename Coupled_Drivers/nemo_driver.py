@@ -330,6 +330,11 @@ def _setup_executable(common_envar):
                              ' of NEMO in serial mode\n')
             sys.exit(SERIAL_MODE_ERROR)
         else:
+
+            nemo_restart_count = 0
+            ice_restart_count = 0
+            iceberg_restart_count = 0
+
             # Nemo has multiple processors
             for i_proc in xrange(int(nemo_envar['NEMO_NPROC'])):
                 tag = str(i_proc).zfill(4)
@@ -339,7 +344,10 @@ def _setup_executable(common_envar):
                 nemo_rst_link = 'restart_%s.nc' % tag
                 if os.path.isfile(nemo_rst_link):
                     os.remove(nemo_rst_link)
-                os.symlink(nemo_rst_source, nemo_rst_link)
+
+                if os.path.isfile(nemo_rst_source):
+                    os.symlink(nemo_rst_source, nemo_rst_link)
+                    nemo_restart_count += 1
 
                 ice_rst_source = '%s/%so_%s_restart_ice_%s.nc' % \
                     (nemo_init_dir, common_envar['RUNID'], \
@@ -349,6 +357,7 @@ def _setup_executable(common_envar):
                     if os.path.isfile(ice_rst_link):
                         os.remove(ice_rst_link)
                     os.symlink(ice_rst_source, ice_rst_link)
+                    ice_restart_count += 1
 
                 iceberg_rst_source = '%s/%so_icebergs_%s_restart_%s.nc' % \
                     (nemo_init_dir, common_envar['RUNID'], \
@@ -358,7 +367,54 @@ def _setup_executable(common_envar):
                     if os.path.isfile(iceberg_rst_link):
                         os.remove(iceberg_rst_link)
                     os.symlink(iceberg_rst_source, iceberg_rst_link)
+                    iceberg_restart_count += 1
             #endfor
+
+            if nemo_restart_count < 1:
+                sys.stdout.write('[INFO] No NEMO sub-PE restarts found\n')
+	        # We found no nemo restart sub-domain files let's
+		# look for a global file.
+                nemo_rst_source = '%s/%so_%s_restart.nc' % \
+                    (nemo_init_dir, common_envar['RUNID'], \
+                         nemo_dump_time)
+                if os.path.isfile(nemo_rst_source):
+                    sys.stdout.write('[INFO] Using rebuilt NEMO restart '\
+                         'file: %s\n' % nemo_rst_source)
+                    nemo_rst_link = 'restart.nc'
+                    if os.path.isfile(nemo_rst_link):
+                        os.remove(nemo_rst_link)
+                    os.symlink(nemo_rst_source, nemo_rst_link)
+
+            if ice_restart_count < 1:
+                sys.stdout.write('[INFO] No ice sub-PE restarts found\n')
+	        # We found no ice restart sub-domain files let's
+		# look for a global file.
+                ice_rst_source = '%s/%so_%s_restart_ice.nc' % \
+		                    (nemo_init_dir, common_envar['RUNID'], \
+                         nemo_dump_time)
+                if os.path.isfile(ice_rst_source):
+                    sys.stdout.write('[INFO] Using rebuilt ice restart '\
+                        'file: %s\n' % ice_rst_source)
+                    ice_rst_link = 'restart_ice_in.nc'
+                    if os.path.isfile(ice_rst_link):
+                        os.remove(ice_rst_link)
+                    os.symlink(ice_rst_source, ice_rst_link)
+
+            if iceberg_restart_count < 1:
+                sys.stdout.write('[INFO] No iceberg sub-PE restarts found\n')
+	        # We found no iceberg restart sub-domain files let's
+		# look for a global file.
+                iceberg_rst_source = '%s/%so_icebergs_%s_restart.nc' % \
+                    (nemo_init_dir, common_envar['RUNID'], \
+                         nemo_dump_time)
+                if os.path.isfile(iceberg_rst_source):
+                    sys.stdout.write('[INFO] Using rebuilt iceberg restart'\
+                        'file: %s\n' % iceberg_rst_source)
+                    iceberg_rst_link = 'restart_icebergs.nc'
+                    if os.path.isfile(iceberg_rst_link):
+                        os.remove(iceberg_rst_link)
+                    os.symlink(iceberg_rst_source, iceberg_rst_link)
+
         #endif (nemo_envar(NEMO_NPROC) == 1)
         if nemo_rst_date_bool:
             #Then nemo_dump_time has the form YYYYMMDD
