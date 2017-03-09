@@ -131,7 +131,7 @@ def _load_environment_variables(nemo_envar):
                          'ROSE_LAUNCHER_PREOPTS_NEMO not set\n')
         sys.exit(error.MISSING_EVAR_ERROR)
     _ = nemo_envar.load_envar('NEMO_START', '')
-    _ = nemo_envar.load_envar('NEMO_ICEBERG_START', '')
+    _ = nemo_envar.load_envar('NEMO_ICEBERGS_START', '')
     _ = nemo_envar.load_envar('CONTINUE', '')
 
 
@@ -467,21 +467,20 @@ def _setup_executable(common_envar):
                              'NEMO will use climatology\n')
             ln_restart = ".false."
 
-        if nemo_envar['NEMO_ICEBERG_START'] != '':
-            if os.path.isfile(nemo_envar['NEMO_ICEBERG_START']):
+        if nemo_envar['NEMO_ICEBERGS_START'] != '':
+            if os.path.isfile(nemo_envar['NEMO_ICEBERGS_START']):
 
                 # We need to make sure there isn't already
 	  	# an iceberg restart file link set up, and if there is, get
 		# rid of it because symlink wont work otherwise!
-                if os.path.isfile('restart_icebergs.nc'):
+                if os.path.isfile('restart_icebergs.nc') or os.path.islink('restart_icebergs.nc'):
                     os.remove('restart_icebergs.nc')
-
-                os.symlink(nemo_envar['NEMO_ICEBERG_START'],
+                os.symlink(nemo_envar['NEMO_ICEBERGS_START'],
                            'restart_icebergs.nc')
             elif os.path.isfile('%s_0000.nc' %
-                                nemo_envar['NEMO_ICEBERG_START']):
+                                nemo_envar['NEMO_ICEBERGS_START']):
                 for fname in glob.glob('%s_????.nc' %
-                                       nemo_envar['NEMO_ICEBERG_START']):
+                                       nemo_envar['NEMO_ICEBERGS_START']):
                     proc_number = fname.split('.')[-2][-4:]
 
                     # We need to make sure there isn't already
@@ -493,11 +492,11 @@ def _setup_executable(common_envar):
                     os.symlink(fname, 'restart_icebergs_%s.nc' % proc_number)
             else:
                 sys.stderr.write('[FAIL] file %s not found\n' %
-                                 nemo_envar['NEMO_ICEBERG_START'])
+                                 nemo_envar['NEMO_ICEBERGS_START'])
                 sys.exit(error.MISSING_MODEL_FILE_ERROR)
         else:
-            #NEMO_ICEBERG_START unset
-            sys.stdout.write('[WARN] NEMO_ICEBERG_START not set or file(s)'
+            #NEMO_ICEBERGS_START unset
+            sys.stdout.write('[WARN] NEMO_ICEBERGS_START not set or file(s)'
                              ' not found. Icebergs (if switched on) will start'
                              ' from a state of zero icebergs\n')
         restart_ctl = 0
