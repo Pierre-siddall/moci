@@ -226,7 +226,8 @@ def _finalize_executable(_):
         sys.stderr.write('[FAIL] Environment variable STDOUT_FILE containing '
                          'the path to the UM standard out is not set\n')
         sys.exit(error.MISSING_EVAR_ERROR)
-    _ = um_envar_fin.add('ATMOS_KEEP_MPP_STDOUT', 'false')
+
+    _ = um_envar_fin.load_envar('ATMOS_KEEP_MPP_STDOUT', 'false')
 
     pe0_suffix = '0'*(len(str(int(um_envar_fin['NPROC'])-1)))
     um_pe0_stdout_file = '%s%s' % (um_envar_fin['STDOUT_FILE'],
