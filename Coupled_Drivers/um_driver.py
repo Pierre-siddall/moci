@@ -20,6 +20,7 @@ DESCRIPTION
 import os
 import sys
 import glob
+import re
 import common
 import error
 
@@ -32,6 +33,31 @@ def _write_errflag():
     errflag_hand = common.open_text_file('errflag', 'w')
     errflag_hand.write('F  No request to stop model')
     errflag_hand.close()
+
+def _verify_rst(xhistfile, cyclepoint):
+    '''
+    Verify that the restart dump the UM is attempting to pick up is for the
+    start of the cycle. The cyclepoint variable has the form yyyymmddThhmmZ.
+    '''
+    cycle_date_string = cyclepoint.split('T')[0]
+    # grab the restart filename from the history file, and grab the 8 digit
+    # date yyyymmdd from that filename
+    xhist_handle = common.open_text_file(xhistfile, 'r')
+    for line in xhist_handle.readlines():
+        match = re.search(r"CHECKPOINT_DUMP_IM\s*=\s*'\S*da(\d{8})", line)
+        if match:
+            checkpoint_date = match.group(1)
+            break
+    xhist_handle.close()
+    if checkpoint_date != cycle_date_string:
+        sys.stderr.write('[INFO] The UM restart data does not match the '
+                         ' current cycle time\n.'
+                         '   Cycle time is %s\n'
+                         '   UM restart time is %s\n' %
+                         (cycle_date_string, checkpoint_date))
+        sys.exit(error.DATE_MISMATCH_ERROR)
+    else:
+        sys.stdout.write('[INFO] Validated UM restart date\n')
 
 def _load_run_environment_variables(um_envar):
     '''
@@ -98,7 +124,7 @@ def _load_run_environment_variables(um_envar):
     return um_envar
 
 
-def _setup_executable(_):
+def _setup_executable(common_envar):
     '''
     Setup the environment and any files required by the executable
     '''
@@ -124,6 +150,9 @@ def _setup_executable(_):
             sys.stderr.write('[FAIL] Can not read history file %s\n' %
                              um_envar['HISTORY'])
             sys.exit(error.MISSING_DRIVER_FILE_ERROR)
+        if common_envar['DRIVERS_VERIFY_RST'] == 'True':
+            _verify_rst(um_envar['HISTORY'],
+                        common_envar['CYLC_TASK_CYCLE_POINT'])
     um_envar.add('HISTORY_TEMP', 'thist')
 
     # Calculate total number of processes
