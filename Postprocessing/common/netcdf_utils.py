@@ -31,6 +31,11 @@ def get_dataset(fname, action='r'):
     except RuntimeError as err:
         utils.log_msg('netcdf_utils.py: File: {} \n\t{}'.format(fname, err),
                       level='FAIL')
+    except IOError as err:
+        # Newer versions of netCDF4 library raise an `IOError` exception in
+        # place of `RuntimeError` in the event of "no such file or directory"
+        utils.log_msg('netcdf_utils.py: File: {} \n\t{}'.format(fname, err),
+                      level='FAIL')
     return ncid
 
 
