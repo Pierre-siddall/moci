@@ -22,8 +22,12 @@ import runtime_environment
 try:
     import iris_transform
     IRIS_AVAIL = True
-    IRIS_DATA = os.path.isfile(iris_transform.
-                               iris.sample_data_path('air_temp.pp'))
+    try:
+        IRIS_DATA = os.path.isfile(iris_transform.
+                                   iris.sample_data_path('air_temp.pp'))
+    except ValueError:
+        # Requires the "iris_sample_data" package to be installed
+        IRIS_DATA = False
 except ImportError:
     IRIS_DATA = IRIS_AVAIL = False
 

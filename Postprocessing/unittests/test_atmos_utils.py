@@ -30,9 +30,13 @@ import atmos
 
 
 try:
-    IRIS_DATA = os.path.isfile(housekeeping.iris_transform.
-                               iris.sample_data_path('air_temp.pp'))
     IRIS_AVAIL = True
+    try:
+        IRIS_DATA = os.path.isfile(housekeeping.iris_transform.
+                                   iris.sample_data_path('air_temp.pp'))
+    except ValueError:
+        # Requires the "iris_sample_data" package to be installed
+        IRIS_DATA = False
 except AttributeError:
     IRIS_DATA = IRIS_AVAIL = False
 
