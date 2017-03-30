@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2017 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -142,7 +142,10 @@ class ArchivedFiles(object):
         '''
         key, realm, component = self.get_fn_components(stream)
         if component:
-            stream = period[-1]
+            try:
+                stream = period[-1]
+            except TypeError:
+                pass
 
         collection = filenames.COLLECTIONS[key].format(R=realm, S=stream)
         return collection
@@ -258,11 +261,11 @@ class RestartFiles(ArchivedFiles):
         if not self.finalcycle and hasattr(self.naml, 'buffer_restart'):
             # Adjust for mean buffer
             cycletime = '{}{}{}T{}{}Z'.format(*utils.cyclestring())
-            endtime = ''.join([str(x).zfill(2) for x in edate[:3]])
-            if len(edate) > 3:
-                endtime += 'T{}Z'.format(''.join([str(x).zfill(2) for
-                                                  x in edate[3:]]))
-            cmd = 'rose date {} {} --calendar {}'.format(endtime, cycletime,
+            endtime = [str(x).zfill(2) for x in edate]
+            while len(endtime) < 5:
+                endtime.append('00')
+            endstr = '{}T{}Z'.format(''.join(endtime[:3]), ''.join(endtime[3:]))
+            cmd = 'rose date {} {} --calendar {}'.format(endstr, cycletime,
                                                          utils.calendar())
             rcode, cyclefreq = utils.exec_subproc(cmd, verbose=False)
             if rcode == 0:
@@ -406,6 +409,11 @@ class DiagnosticFiles(ArchivedFiles):
 
         all_streams = utils.ensure_list(self.naml.meanstreams) + \
             [a for a in dir(self.naml) if a.startswith('streams')]
+        try:
+            spawn_ncf = utils.ensure_list(self.naml.spawn_netcdf_streams)
+        except AttributeError:
+            spawn_ncf = []
+
         for step, period, concat, streams, desc in \
                 self.gen_reinit_period(all_streams):
             delta = [0]*5
@@ -462,13 +470,29 @@ class DiagnosticFiles(ArchivedFiles):
                             all_files[coll].append(newfile)
                         except KeyError:
                             all_files[coll] = [newfile]
+
+                        if stream in spawn_ncf:
+                            spawn_coll = self.get_collection(
+                                period=stream,
+                                stream=filenames.FIELD_REGEX
+                                )
+                            spawnfile = self.get_filename(
+                                r'\d+[hdmsyx]', date, newdate, stream + 'ncf'
+                                )
+                            spawnfile = spawnfile.replace('.nc', r'\.nc$')
+                            try:
+                                all_files[spawn_coll].append(spawnfile)
+                            except KeyError:
+                                all_files[spawn_coll] = [spawnfile]
+
                 date = newdate
 
         if not self.finalcycle:
             for fileset in all_files:
                 try:
-                    if re.match(r'^ap([a-zA-Z0-9])\.', fileset).group(1) \
-                            not in 'msyx':
+                    if re.match(r'^a[pmn]([a-zA-Z0-9])\.',
+                                fileset).group(1) not in 'msyx':
+                        # Atmosphere instantaneous pp/fieldsfiles
                         if (fileset[2] in self.tlim) and \
                                 (self.tlim[fileset[2]][1] < self.edate):
                             # Time limited period is over - no file waiting
@@ -477,10 +501,9 @@ class DiagnosticFiles(ArchivedFiles):
                         else:
                             all_files[fileset].remove(all_files[fileset][-1])
                 except AttributeError:
-                    all_files[fileset] = \
-                        self.remove_higher_mean_components(
-                            all_files[fileset], fileset[2]
-                            )
+                    all_files[fileset] = self.remove_higher_mean_components(
+                        all_files[fileset], fileset[2]
+                        )
 
         all_files.update(self.iceberg_trajectory())
 
@@ -605,11 +628,9 @@ class DiagnosticFiles(ArchivedFiles):
         '''
         start = [str(x).zfill(2) for x in start]
         end = [str(x).zfill(2) for x in end]
+        prefix = self.prefix
 
-        key, realm, component = self.get_fn_components(stream)
-        if key.startswith('ncf') and stream:
-            stream = '_{}'.format(stream)
-        elif self.model == 'atmos':
+        if self.model == 'atmos' and len(stream) == 1:
             if 'h' in period:
                 # Hourly files require "_HH" post-fix
                 start[3] = '_{}'.format(start[3])
@@ -626,9 +647,17 @@ class DiagnosticFiles(ArchivedFiles):
                     if int(start[1]) in range(mth, mth + 3):
                         start[1] = ssn
                         break
+        elif self.model == 'atmos':
+            stream = filenames.FIELD_REGEX
+
+        key, realm, component = self.get_fn_components(stream)
+        if key.startswith('ncf'):
+            prefix = prefix.lower()
+            if stream:
+                stream = '_{}'.format(stream)
 
         return filenames.FNAMES[key].format(
-            CM=component, P=self.prefix, R=realm, F=period, CF=stream,
+            CM=component, P=prefix, R=realm, F=period, CF=stream,
             Y1=start[0], M1=start[1], D1=start[2], H1=start[3],
             Y2=end[0], M2=end[1], D2=end[2], H2=end[3]
             )

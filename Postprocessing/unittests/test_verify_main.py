@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2017 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -35,7 +35,8 @@ class DummyNamelists(object):
 class FilenamesTests(unittest.TestCase):
     ''' Unit tests relating to the filenames module '''
     def setUp(self):
-        pass
+        archive_integrity.sys = mock.Mock()
+        archive_integrity.sys.argv = []
 
     def tearDown(self):
         pass
@@ -96,7 +97,7 @@ class VerifyArchiveTests(unittest.TestCase):
             listing = archive_integrity.log_archive('dataset')
         self.assertEqual(listing, self.archcontent)
 
-    @mock.patch('utils.exec_subproc')
+    @mock.patch('archive_integrity.utils.exec_subproc')
     def test_debug_mooread(self, mock_exec):
         ''' Test reading of the archive log file - Moose archive '''
         func.logtest('Assert creation of archive listing from Moose archive:')
@@ -118,13 +119,16 @@ class VerifyArchiveTests(unittest.TestCase):
         ''' Test archive verification - false'''
         func.logtest('Assert incomplete log:')
         expected = {'coll1.file': self.archcontent['coll1.file'],
-                    'coll2.pp': ['file5'],
+                    'coll2.pp': ['file5', r'model_xxxx_\.nc$'],
                     'newcoll.file': ['file6']}
         self.assertFalse(archive_integrity.verify_archive(expected,
                                                           self.archcontent))
 
         self.assertIn('Collection coll2.pp - Files missing from the'
                       ' archive:\n\tfile5', func.capture('err'))
+        self.assertIn('Collection coll2.pp - No files found to match '
+                      r'regular expression: model_xxxx_\.nc$',
+                      func.capture('err'))
         self.assertIn('Collection newcoll.file is missing', func.capture('err'))
         self.assertNotIn('file6', func.capture('err'))
         self.assertNotIn('Collection coll1.file', func.capture('err'))
@@ -154,9 +158,9 @@ class VerifyArchiveTests(unittest.TestCase):
                                                        self.archcontent)
             )
 
-    @mock.patch('nlist.loadNamelist')
-    @mock.patch('expected_content.RestartFiles')
-    @mock.patch('expected_content.DiagnosticFiles')
+    @mock.patch('archive_integrity.nlist.loadNamelist')
+    @mock.patch('archive_integrity.expected_content.RestartFiles')
+    @mock.patch('archive_integrity.expected_content.DiagnosticFiles')
     @mock.patch('archive_integrity.log_archive')
     @mock.patch('archive_integrity.moose_archive', return_value={})
     @mock.patch('archive_integrity.check_archive_additional')
@@ -177,11 +181,11 @@ class VerifyArchiveTests(unittest.TestCase):
         mock_verify.assert_called_once_with({}, {})
         self.assertIn('All expected files', func.capture())
 
-    @mock.patch('nlist.loadNamelist')
+    @mock.patch('archive_integrity.nlist.loadNamelist')
     @mock.patch('expected_content.RestartFiles.expected_files',
                 return_value={'ada': ['dump1']})
-    @mock.patch('expected_content.DiagnosticFiles.expected_diags',
-                return_value={'apa': ['pp1']})
+    @mock.patch('archive_integrity.expected_content.DiagnosticFiles'
+                '.expected_diags', return_value={'apa': ['pp1']})
     @mock.patch('archive_integrity.log_archive')
     @mock.patch('archive_integrity.moose_archive',
                 return_value={'ada': ['dump1', 'dump2'], 'apa': ['pp1']})
@@ -198,7 +202,7 @@ class VerifyArchiveTests(unittest.TestCase):
         namelists = DummyNamelists()
         setattr(namelists, 'atmosverify', verify_namelist.AtmosVerify())
         mock_nl.return_value = namelists
-        with mock.patch('utils.finalcycle'):
+        with mock.patch('archive_integrity.utils.finalcycle'):
             archive_integrity.main()
 
         mock_rst.assert_called_once_with()
@@ -212,13 +216,58 @@ class VerifyArchiveTests(unittest.TestCase):
 
         namelists.commonverify.check_additional_files_archived = True
         mock_nl.return_value = namelists
-        with mock.patch('utils.finalcycle'):
+        with mock.patch('archive_integrity.utils.finalcycle'):
             archive_integrity.main()
 
         mock_add.assert_called_once_with(expected, mock_moo.return_value)
         self.assertIn('Unexpected files present in moose', func.capture())
 
-    @mock.patch('nlist.loadNamelist')
+    @mock.patch('archive_integrity.nlist.loadNamelist')
+    @mock.patch('expected_content.RestartFiles.expected_files',
+                return_value={'oda': ['rst1']})
+    @mock.patch('archive_integrity.expected_content.DiagnosticFiles.'
+                'expected_diags', return_value={'onm.nc.file': ['nc_m1']})
+    @mock.patch('archive_integrity.log_archive')
+    @mock.patch('archive_integrity.moose_archive',
+                return_value={'oda': ['rst1', 'rst2'],
+                              'onm.nc.file': ['nc_m1']})
+    @mock.patch('archive_integrity.check_archive_additional')
+    @mock.patch('archive_integrity.verify_archive')
+    def test_main_function_nemo(self, mock_verify, mock_add, mock_moo,
+                                mock_log, mock_diag, mock_rst, mock_nl):
+        ''' Test main function - NEMO as script argument'''
+        func.logtest('Assert calls by main function - NEMO script arg:')
+        archive_integrity.sys.argv = ('script', 'nemo')
+        expected = {}
+        expected.update({'oda': ['rst1']})
+        expected.update({'onm.nc.file': ['nc_m1']})
+
+        namelists = DummyNamelists()
+        setattr(namelists, 'atmosverify', verify_namelist.AtmosVerify())
+        setattr(namelists, 'nemoverify', verify_namelist.CiceVerify())
+        setattr(namelists, 'ciceverify', verify_namelist.NemoVerify())
+        mock_nl.return_value = namelists
+        with mock.patch('archive_integrity.utils.finalcycle'):
+            archive_integrity.main()
+
+        mock_rst.assert_called_once_with()
+        mock_diag.assert_called_once_with()
+        self.assertEqual(mock_log.mock_calls, [])
+        self.assertEqual(mock_add.mock_calls, [])
+        mock_moo.assert_called_once_with(namelists.commonverify.dataset)
+        mock_verify.assert_called_once_with(expected, mock_moo.return_value)
+        self.assertIn('All expected files', func.capture())
+        self.assertNotIn('Unexpected files present in oda', func.capture())
+
+        namelists.commonverify.check_additional_files_archived = True
+        mock_nl.return_value = namelists
+        with mock.patch('archive_integrity.utils.finalcycle'):
+            archive_integrity.main()
+
+        mock_add.assert_called_once_with(expected, mock_moo.return_value)
+        self.assertIn('Unexpected files present in moose', func.capture())
+
+    @mock.patch('archive_integrity.nlist.loadNamelist')
     def test_main_function_verify_fail(self, mock_nl):
         ''' Test main function - atmos namelist'''
         func.logtest('Assert calls to methods by main function - atmos :')
@@ -227,7 +276,7 @@ class VerifyArchiveTests(unittest.TestCase):
         mock_nl.return_value = namelists
         with mock.patch('archive_integrity.verify_archive', return_value=False):
             with mock.patch('archive_integrity.moose_archive'):
-                with mock.patch('utils.finalcycle'):
+                with mock.patch('archive_integrity.utils.finalcycle'):
                     with self.assertRaises(SystemExit):
                         archive_integrity.main()
         self.assertIn('Dataset incomplete', func.capture('err'))

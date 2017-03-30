@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2017 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -17,7 +17,9 @@ NAME
 DESCRIPTION
     Main function for the periodic verification of an archive
 '''
+import sys
 import os
+import re
 
 import expected_content
 import timer
@@ -82,18 +84,39 @@ def verify_archive(expected_files, archived_files):
     for fileset in sorted(expected_files):
         try:
             missing = [d for d in expected_files[fileset] if
-                       d not in archived_files[fileset]]
+                       d not in archived_files[fileset] and
+                       not d.endswith('$')]
+            regex_defined = [d for d in expected_files[fileset] if
+                             d.endswith('$')]
         except KeyError:
             missing = []
+            regex_defined = []
+
+        missing_regex = []
+        for regex in regex_defined:
+            no_match = True
+            for arch_file in archived_files[fileset]:
+                if re.match(regex, os.path.basename(arch_file)):
+                    no_match = False
+                    break
+            if no_match:
+                missing_regex.append(regex)
 
         msg = 'Collection {} '.format(fileset)
         if fileset not in archived_files.keys():
             verified = False
             utils.log_msg(msg + 'is missing from the archive.', level='WARN')
-        elif missing:
+        elif missing or missing_regex:
             verified = False
-            msg += '- Files missing from the archive:\n\t'
-            utils.log_msg(msg + '\n\t'.join(missing), level='WARN')
+            if missing:
+                msg += '- Files missing from the archive:\n\t'
+                msg += '\n\t'.join(missing)
+            if missing_regex:
+                if missing:
+                    msg += '\nCollection {} '.format(fileset)
+                msg += '- No files found to match regular expression: '
+                msg += '\n\t'.join(missing_regex)
+            utils.log_msg(msg + '\n\t'.join(missing_regex), level='WARN')
         else:
             utils.log_msg(msg + '- All expected files present in archive.',
                           level='OK')
@@ -109,8 +132,11 @@ def check_archive_additional(expected_files, archived_files):
     extra = False
     for fileset in sorted(archived_files):
         try:
-            additional = [d for d in archived_files[fileset] if
-                          d not in expected_files[fileset]]
+            if expected_files[fileset][0].endswith('$'):
+                additional = []
+            else:
+                additional = [d for d in archived_files[fileset] if
+                              d not in expected_files[fileset]]
         except KeyError:
             additional = []
 
@@ -147,10 +173,15 @@ def main():
     if load_nl.commonverify.testing:
         dummy_cylc_environment()
 
+    models = [str(m).lower() for m in sys.argv[1:]]
+
     expected_files = {}
     for namelist in [m for m in dir(load_nl) if not m.startswith('_')
                      and m != 'commonverify']:
         model = namelist.replace('verify', '')
+        if models and model.lower() not in models:
+            # Specific models requested - this model is not in the list
+            continue
 
         # Restart files
         restarts = expected_content.RestartFiles(

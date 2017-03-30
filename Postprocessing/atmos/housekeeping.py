@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2017 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -22,11 +22,17 @@ DESCRIPTION
 
 import re
 import os
-
 from collections import OrderedDict
 
 import timer
 import utils
+from netcdf_filenames import NCF_TEMPLATE
+
+try:
+    import iris_transform
+except ImportError:
+    # Iris is not part of the standard Python package
+    utils.log_msg('Iris Module is not available', level='WARN')
 
 # Constants
 FILETYPE = OrderedDict([
@@ -36,12 +42,14 @@ FILETYPE = OrderedDict([
                        re.compile(r'^{0}a\.p[{1}]'.format(p, s)))),
     ('pp_mean_names', ([], lambda p, s:
                        re.compile(r'^{0}a\.[pm][{1}]'.format(p, s)))),
+    ('nc_names', ([], lambda p, s:
+                  re.compile(r'^atmos_{0}a_.*_[pm][{1}]'.format(p, s)))),
     ])
 RTN = 0
 REGEX = 1
 
 
-def read_arch_logfile(logfile, prefix, inst, mean):
+def read_arch_logfile(logfile, prefix, inst, mean, ncfile):
     '''
     Read the archiving script log file, and identify the lines corresponding
     to dumps, instantaneous pp files, and mean pp files, and separate
@@ -50,7 +58,14 @@ def read_arch_logfile(logfile, prefix, inst, mean):
         fname, tag = line.split(' ', 1)
         tag = 'FAILED' not in tag
         for ftype in FILETYPE:
-            stream = inst if ftype == 'pp_inst_names' else mean
+            if ftype == 'pp_inst_names':
+                stream = inst
+            elif ftype == 'pp_mean_names':
+                stream = mean
+            elif ftype == 'nc_names':
+                stream = ncfile
+            else:
+                stream = '*'
             if stream and FILETYPE[ftype][REGEX](prefix, stream).\
                     search(os.path.basename(fname)):
                 FILETYPE[ftype][RTN].append((fname, tag))
@@ -107,7 +122,7 @@ def delete_dumps(atmos, dump_names, archived):
 
 
 @timer.run_timer
-def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, archived):
+def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, nc_names, archived):
     '''Delete pp files when finalised and archived as necessary'''
     to_delete = []
     if archived:
@@ -116,6 +131,8 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, archived):
             to_delete += [pp for pp, tag in pp_inst_names if tag]
         if atmos.naml.delete_sc.gcmdel:
             to_delete += [pp for pp, tag in pp_mean_names if tag]
+        if atmos.naml.delete_sc.ncdel:
+            to_delete += [nc for nc, tag in nc_names if tag]
 
     else:  # Not archiving
         pattern = r'^{}a\.[pm][a-z1-9]*(_\d{{2}})?\.arch$'.\
@@ -147,8 +164,12 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, archived):
         # Remove .arch files from work directory(s)
         del_dot_arch = []
         for fname in to_delete:
-            lim = -3 if fname.endswith('.pp') else None
-            del_dot_arch.append(os.path.basename(fname[:lim]) + ".arch")
+            if fname.endswith('.nc'):
+                # .arch files not available for data extracted to netCDF files
+                pass
+            else:
+                lim = -3 if fname.endswith('.pp') else None
+                del_dot_arch.append(os.path.basename(fname[:lim]) + ".arch")
 
             msg = 'Removing .arch files from work directory:\n ' + \
             '\n '.join([f for f in del_dot_arch])
@@ -195,6 +216,62 @@ def convert_to_pp(fieldsfile, umutils, keep_ffile):
         utils.log_msg(msg.format(fieldsfile, output), level='ERROR')
 
     return ppfname
+
+
+@timer.run_timer
+def extract_to_netcdf(fieldsfile, fields, ncftype, complevel):
+    '''
+    Extract given field(s) to netCDF format.
+
+    Multiple instances of the same field in the same file will result
+    in only the final instance being extracted.
+
+    Arguments:
+       fieldsfile - Full filename (including path)
+       fields     - <type dict> keys=fieldnames or STASHcodes
+                                vals=descriptor for field
+    '''
+    dirname = os.path.dirname(fieldsfile)
+    try:
+        suite_id, stream_id = re.match(r'(.*)a\.([pm][a-zA-Z0-9])\d{4}',
+                                       os.path.basename(fieldsfile)).groups()
+    except AttributeError:
+        msg = 'PP/Fieldsfile name does not match expected format: '
+        utils.log_msg(msg + os.path.basename(fieldsfile), level='WARN')
+        suite_id = os.environ['CYLC_SUITE_REG_NAME']
+        stream_id = 'p9'
+    ncf_prefix = 'atmos_{}a'.format(suite_id)
+    try:
+        all_cubes = iris_transform.IrisCubes(fieldsfile, fields)
+        icode = 0
+    except AttributeError:
+        # Iris module is not available
+        utils.log_msg('Iris module is not available - '
+                      'cannot extract fields to netCDF format', level='ERROR')
+        icode = -1
+
+    if icode == 0:
+        # Loop over requested fields
+        for field in sorted(all_cubes.field_attributes):
+            fattr = all_cubes.field_attributes[field]
+            descriptor = '_' + stream_id
+            if fattr['Descriptor']:
+                descriptor += '-' + fattr['Descriptor']
+                ncfilename = os.path.join(
+                    dirname,
+                    NCF_TEMPLATE.format(P=ncf_prefix,
+                                        B=fattr['DataFrequency'],
+                                        S=fattr['StartDate'],
+                                        E=fattr['EndDate'],
+                                        C=descriptor)
+                    )
+            icode += iris_transform.save_format(fattr['IrisCube'],
+                                                ncfilename,
+                                                'netcdf',
+                                                kwargs={'complevel': complevel,
+                                                        'ncftype': ncftype})
+
+    return icode
 
 
 @timer.run_timer

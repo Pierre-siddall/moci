@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2017 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -173,6 +173,8 @@ class ArchivedFilesTests(unittest.TestCase):
         self.files.naml.ff_streams = 'k'
         self.assertTupleEqual(self.files.get_fn_components('k'),
                               ('atmos_ff', 'a', None))
+        self.assertTupleEqual(self.files.get_fn_components(r'[a-zA-Z0-9\-]*'),
+                              ('ncf_mean', 'a', 'atmos'))
 
     def test_filename_dict_nemocice(self):
         '''Assert return of key, realm and component for nemocice'''
@@ -201,6 +203,8 @@ class ArchivedFilesTests(unittest.TestCase):
                          'apk.pp')
         mock_cmp.return_value = ('atmos_ff', 'a', None)
         self.assertEqual(self.files.get_collection(stream='k'), 'apk.file')
+        mock_cmp.return_value = ('ncf_mean', 'a', 'atmos')
+        self.assertEqual(self.files.get_collection(stream='k'), 'ank.nc.file')
 
     @mock.patch('expected_content.ArchivedFiles.get_fn_components')
     def test_collection_nemo(self, mock_cmp):
@@ -362,13 +366,14 @@ class RestartFilesTests(unittest.TestCase):
                   'PREFIXo_19980601_restart.nc',
                   'PREFIXo_19980701_restart.nc']
         self.files.naml.buffer_restart = 4 # 40 days
-        self.assertListEqual(self.files.expected_files()['oda.file'],
-                             expect[:-2])
+        files_returned = self.files.expected_files()['oda.file']
+        self.assertListEqual(files_returned, expect[:-2])
+        mock_ctime.assert_called_once_with()
 
         self.files.finalcycle = True
-        self.assertListEqual(self.files.expected_files()['oda.file'], expect)
-        self.assertListEqual(self.files.expected_files().keys(), ['oda.file'])
-        mock_ctime.assert_called_once_with()
+        dict_returned = self.files.expected_files()
+        self.assertListEqual(dict_returned['oda.file'], expect)
+        self.assertListEqual(dict_returned.keys(), ['oda.file'])
 
     def test_expected_nemo_olddumps(self):
         ''' Test calculation of expected nemo restarts with 3.1 datestamp'''
@@ -717,6 +722,7 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.files.naml.streams_30d = 'c'
         self.files.naml.streams_1d = ''
         self.files.naml.streams_10h = 'd'
+        self.files.naml.spawn_netcdf_streams = 'b'
 
         outfiles = {
             'apa.file': ['PREFIXa.pa19950811', 'PREFIXa.pa19951111',
@@ -727,6 +733,14 @@ class DiagnosticFilesTests(unittest.TestCase):
                        'PREFIXa.pc1998aug.pp', 'PREFIXa.pc1998sep.pp'],
             'apd.pp': ['PREFIXa.pd19950811_00.pp', 'PREFIXa.pd19950811_10.pp',
                        'PREFIXa.pd19981029_18.pp', 'PREFIXa.pd19981030_04.pp'],
+            'anb.nc.file': [r'atmos_prefixa_\d+[hdmsyx]_19950811-19951111_'
+                            r'[a-zA-Z0-9\-]*\.nc$',
+                            r'atmos_prefixa_\d+[hdmsyx]_19951111-19960211_'
+                            r'[a-zA-Z0-9\-]*\.nc$',
+                            r'atmos_prefixa_\d+[hdmsyx]_19980211-19980511_'
+                            r'[a-zA-Z0-9\-]*\.nc$',
+                            r'atmos_prefixa_\d+[hdmsyx]_19980511-19980811_'
+                            r'[a-zA-Z0-9\-]*\.nc$']
             }
         expected = self.files.expected_diags()
         for key in outfiles:
@@ -762,14 +776,14 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.files.fields = ['grid-W', 'diad-T']
         self.files.edate = [1996, 1, 1]
         outfiles = {
-            'onm.nc.file': ['nemo_PREFIXo_1m_19950901-19951001_grid-W.nc',
-                            'medusa_PREFIXo_1m_19950901-19951001_diad-T.nc',
-                            'nemo_PREFIXo_1m_19951001-19951101_grid-W.nc',
-                            'medusa_PREFIXo_1m_19951001-19951101_diad-T.nc',
-                            'nemo_PREFIXo_1m_19951101-19951201_grid-W.nc',
-                            'medusa_PREFIXo_1m_19951101-19951201_diad-T.nc',
-                            'nemo_PREFIXo_1m_19951201-19960101_grid-W.nc',
-                            'medusa_PREFIXo_1m_19951201-19960101_diad-T.nc'],
+            'onm.nc.file': ['nemo_prefixo_1m_19950901-19951001_grid-W.nc',
+                            'medusa_prefixo_1m_19950901-19951001_diad-T.nc',
+                            'nemo_prefixo_1m_19951001-19951101_grid-W.nc',
+                            'medusa_prefixo_1m_19951001-19951101_diad-T.nc',
+                            'nemo_prefixo_1m_19951101-19951201_grid-W.nc',
+                            'medusa_prefixo_1m_19951101-19951201_diad-T.nc',
+                            'nemo_prefixo_1m_19951201-19960101_grid-W.nc',
+                            'medusa_prefixo_1m_19951201-19960101_diad-T.nc'],
             }
         expected = self.files.expected_diags()
         for key in outfiles:
@@ -789,16 +803,16 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.files.fields = ['grid-W', 'diad-T']
         self.files.edate = [1996, 2, 1]
         outfiles = {
-            'onm.nc.file': ['nemo_PREFIXo_1m_19950901-19951001_grid-W.nc',
-                            'medusa_PREFIXo_1m_19950901-19951001_diad-T.nc',
-                            'nemo_PREFIXo_1m_19951001-19951101_grid-W.nc',
-                            'medusa_PREFIXo_1m_19951001-19951101_diad-T.nc',
-                            'nemo_PREFIXo_1m_19951101-19951201_grid-W.nc',
-                            'medusa_PREFIXo_1m_19951101-19951201_diad-T.nc',
-                            'nemo_PREFIXo_1m_19951201-19960101_grid-W.nc',
-                            'medusa_PREFIXo_1m_19951201-19960101_diad-T.nc',
-                            'nemo_PREFIXo_1m_19960101-19960201_grid-W.nc',
-                            'medusa_PREFIXo_1m_19960101-19960201_diad-T.nc']
+            'onm.nc.file': ['nemo_prefixo_1m_19950901-19951001_grid-W.nc',
+                            'medusa_prefixo_1m_19950901-19951001_diad-T.nc',
+                            'nemo_prefixo_1m_19951001-19951101_grid-W.nc',
+                            'medusa_prefixo_1m_19951001-19951101_diad-T.nc',
+                            'nemo_prefixo_1m_19951101-19951201_grid-W.nc',
+                            'medusa_prefixo_1m_19951101-19951201_diad-T.nc',
+                            'nemo_prefixo_1m_19951201-19960101_grid-W.nc',
+                            'medusa_prefixo_1m_19951201-19960101_diad-T.nc',
+                            'nemo_prefixo_1m_19960101-19960201_grid-W.nc',
+                            'medusa_prefixo_1m_19960101-19960201_diad-T.nc']
             }
         # Default base_mean=10d
         self.files.naml.buffer_mean = 4
@@ -817,12 +831,12 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.files.naml.meanstreams = ['1s', '1y']
         self.files.finalcycle = True
         outfiles = {
-            'ins.nc.file': ['cice_PREFIXi_1s_19950901-19951201.nc',
-                            'cice_PREFIXi_1s_19951201-19960301.nc',
-                            'cice_PREFIXi_1s_19980301-19980601.nc',
-                            'cice_PREFIXi_1s_19980601-19980901.nc'],
-            'iny.nc.file': ['cice_PREFIXi_1y_19951201-19961201.nc',
-                            'cice_PREFIXi_1y_19961201-19971201.nc',],
+            'ins.nc.file': ['cice_prefixi_1s_19950901-19951201.nc',
+                            'cice_prefixi_1s_19951201-19960301.nc',
+                            'cice_prefixi_1s_19980301-19980601.nc',
+                            'cice_prefixi_1s_19980601-19980901.nc'],
+            'iny.nc.file': ['cice_prefixi_1y_19951201-19961201.nc',
+                            'cice_prefixi_1y_19961201-19971201.nc',],
             }
         expected = self.files.expected_diags()
         for key in outfiles:
@@ -837,10 +851,10 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.files.naml.meanstreams = ['1d_30']
         self.files.finalcycle = True
         outfiles = {
-            'ind.nc.file': ['cice_PREFIXi_1d_19950901-19951001.nc',
-                            'cice_PREFIXi_1d_19951001-19951101.nc',
-                            'cice_PREFIXi_1d_19980901-19981001.nc',
-                            'cice_PREFIXi_1d_19981001-19981101.nc'],
+            'ind.nc.file': ['cice_prefixi_1d_19950901-19951001.nc',
+                            'cice_prefixi_1d_19951001-19951101.nc',
+                            'cice_prefixi_1d_19980901-19981001.nc',
+                            'cice_prefixi_1d_19981001-19981101.nc'],
             }
         expected = self.files.expected_diags()
         for key in outfiles:

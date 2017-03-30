@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2017 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -48,6 +48,7 @@ class AtmosVerify(object):
     streams_2d = None
     streams_1d = None
     ff_streams = []
+    spawn_netcdf_streams = []
     timelimitedstreams = False
     tlim_streams = None
     tlim_starts = None

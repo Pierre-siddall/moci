@@ -21,15 +21,18 @@ try:
             if re.match(r'.*a\.da.*', fname):
                 # Atmos dump file
                 collection = 'ada.file'
-            elif re.match(r'.*a\.p([a-z0-9]).*', line):
-                stream = re.match(r'.*a\.p([a-z0-9])\d{4}.*', line).group(1)
-                version = '.pp' if fname.endswith('.pp') else '.file'
-                collection = 'ap{}{}'.format(stream, version)
+            elif re.match(r'.*a\.([pm])([a-z0-9]).*', line):
+                # Atmos pp/fields files
+                filetype, stream = re.match(r'.*a\.([pm])([a-z0-9])\d{4}.*', line).groups()
+                version = 'pp' if fname.endswith('.pp') else 'file'
+                collection = 'a{}{}.{}'.format(filetype, stream, version)
+            elif re.match(r'atmos_.*_([pm][a-z0-9]).*', line):
+                # Atmos netCDF files
+                collection = 'an{}.nc.file'.format(re.match(r'atmos_.*_[pm]([a-z0-9]).*',
+                                                            line).group(1))
             else:
                 # NEMOCICE
-                print '***EFN**** testing filename:', fname
                 collection = re.match(r'([a-z]*_)?[a-zA-Z0-9]*([io])[_.].*', fname).group(2)
-                print '--> collection:', collection
                 if 'restart' in fname:
                     collection += 'da.file'
                 elif 'trajectory' in fname:
@@ -43,7 +46,8 @@ try:
             except KeyError:
                 dataset[collection] = [fname]
 
-    permission = 'w' if os.environ['CYLC_TASK_NAME'] == 'postproc_19811001' else 'a'
+    permission = 'w' if (os.environ['CYLC_TASK_NAME'] == 'postproc_19811001' and
+                         os.environ['CYLC_TASK_TRY_NUMBER'] == 1) else 'a'
     with open(cylclog, permission) as archive:
         archive.write('[INFO] writing log for ' + os.environ['CYLC_TASK_NAME'])
         archive.write('\n')

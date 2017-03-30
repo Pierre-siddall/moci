@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2017 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -29,6 +29,14 @@ runtime_environment.setup_env()
 import atmos
 
 
+try:
+    IRIS_DATA = os.path.isfile(housekeeping.iris_transform.
+                               iris.sample_data_path('air_temp.pp'))
+    IRIS_AVAIL = True
+except AttributeError:
+    IRIS_DATA = IRIS_AVAIL = False
+
+
 class HousekeepTests(unittest.TestCase):
     '''Unit tests relating to the atmosphere housekeeping utilities'''
     def setUp(self):
@@ -41,6 +49,7 @@ class HousekeepTests(unittest.TestCase):
 
         self.del_inst_pp = [('INST1', True), ('INST2', False), ('INST3', True)]
         self.del_mean_pp = [('MEAN1', True), ('MEAN2', False), ('MEAN3', True)]
+        self.del_ncfiles = [('NCFILE1', False), ('NCFILE2', True)]
         self.arch_dumps = [('DUMP1', True), ('DUMP2', False), ('DUMP3', True)]
         self.del_dumps = ['DUMP1', 'DUMP1a', 'DUMP2', 'DUMP2a',
                           'DUMP3', 'DUMP3a']
@@ -57,9 +66,8 @@ class HousekeepTests(unittest.TestCase):
         '''Test delete_ppfiles functionality - archived instantaneous files'''
         func.logtest('Assert successful deletion of archived inst. ppfiles:')
         self.atmos.naml.delete_sc.gpdel = True
-        self.atmos.naml.delete_sc.gcmdel = False
         housekeeping.delete_ppfiles(self.atmos, self.del_inst_pp,
-                                    self.del_mean_pp, True)
+                                    self.del_mean_pp, self.del_ncfiles, True)
         self.assertEqual(
             mock_rm.mock_calls,
             [mock.call(['INST1', 'INST3'], path='ShareDir'),
@@ -71,15 +79,27 @@ class HousekeepTests(unittest.TestCase):
     def test_delete_mean_pp_archived(self, mock_rm):
         '''Test delete_ppfiles functionality - archived mean ppfiles'''
         func.logtest('Assert successful deletion of archived mean ppfiles:')
-        self.atmos.naml.delete_sc.gpdel = True
-        self.atmos.naml.delete_sc.gcmdel = False
-        housekeeping.delete_ppfiles(self.atmos, self.del_mean_pp,
-                                    self.del_mean_pp, True)
+        self.atmos.naml.delete_sc.gcmdel = True
+        housekeeping.delete_ppfiles(self.atmos, self.del_inst_pp,
+                                    self.del_mean_pp, self.del_ncfiles, True)
         self.assertEqual(
             mock_rm.mock_calls,
             [mock.call(['MEAN1', 'MEAN3'], path='ShareDir'),
              mock.call(['MEAN1.arch', 'MEAN3.arch'], path='WorkDir',
                        ignoreNonExist=True)]
+            )
+
+    @mock.patch('utils.remove_files')
+    def test_delete_ncfiles_archived(self, mock_rm):
+        '''Test delete_ppfiles functionality - archived mean ppfiles'''
+        func.logtest('Assert successful deletion of archived mean ppfiles:')
+        self.atmos.naml.delete_sc.ncdel = True
+        housekeeping.delete_ppfiles(self.atmos, self.del_inst_pp,
+                                    self.del_mean_pp, self.del_ncfiles, True)
+        self.assertEqual(
+            mock_rm.mock_calls,
+            [mock.call(['NCFILE2'], path='ShareDir'),
+             mock.call(['NCFILE2.arch'], path='WorkDir', ignoreNonExist=True)]
             )
 
     @mock.patch('housekeeping.os.rename')
@@ -88,8 +108,10 @@ class HousekeepTests(unittest.TestCase):
         func.logtest('Assert successful deletion of archived ppfiles - debug:')
         self.atmos.naml.delete_sc.gcmdel = True
         with mock.patch('housekeeping.utils.get_debugmode', return_value=True):
-            housekeeping.delete_ppfiles(self.atmos, self.del_mean_pp,
-                                        self.del_mean_pp, True)
+            housekeeping.delete_ppfiles(
+                self.atmos, self.del_inst_pp,
+                self.del_mean_pp, self.del_ncfiles, True
+                )
         calls = [
             mock.call('ShareDir/MEAN1', 'ShareDir/MEAN1_ARCHIVED'),
             mock.call('ShareDir/MEAN3', 'ShareDir/MEAN3_ARCHIVED'),
@@ -109,7 +131,7 @@ class HousekeepTests(unittest.TestCase):
         mock_mark.return_value = [f[0] for f in self.del_inst_pp +
                                   self.del_mean_pp]
         housekeeping.delete_ppfiles(self.atmos, self.del_inst_pp,
-                                    self.del_mean_pp, False)
+                                    self.del_mean_pp, self.del_ncfiles, False)
         self.assertEqual(
             mock_rm.mock_calls,
             [mock.call(['INST1', 'INST2', 'INST3'], path='ShareDir'),
@@ -127,8 +149,8 @@ class HousekeepTests(unittest.TestCase):
         mock_ft.__getitem__().__getitem__().return_value = 'MEAN'
         mock_mark.return_value = [f[0] for f in self.del_inst_pp +
                                   self.del_mean_pp]
-        housekeeping.delete_ppfiles(self.atmos, self.del_mean_pp,
-                                    self.del_mean_pp, False)
+        housekeeping.delete_ppfiles(self.atmos, self.del_inst_pp,
+                                    self.del_mean_pp, self.del_ncfiles, False)
         self.assertEqual(
             mock_rm.mock_calls,
             [mock.call(['MEAN1', 'MEAN2', 'MEAN3'], path='ShareDir'),
@@ -206,9 +228,6 @@ class HousekeepTests(unittest.TestCase):
                                           '55', '66', '77', '88']
         self.atmos.suite.cyclestring = '44'
         housekeeping.delete_dumps(self.atmos, self.arch_dumps, False)
-
-        housekeeping.delete_ppfiles(self.atmos, self.del_inst_pp,
-                                    self.del_mean_pp, False)
         mock_rm.assert_called_once_with(self.del_dumps[0:4], path='ShareDir')
 
     @mock.patch('housekeeping.utils.get_subset')
@@ -306,8 +325,8 @@ class HeaderTests(unittest.TestCase):
             with mock.patch('validation.identify_filedate') as mock_date:
                 mock_date.return_value = ('YY', 'MM', 'DD')
                 valid = validation.verify_header(self.atmos.naml.atmospp,
-                                                 'Filename', self.logfile,
-                                                 'LogDir/job')
+                                                 'Filename', 'LogDir/job',
+                                                 logfile=self.logfile)
         self.assertTrue(valid)
         mock_date.assert_called_with('Filename')
         mock_gen.assert_called_with('Filename', 'LogDir/job-pumfhead.out',
@@ -324,8 +343,8 @@ class HeaderTests(unittest.TestCase):
                 mock_date.return_value = ('YY', 'MM', 'DD1')
                 with self.assertRaises(SystemExit):
                     _ = validation.verify_header(self.atmos.naml.atmospp,
-                                                 'Filename', self.logfile,
-                                                 'LogDir/job')
+                                                 'Filename', 'LogDir/job',
+                                                 logfile=self.logfile)
         self.assertIn('Validity time mismatch', func.capture('err'))
         self.logfile.close()
         self.assertIn('ARCHIVE FAILED', open('logfile', 'r').read())
@@ -340,8 +359,8 @@ class HeaderTests(unittest.TestCase):
                 with mock.patch('validation.utils.get_debugmode',
                                 return_value=True):
                     valid = validation.verify_header(self.atmos.naml.atmospp,
-                                                     'Filename', self.logfile,
-                                                     'LogDir/job')
+                                                     'Filename', 'LogDir/job',
+                                                     logfile=self.logfile)
         self.assertFalse(valid)
         self.assertIn('Validity time mismatch', func.capture('err'))
         self.logfile.close()
@@ -357,8 +376,8 @@ class HeaderTests(unittest.TestCase):
                 mock_date.return_value = ('YY', 'MM', 'DD')
                 with self.assertRaises(SystemExit):
                     _ = validation.verify_header(self.atmos.naml.atmospp,
-                                                 'Filename', self.logfile,
-                                                 'LogDir/job')
+                                                 'Filename', 'LogDir/job',
+                                                 logfile=self.logfile)
         self.assertIn('No header information available', func.capture('err'))
         self.logfile.close()
         self.assertIn('ARCHIVE FAILED', open('logfile', 'r').read())
@@ -519,3 +538,148 @@ class DumpnameTests(unittest.TestCase):
         self.atmos.suite.cycledt = [1980, 9, 1, 0, 0, 0]
         dumps = validation.make_dump_name(self.atmos)
         self.assertEqual(dumps, ['FINALDUMP'])
+
+
+class TransformTests(unittest.TestCase):
+    '''Unit tests relating to transformation of fieldsfiles'''
+    def setUp(self):
+        self.umutils = 'UMDIR/../utilities'
+        if IRIS_DATA:
+            self.ppfile = \
+                housekeeping.iris_transform.iris.sample_data_path('air_temp.pp')
+        else:
+            self.ppfile = None
+
+    def tearDown(self):
+        pass
+
+    def test_convert_convpp(self):
+        '''Test convert_to_pp functionality with um-convpp'''
+        func.logtest('Assert functionality of the convert_to_pp method:')
+        um_utils_path = 'UMDIR/vn10.4/machine/utilities'
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            with mock.patch('utils.remove_files') as mock_rm:
+                mock_exec.return_value = (0, '')
+                ppfile = housekeeping.convert_to_pp('Filename', um_utils_path,
+                                                    False)
+                mock_rm.assert_called_with('Filename', path='')
+            cmd = um_utils_path + '/um-convpp Filename Filename.pp'
+            mock_exec.assert_called_with(cmd, cwd='')
+        self.assertEqual(ppfile, 'Filename.pp')
+
+    def test_convert_to_pp(self):
+        '''Test convert_to_pp functionality - default utility, keeping ffile'''
+        func.logtest('Assert functionality of the convert_to_pp method:')
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            with mock.patch('utils.remove_files') as mock_rm:
+                mock_exec.return_value = (0, '')
+                ppfile = housekeeping.convert_to_pp('Here/Filename',
+                                                    self.umutils, True)
+                self.assertListEqual(mock_rm.mock_calls, [])
+            cmd = self.umutils + '/um-convpp Here/Filename Here/Filename.pp'
+            mock_exec.assert_called_with(cmd, cwd='Here')
+        self.assertEqual(ppfile, 'Here/Filename.pp')
+
+    def test_convert_ff2pp(self):
+        '''Test convert_to_pp functionality with um-ff2pp'''
+        func.logtest('Assert functionality of the convert_to_pp method:')
+        um_utils_path = 'UMDIR/vn10.3/machine/utilities'
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            with mock.patch('utils.remove_files') as mock_rm:
+                mock_exec.return_value = (0, '')
+                ppfile = housekeeping.convert_to_pp('Here/Filename',
+                                                    um_utils_path, False)
+                mock_rm.assert_called_with('Here/Filename', path='Here')
+            cmd = um_utils_path + '/um-ff2pp Here/Filename Here/Filename.pp'
+            mock_exec.assert_called_with(cmd, cwd='Here')
+        self.assertEqual(ppfile, 'Here/Filename.pp')
+
+    def test_convert_to_pp_fail(self):
+        '''Test convert_to_pp failure capture'''
+        func.logtest('Assert failure capture of the convert_to_pp method:')
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            mock_exec.return_value = (1, 'I failed')
+            with self.assertRaises(SystemExit):
+                housekeeping.convert_to_pp('Filename', 'TestDir',
+                                           self.umutils)
+        self.assertIn('Conversion to pp format failed', func.capture('err'))
+        self.assertIn('I failed', func.capture('err'))
+
+    @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
+    @unittest.skipUnless(IRIS_DATA, 'Iris sample data is not available')
+    @mock.patch('housekeeping.iris_transform.save_format', return_value=0)
+    def test_extract_to_netcdf(self, mock_save):
+        '''Test extraction of single field from single fieldsfile'''
+        func.logtest('Assert extract to netCDF - single fieldsfile and field:')
+        icode = housekeeping.extract_to_netcdf(self.ppfile,
+                                               {'air_temperature': 'F1'},
+                                               'NETCDF4', None)
+        outfile = os.path.join(os.path.dirname(self.ppfile),
+                               'atmos_suiteIDa_4y_19941201-19981201_p9-F1.nc')
+        mock_save.assert_called_once_with(mock.ANY, outfile, 'netcdf',
+                                          kwargs={'ncftype': 'NETCDF4',
+                                                  'complevel': None})
+        self.assertIsInstance(mock_save.call_args[0][0],
+                              housekeeping.iris_transform.iris.cube.Cube)
+        self.assertEqual(icode, 0)
+        self.assertIn('Fieldsfile name does not match', func.capture('err'))
+
+    @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
+    @unittest.skipUnless(IRIS_DATA, 'Iris sample data is not available')
+    @mock.patch('housekeeping.iris_transform.save_format', return_value=10)
+    def test_extract_to_netcdf_failsave(self, mock_save):
+        '''Test failure to save netCDF file'''
+        func.logtest('Assert extract to netCDF - failed save:')
+        icode = housekeeping.extract_to_netcdf(self.ppfile,
+                                               {'air_temperature': 'F1'},
+                                               'NETCDF', 5)
+        outfile = os.path.join(os.path.dirname(self.ppfile),
+                               'atmos_suiteIDa_4y_19941201-19981201_p9-F1.nc')
+        mock_save.assert_called_once_with(mock.ANY, outfile, 'netcdf',
+                                          kwargs={'ncftype': 'NETCDF',
+                                                  'complevel': 5})
+
+        self.assertEqual(icode, 10)
+
+    @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
+    @mock.patch('housekeeping.iris_transform.IrisCubes')
+    @mock.patch('housekeeping.iris_transform.save_format')
+    def test_extract_to_netcdf_suiteid(self, mock_save, mock_load):
+        '''Test identification of suite and stream IDs'''
+        func.logtest('Assert identification of suite and stream IDs:')
+
+        class DummyLoad(object):
+            ''' Dummy class to simulate iris.load return value '''
+            field_attributes = {
+                'field1': {'Descriptor': 'F1',
+                           'StartDate': 'YYYYMMDD',
+                           'EndDate': 'YYYYMMDD',
+                           'DataFrequency': '1d',
+                           'IrisCube': 'CUBE'}
+                }
+
+        mock_load.return_value = DummyLoad()
+        _ = housekeeping.extract_to_netcdf('RUNIDa.mf2000',
+                                           {}, 'TYPE', None)
+
+        outfile = 'atmos_RUNIDa_1d_YYYYMMDD-YYYYMMDD_mf-F1.nc'
+        mock_save.assert_called_once_with('CUBE', outfile, 'netcdf',
+                                          kwargs={'ncftype': 'TYPE',
+                                                  'complevel': None})
+        mock_load.assert_called_once_with('RUNIDa.mf2000', {})
+
+    @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
+    @mock.patch('housekeeping.iris_transform')
+    def test_iris_load_fail(self, mock_iris):
+        '''Test failed import of iris_transform module'''
+        func.logtest('Assert handling of failed import:')
+        del mock_iris.IrisCubes
+        with self.assertRaises(SystemExit):
+            _ = housekeeping.extract_to_netcdf('RUNIDa.mf2000',
+                                               {}, 'TYPE', None)
+
+        with mock.patch('housekeeping.utils.get_debugmode', return_value=True):
+            rtnval = housekeeping.extract_to_netcdf('RUNIDa.mf2000',
+                                                    {}, 'TYPE', None)
+            self.assertEqual(rtnval, -1)
+        self.assertIn('Iris module is not available', func.capture('err'))

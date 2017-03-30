@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2017 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -38,6 +38,8 @@ import housekeeping
 import suite
 import timer
 
+from netcdf_filenames import NCF_TEMPLATE
+
 
 class AtmosPostProc(control.RunPostProc):
     '''
@@ -54,8 +56,9 @@ class AtmosPostProc(control.RunPostProc):
         '''
         self.naml = nlist.loadNamelist(input_nl)
         self.convpp_streams = self._convpp_streams
-        if self.runpp:
+        self.netcdf_streams = self._netcdf_streams
 
+        if self.runpp:
             self.envars = utils.loadEnv('CYLC_SUITE_WORK_DIR',
                                         'MODELBASIS')
             self.share = self._directory(self.naml.atmospp.share_directory,
@@ -90,10 +93,14 @@ class AtmosPostProc(control.RunPostProc):
         Returns a dictionary of methods available for this model to the
         main program
         '''
-        return OrderedDict([('do_archive', self.naml.archiving.archive_switch),
+        return OrderedDict([('do_transform', self.naml.atmospp.convert_pp or
+                             self.naml.atmospp.streams_to_netcdf),
+                            ('do_archive', self.naml.archiving.archive_switch),
                             ('do_delete', self.naml.delete_sc.del_switch),
                             ('finalcycle_archive',
-                             self.naml.archiving.archive_switch and
+                             any([self.naml.archiving.archive_switch,
+                                  self.naml.atmospp.convert_pp,
+                                  self.naml.atmospp.streams_to_netcdf]) and
                              self.suite.finalcycle),
                             ('finalise_debug', self.naml.atmospp.debug)])
 
@@ -109,8 +116,8 @@ class AtmosPostProc(control.RunPostProc):
         '''
         Returns a regular expression for the fieldsfile
         instantaneous streams to process'''
-        if isinstance(self.naml.archiving.process_streams, str):
-            streams = self.naml.archiving.process_streams
+        if isinstance(self.naml.atmospp.process_streams, str):
+            streams = self.naml.atmospp.process_streams
         else:
             streams = '1-9a-ln-rt-xz'
         return streams
@@ -118,8 +125,8 @@ class AtmosPostProc(control.RunPostProc):
     @property
     def means(self):
         'Returns a regular expression for the fieldsfile means to process'
-        if isinstance(self.naml.archiving.process_means, str):
-            means = self.naml.archiving.process_means
+        if isinstance(self.naml.atmospp.process_means, str):
+            means = self.naml.atmospp.process_means
         else:
             means = 'msy'
         return means
@@ -130,14 +137,52 @@ class AtmosPostProc(control.RunPostProc):
         Calculate the regular expression required to find files
         which should be converted to pp format
         '''
-        fstreams = self.naml.archiving.archive_as_fieldsfiles
+        fstreams = self.naml.atmospp.archive_as_fieldsfiles
         if fstreams:
             if isinstance(fstreams, list):
-                fstreams = '^'.join(fstreams)
-            convpp = '^' + fstreams
+                fstreams = '^'.join([str(x) for x in fstreams])
+            convpp = '^' + str(fstreams)
         else:
             convpp = 'a-z1-9'
         return convpp
+
+    @property
+    def _netcdf_streams(self):
+        '''
+        Calculate the regular expression required to find files
+        which should be have fields extracted to netCDF format
+        '''
+        ncf_streams = self.naml.atmospp.streams_to_netcdf
+        if isinstance(ncf_streams, list):
+            ncf_streams = ''.join([str(x) for x in ncf_streams])
+        return ncf_streams
+
+    @property
+    def netcdf_fields(self):
+        '''
+        Return a dictionary of field names or STASH codes
+        with an associated descriptor.
+        The namelist variable &atmospp.fields_to_netcdf
+        should contain a list of pairs of <type str> such that
+        len(fields) % 2 == 0:
+            (field name or STASHcode, descriptor)
+
+        The descriptor is to be used as the "custom" facet for the
+        Met Office netCDF naming convention for netCDF diagnostic files.
+        '''
+        if self.netcdf_streams:
+            fields = self.naml.atmospp.fields_to_netcdf
+        else:
+            fields = []
+
+        if not isinstance(fields, list) or len(fields) % 2 != 0:
+            msg = 'Incorrect format of &atmospp/fields_to_netcdf'
+            msg += ' -> <field name>, <descriptor> pairs expected.'
+            utils.log_msg(msg, level='WARN')
+            fields = []
+
+        return {key: fields[i+1] for i, key in enumerate(fields)
+                if fields.index(key) % 2 == 0}
 
     def dumpname(self, dumpdate=None):
         ''' Returns the dump name to be archived and/or deleted'''
@@ -157,8 +202,9 @@ class AtmosPostProc(control.RunPostProc):
             if os.path.exists(fnfull):
                 # Header verification required
                 if validation.verify_header(
-                        self.naml.atmospp, fnfull, log_file,
-                        self.suite.envars.CYLC_TASK_LOG_ROOT
+                        self.naml.atmospp, fnfull,
+                        self.suite.envars.CYLC_TASK_LOG_ROOT,
+                        logfile=log_file
                     ):
                     arch_dumps.append(fname)
             else:
@@ -169,47 +215,84 @@ class AtmosPostProc(control.RunPostProc):
         return arch_dumps
 
     @timer.run_timer
-    def pp_to_archive(self, log_file, finalcycle):
-        '''Returns a list of [fields|pp]files to archive'''
-        arch_pp = []
+    def diags_to_process(self, finalcycle, log_file=None):
+        '''
+        Return a list of fields/pp files eligible to file transformation
+        or archive.
+        Filenames returned will always incude full path.
+        '''
+        datadir = self.share if finalcycle else self.work
+        suffix = '' if finalcycle else '.arch'
         all_ppstreams = self.streams + self.means
-        if self.naml.archiving.archive_pp and all_ppstreams:
-            datadir = self.share if finalcycle else self.work
-            suffix = '' if finalcycle else '.arch'
-            patt = self.ff_pattern.format(all_ppstreams)
-            ppfiles = housekeeping.get_marked_files(datadir, patt, suffix)
+        if all_ppstreams:
+            patt = self.ff_pattern.format(self.streams + self.means)
+            markedfiles = housekeeping.get_marked_files(datadir, patt, suffix)
         else:
-            ppfiles = []
+            markedfiles = []
 
-        for fname in ppfiles:
+        process_files = []
+        for fname in markedfiles:
             fnfull = os.path.join(self.share, fname)
             if os.path.exists(fnfull):
-                # Header verification required
-                if validation.verify_header(
-                        self.naml.atmospp, fnfull, log_file,
-                        self.suite.envars.CYLC_TASK_LOG_ROOT
+                if fnfull.endswith('.pp'):
+                    # Header verifcation already complete
+                    process_files.append(fnfull)
+                elif validation.verify_header(
+                        self.naml.atmospp, fnfull,
+                        self.suite.envars.CYLC_TASK_LOG_ROOT,
+                        logfile=log_file
                     ):
-                    # Convert fieldsfile to pp if required
-                    convert_to_pp = re.match(
-                        self.ff_pattern.format(self.convpp_streams), fname
-                        )
-                    if self.naml.archiving.convert_pp and convert_to_pp:
-                        fnfull = housekeeping.convert_to_pp(
-                            fnfull,
-                            self.naml.atmospp.um_utils,
-                            finalcycle is True
-                            )
-                    arch_pp.append(fnfull)
-
+                    # Header verification required
+                    process_files.append(fnfull)
             elif os.path.exists(fnfull + '.pp'):
-                # Tidy up any ppfiles left from previous failed archive attempts
-                arch_pp.append(fnfull + '.pp')
-
+                # Collect any previously converted ppfiles
+                process_files.append(fnfull + '.pp')
             else:
-                msg = 'File to be archived {} does not exist'.format(fnfull)
+                msg = 'File for processing {} does not exist'.format(fnfull)
                 utils.log_msg(msg, level='WARN')
 
-        return arch_pp
+        # Collect any previously created netCDF files
+        ncfiles = utils.get_subset(
+            self.share,
+            NCF_TEMPLATE.format(P='atmos_{}a'.format(self.suite.prefix),
+                                B=r'\d+[hdmsyx]',
+                                S=r'\d{8}',
+                                E=r'\d{8}',
+                                C='.*') + '$'
+            )
+        process_files += [os.path.join(self.share, fn) for fn in ncfiles]
+
+        return process_files
+
+    @timer.run_timer
+    def do_transform(self, finalcycle=False):
+        '''
+        Function to perform requested transformation of fieldsfiles.
+        '''
+        # Get files which are available to archive, and thus eligible
+        # for transform operations.
+        for fname in self.diags_to_process(finalcycle):
+            # fname returned by diags_to_process always includes the full path
+            basename = os.path.basename(fname)
+            if self.naml.atmospp.convert_pp and not fname.endswith('.pp'):
+                if re.match(self.ff_pattern.format(self.convpp_streams),
+                            basename):
+                    fname = housekeeping.convert_to_pp(
+                        fname,
+                        self.naml.atmospp.um_utils,
+                        finalcycle is True
+                        )
+
+            if re.match(self.ff_pattern.format(self.netcdf_streams),
+                        basename):
+                icode = housekeeping.extract_to_netcdf(
+                    fname, self.netcdf_fields,
+                    self.naml.atmospp.netcdf_filetype,
+                    self.naml.atmospp.netcdf_compression
+                    )
+                if icode != 0:
+                    msg = 'do_transform - Field extraction to netCDF failed'
+                    utils.log_msg(msg, level='ERROR')
 
     @timer.run_timer
     def do_archive(self, finalcycle=False):
@@ -226,7 +309,13 @@ class AtmosPostProc(control.RunPostProc):
             utils.log_msg('Failed to open archive log file', level='FAIL')
 
         # Get files to archive
-        files_to_archive = self.pp_to_archive(log_file, finalcycle)
+        files_to_archive = []
+        if self.naml.archiving.archive_pp:
+            files_to_archive += self.diags_to_process(finalcycle,
+                                                      log_file=log_file)
+            # Do not archive both fieldsfile and ppfile
+            files_to_archive = [fn for fn in files_to_archive
+                                if fn + '.pp' not in files_to_archive]
         if not finalcycle:
             # Dumps are archived by first call to do_archive during final cycle
             files_to_archive += self.dumps_to_archive(log_file)
@@ -241,11 +330,11 @@ class AtmosPostProc(control.RunPostProc):
 
             for fname in files_to_archive:
                 # convpp should be True when the ffile is to be archived as pp
-                convpp = self.naml.archiving.convert_pp and \
-                    re.match(self.ff_pattern.format(self.convpp_streams),
-                             os.path.basename(fname))
+                convpp = re.match(self.ff_pattern.format(self.convpp_streams),
+                                  os.path.basename(fname)) or \
+                                  not self.naml.atmospp.convert_pp
                 rcode = self.suite.archive_file(fname, preproc=bool(convpp))
-                if finalcycle and fname.endswith('pp') and rcode == 0:
+                if finalcycle and rcode == 0 and fname[-3:] in ['.pp', '.nc']:
                     if utils.get_debugmode():
                         os.rename(fname, fname + '_ARCHIVED')
                     else:
@@ -260,23 +349,29 @@ class AtmosPostProc(control.RunPostProc):
         Archive but do not delete potentially incomplete fieldsfiles left
         on disk at the completion of the final cycle.
         '''
-        self.do_archive(finalcycle=True)
+        if self.naml.atmospp.convert_pp or self.netcdf_streams:
+            self.do_transform(finalcycle=True)
+
+        if self.naml.archiving.archive_switch:
+            self.do_archive(finalcycle=True)
 
     @timer.run_timer
     def do_delete(self):
         '''Delete superseded or archived dumps and pp output'''
         archived = self.naml.archiving.archive_switch
-        dump = pp_inst = pp_mean = None
+        dump = pp_inst = pp_mean = ncfile = None
 
         if archived:
-            dump, pp_inst, pp_mean = \
+            dump, pp_inst, pp_mean, ncfile = \
                 housekeeping.read_arch_logfile(self.suite.logfile,
                                                self.suite.prefix,
                                                self.streams,
-                                               self.means)
+                                               self.means,
+                                               self.netcdf_streams)
 
         housekeeping.delete_dumps(self, dump, archived)
-        housekeeping.delete_ppfiles(self, pp_inst, pp_mean, archived)
+        housekeeping.delete_ppfiles(self, pp_inst, pp_mean, ncfile,
+                                    archived)
 
 
 INSTANCE = ('atmospp.nl', AtmosPostProc)

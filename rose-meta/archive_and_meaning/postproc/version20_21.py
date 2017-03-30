@@ -97,9 +97,9 @@ class pp20_t109(rose.upgrade.MacroUpgrade):
         self.add_setting(config,
                          ["namelist:commonverify", "prefix",], "$RUNID")
         self.add_setting(config,
-                         ["namelist:commonverify", "startdate",], "$DATE1")
+                         ["namelist:commonverify", "startdate",], "Validation_StartDate")
         self.add_setting(config,
-                         ["namelist:commonverify", "enddate",], "$DATE2")
+                         ["namelist:commonverify", "enddate",], "Validation_EndDate")
         self.add_setting(config, ["namelist:commonverify",
                                   "check_additional_files_archived",], "true")
 
@@ -166,7 +166,43 @@ class pp20_t109(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp20_tXXX(rose.upgrade.MacroUpgrade):
+class pp12_t198(rose.upgrade.MacroUpgrade):
+
+    """Upgrade macro for ticket #198 by Erica Neininger."""
+    BEFORE_TAG = "pp20_t109"
+    AFTER_TAG = "pp20_t198"
+
+    def upgrade(self, config, meta_config=None):
+        """Upgrade a Postproc make app configuration."""
+        # New namelist items for extracting UM fields to netCDF
+        self.add_setting(config,
+                         ["namelist:atmospp", "streams_to_netcdf",], "")
+        self.add_setting(config,
+                         ["namelist:atmospp", "fields_to_netcdf",], "")
+        self.add_setting(config,
+                         ["namelist:atmospp", "netcdf_filetype",], "NETCDF4")
+        self.add_setting(config,
+                         ["namelist:atmospp", "netcdf_compression",], "0")
+        self.add_setting(config,
+                         ["namelist:delete_sc", "ncdel",], "true")
+
+        self.rename_setting(config, ["namelist:archiving", "convert_pp"],
+                            ["namelist:atmospp", "convert_pp"])
+        self.rename_setting(config, ["namelist:archiving", "convert_all_streams"],
+                            ["namelist:atmospp", "convpp_all_streams"])
+        self.rename_setting(config, ["namelist:archiving", "archive_as_fieldsfiles"],
+                            ["namelist:atmospp", "archive_as_fieldsfiles"])
+        self.rename_setting(config, ["namelist:archiving", "process_all_streams"],
+                            ["namelist:atmospp", "process_all_streams"])
+        self.rename_setting(config, ["namelist:archiving", "process_means"],
+                            ["namelist:atmospp", "process_means"])
+        self.rename_setting(config, ["namelist:archiving", "process_streams"],
+                            ["namelist:atmospp", "process_streams"])
+
+        return config, self.reports
+
+
+class pp12_tXXX(rose.upgrade.MacroUpgrade):
 
     """Upgrade macro for ticket #XXXX by <author>."""
     BEFORE_TAG = "pp20_tXXX"

@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2017 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -18,10 +18,12 @@ DESCRIPTION
     Regular expressions describing all filenames to be fouind in the archive
 '''
 
+FIELD_REGEX = r'[a-zA-Z0-9\-]*'
+
 MODEL_COMPONENTS = {
     # Key=model name
     # Value=tuple(realm, dict(fields associated with netCDF model component(s)))
-    'atmos': ('a', None),
+    'atmos': ('a', {'atmos': [FIELD_REGEX]}),
     'nemo': ('o', {'nemo': ['grid-U', 'grid-V', 'grid-W', 'grid-T',
                             'diaptr', 'trnd3d', 'scalar'],
                    'medusa': ['ptrc-T', 'diad-T']}),
@@ -56,8 +58,7 @@ def model_components(model, field):
     ''' Return realm and model component for given model and field '''
     realm = MODEL_COMPONENTS[model][0]
     component = None
-    if isinstance(MODEL_COMPONENTS[model][1], dict) and \
-            not isinstance(field, type(None)):
+    if isinstance(field, str):
         for comp in MODEL_COMPONENTS[model][1]:
             if field in MODEL_COMPONENTS[model][1][comp]:
                 component = comp

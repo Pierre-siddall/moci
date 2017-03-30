@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2016 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2017 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -31,6 +31,7 @@ runtime_environment.setup_env()
 import timer
 timer.set_nulltimer()
 
+
 def main():
     '''Run unit tests for postproc app'''
     groups = {
@@ -44,6 +45,7 @@ def main():
         'timer':    'test_common_timer.py',
         'moo':      'test_common_moo.py',
         'netcdf':   'test_common_netcdf_*.py',
+        'iris':     'test_common_iris.py',
         'atmos':    'test_atmos_*.py',
         'atmbase':  'test_atmos_base.py',
         'atmutils': 'test_atmos_utils.py',

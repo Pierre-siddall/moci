@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2016 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2017 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -161,22 +161,26 @@ class _Moose(object):
         model_id = self._model_id
 
         if model_id == 'a':  # Atmosphere output
-            file_id = self._file_id[:2]
-            if re.search('[mp][1-9|a-z]', file_id):
-                if self.convertpp:
-                    ext = '.pp'
-                else:
-                    ext = '.file'
-            elif re.search('v[1-5|a-j|lmsvy]', file_id):
-                ext = '.pp'
-            elif re.search('n[1-9|a-m|s-z]', file_id):
+            if self._file_id.endswith('.nc'):
+                file_id = 'n' + self._file_id.split('_')[-1][1]
                 ext = '.nc.file'
-            elif re.search('b[a-j|mxy]', file_id):
-                ext = '.file'
-            elif re.search('d[amsy]', file_id):
-                ext = '.file'
-            elif re.search('r[a-m|qstuvwxz]', file_id):
-                ext = '.file'
+            else:
+                file_id = self._file_id[:2]
+                if re.search('[mp][1-9|a-z]', file_id):
+                    if self.convertpp:
+                        ext = '.pp'
+                    else:
+                        ext = '.file'
+                elif re.search('v[1-5|a-j|lmsvy]', file_id):
+                    ext = '.pp'
+                elif re.search('n[1-9|a-m|s-z]', file_id):
+                    ext = '.nc.file'
+                elif re.search('b[a-j|mxy]', file_id):
+                    ext = '.file'
+                elif re.search('d[amsy]', file_id):
+                    ext = '.file'
+                elif re.search('r[a-m|qstuvwxz]', file_id):
+                    ext = '.file'
 
         elif model_id in 'io':  # NEMO/CICE means and restart dumps
             # ultimately file_id needs to be reassigned as a 2char variable

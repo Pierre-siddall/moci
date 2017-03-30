@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2017 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -71,7 +71,7 @@ def identify_filedate(fname):
 
 
 @timer.run_timer
-def verify_header(atmospp, fname, logfile, logdir):
+def verify_header(atmospp, fname, logdir, logfile=None):
     '''
     Returns True/False dependent on whether the (year, month, day) of the
     filename matches the validity time in the UM fixed header
@@ -93,7 +93,8 @@ def verify_header(atmospp, fname, logfile, logdir):
         utils.log_msg('Validation OK.  File will be archived: ' + fname)
     else:
         msg = 'Validity time mismatch in file {} to be archived'.format(fname)
-        logfile.write(fname + ' ARCHIVE FAILED. Validity mismatch \n')
+        if logfile:
+            logfile.write(fname + ' ARCHIVE FAILED. Validity mismatch \n')
         utils.log_msg(msg, level='ERROR')
 
     return validfile
