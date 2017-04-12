@@ -145,7 +145,7 @@ class CicePostProc(mt.ModelTemplate):
         Concatenate daily mean data into a single file.
         Files dated YYYY-M1-01 to YYYY-M2-01 are included in a monthly file.
         '''
-        patt = r'^{P}i\.[0-9d_]*24h\.{{Y}}-{{M}}-{{D}}(-\d{{{{5}}}})?\.nc$'.\
+        patt = r'^{P}i\.[0-9hdm]*_?24h\.{{Y}}-{{M}}-{{D}}(-\d{{{{5}}}})?\.nc$'.\
             format(P=self.suite.prefix)
         if self.work != self.share:
             self.move_to_share(pattern=patt.format(Y=r'\d{4}', M=r'\d{2}',

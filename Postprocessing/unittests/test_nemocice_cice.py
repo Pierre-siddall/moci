@@ -262,6 +262,8 @@ class MeansProcessingTests(unittest.TestCase):
             'RUNIDi.10d_24h.1988-01-30.nc',
             'RUNIDi.10d_24h.1988-02-01.nc',
             'RUNIDi.10d_24h.1988-02-10.nc',
+            'RUNIDi.24h.1989-05-01.nc',
+            'RUNIDi.1m_24h.1990-06-01.nc',
             ]
         for fname in meanfiles:
             open(fname, 'w').close()
@@ -272,6 +274,12 @@ class MeansProcessingTests(unittest.TestCase):
             _ = self.cice.archive_concat_daily_means()
         self.assertIn('only got 2 files:', str(mock_log.mock_calls[0]))
         self.assertIn('only got 4 files:', str(mock_log.mock_calls[1]))
+        self.assertIn(r"only got 1 files:\n['RUNIDi.1m_24h.1990-06-01.nc']",
+                      str(mock_log.mock_calls[2]))
+        self.assertIn(r"only got 1 files:\n['RUNIDi.24h.1989-05-01.nc']",
+                      str(mock_log.mock_calls[3]))
+        self.assertIn('Nothing to archive', str(mock_log.mock_calls[4]))
+        self.assertEqual(mock_log.call_count, 5)
 
         for fname in meanfiles:
             os.remove(fname)
