@@ -263,6 +263,9 @@ def _finalize_executable(_):
                 (os.path.basename(um_envar_fin['STDOUT_FILE']),
                  pe0_suffix)
             lnk_dst = '%s0' % um_envar_fin['STDOUT_FILE']
+            if os.path.isfile(lnk_dst):
+                # Check and remove any existing symlink of this name
+                os.remove(lnk_dst)
             os.symlink(lnk_src, lnk_dst)
 
 
