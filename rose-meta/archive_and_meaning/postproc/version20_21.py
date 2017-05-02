@@ -230,15 +230,29 @@ class pp20_t184(rose.upgrade.MacroUpgrade):
         self.add_setting(config, ["namelist:suitegen", "mean_reference_date"],
                          "0,12,1")
         for model in ["nemo", "cice"]:
-              print 'MODEL:', model
               self.add_setting(config, ["namelist:%spostproc" % model,
                                         "create_monthly_mean"], "true")
               self.add_setting(config, ["namelist:%spostproc" % model,
                                         "create_seasonal_mean"], "true")
               self.add_setting(config, ["namelist:%spostproc" % model,
                                         "create_annual_mean"], "true")
-              self.add_setting(config, ["namelist:%spostproc" % model,
+              self.add_setting(config, ["namelist:%sverify" % model,
                                         "mean_reference_date"], "1201")
+        
+        return config, self.reports
+
+
+class pp20_t214(rose.upgrade.MacroUpgrade):
+
+    """Upgrade macro for ticket #214 by Erica Neininger."""
+    BEFORE_TAG = "pp20_t184"
+    AFTER_TAG = "pp20_t214"
+
+    def upgrade(self, config, meta_config=None):
+        """Upgrade a Postproc make app configuration."""
+        for model in ["nemo", "cice", "atmos"]:
+              self.add_setting(config, ["namelist:%sverify" % model,
+                                        "verify_model"], "false")
         
         return config, self.reports
 

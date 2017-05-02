@@ -176,10 +176,15 @@ def main():
     models = [str(m).lower() for m in sys.argv[1:]]
 
     expected_files = {}
-    for namelist in [m for m in dir(load_nl) if not m.startswith('_')
-                     and m != 'commonverify']:
+    for namelist in [m for m in dir(load_nl) if not m.startswith('_')]:
+        try:
+            verify_model = getattr(getattr(load_nl, namelist), 'verify_model')
+        except AttributeError:
+            # "verify_model" not present - not a verifiable model namelist
+            continue
+
         model = namelist.replace('verify', '')
-        if models and model.lower() not in models:
+        if (models and model.lower() not in models) or not verify_model:
             # Specific models requested - this model is not in the list
             continue
 

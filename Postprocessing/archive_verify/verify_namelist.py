@@ -37,6 +37,7 @@ class AtmosVerify(object):
     def __init__(self):
         pass
 
+    verify_model = False
     archive_timestamps = 'Seasonal'
     buffer_restart = 1
     fields = None
@@ -60,6 +61,7 @@ class NemoVerify(object):
     def __init__(self):
         pass
 
+    verify_model = False
     archive_timestamps = 'Biannual'
     buffer_restart = 1
     buffer_mean = 0
@@ -80,6 +82,7 @@ class CiceVerify(object):
     def __init__(self):
         pass
 
+    verify_model = False
     archive_timestamps = 'Biannual'
     restart_suffix = '.nc'
     buffer_restart = 1

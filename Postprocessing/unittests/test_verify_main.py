@@ -31,6 +31,8 @@ class DummyNamelists(object):
         self.commonverify.enddate = '44445566'
         self.commonverify.dataset = 'moose:crum/suiteid'
         self.commonverify.prefix = 'runid'
+        self.atmosverify = verify_namelist.AtmosVerify()
+        self.nemoverify = verify_namelist.NemoVerify()
 
 class FilenamesTests(unittest.TestCase):
     ''' Unit tests relating to the filenames module '''
@@ -201,6 +203,7 @@ class VerifyArchiveTests(unittest.TestCase):
 
         namelists = DummyNamelists()
         setattr(namelists, 'atmosverify', verify_namelist.AtmosVerify())
+        namelists.atmosverify.verify_model = True
         mock_nl.return_value = namelists
         with mock.patch('archive_integrity.utils.finalcycle'):
             archive_integrity.main()
@@ -246,6 +249,8 @@ class VerifyArchiveTests(unittest.TestCase):
         setattr(namelists, 'atmosverify', verify_namelist.AtmosVerify())
         setattr(namelists, 'nemoverify', verify_namelist.CiceVerify())
         setattr(namelists, 'ciceverify', verify_namelist.NemoVerify())
+        namelists.nemoverify.verify_model = True
+        namelists.atmosverify.verify_model = True
         mock_nl.return_value = namelists
         with mock.patch('archive_integrity.utils.finalcycle'):
             archive_integrity.main()
