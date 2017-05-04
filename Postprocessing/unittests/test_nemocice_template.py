@@ -474,12 +474,26 @@ class MeansTests(unittest.TestCase):
             self.model.create_means()
         self.assertIn('[ OK ]  Created', func.capture())
         self.assertIn(': MonthlyMean', func.capture())
+        self.assertIn('Deleting component means', func.capture())
         mock_rm.assert_called_once_with(
             ['5d1', '5d2', '5d3', '5d4', '5d5', '5d6'], path='ShareDir'
             )
         cmd = '{} 5d1 5d2 5d3 5d4 5d5 5d6 MonthlyMean'.\
             format(self.model.means_cmd)
         mock_exec.assert_called_once_with(cmd, cwd='ShareDir')
+
+    def test_create_monthly_mean_1mbase(self):
+        '''Test successful creation of monthly mean - 1m base'''
+        func.logtest('Assert successful creation of monthly mean - 1m base:')
+        ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X', base='1m')
+        self.model.loop_inputs = mock.Mock(return_value=[ncf])
+        self.model.meansets['1m'] = ('1m', 1)
+        self.model.periodfiles.side_effect = [['setend'], ['1m']]
+
+        with mock.patch('modeltemplate.utils.create_dir'):
+            self.model.create_means()
+        self.assertIn('1m mean output directly by the model.', func.capture())
+        self.assertNotIn('Deleting component means', func.capture())
 
     @mock.patch('modeltemplate.os.path')
     @mock.patch('modeltemplate.utils.exec_subproc', side_effect=[(99, 'None')])

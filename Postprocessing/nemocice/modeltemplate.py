@@ -690,7 +690,12 @@ class ModelTemplate(control.RunPostProc):
                 inputs.start_date = self.get_date(sorted(meanset)[0])
                 meanfile = self.mean_stencil(inputs)
                 tidy_components = False
-                if len(meanset) == self.meansets[period][1]:
+                if len(meanset) == 1 and self.meansets[period][1] == 1:
+                    # Base component is equal to the period mean
+                    msg = 'create_means: {} mean output directly by the model.'
+                    utils.log_msg(msg.format(period), level='INFO')
+
+                elif len(meanset) == self.meansets[period][1]:
                     fn_full = os.path.join(self.share, meanfile)
                     if os.path.isfile(fn_full):
                         # Mean file may already exist from a previous attempt
@@ -703,26 +708,22 @@ class ModelTemplate(control.RunPostProc):
                                                 meanfile)
                         icode, output = utils.exec_subproc(cmd, cwd=self.share)
 
+
                     if icode == 0 and os.path.isfile(fn_full):
                         msg = 'Created {}: {}'.format(describe, meanfile)
                         utils.log_msg(msg, level='OK')
-
-                        # Meaning gets the time_bounds variables wrong
-                        # so correct them here
-                        self.fix_mean_time(utils.add_path(meanset, self.share),
-                                           fn_full)
                         tidy_components = True
-
                     else:
                         msg = '{C}: Error={E}\n{O}\nFailed to create {M}: {L}'
                         msg = msg.format(C=self.means_cmd, E=icode, O=output,
                                          M=describe, L=meanfile)
                         utils.log_msg(msg, level='FAIL')
 
-                elif self.meansets[period][1] <= 1:
-                    # Base component is equal to the period mean
-                    msg = 'create_means: {} mean output directly by the model.'
-                    utils.log_msg(msg.format(period), level='INFO')
+                    # Meaning gets the time_bounds variables wrong
+                    # so correct them here
+                    self.fix_mean_time(utils.add_path(meanset, self.share),
+                                       fn_full)
+                    tidy_components = True
 
                 else:
                     # Insuffient component files available to create mean.
