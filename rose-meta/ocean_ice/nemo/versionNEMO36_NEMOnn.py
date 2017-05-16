@@ -16,27 +16,11 @@ class UpgradeError(Exception):
       __str__ = __repr__
 
 
-class go6_cice_nprocs(rose.upgrade.MacroUpgrade):
-
-    """Upgrade macro for setting default value of cice nprocs"""
-
-    BEFORE_TAG = "nemo36_gsi8"
-    AFTER_TAG = "go6_cice_nprocs"
-
-    def upgrade(self, config, meta_config=None):
-        """Upgrade a GO6 runtime app configuration."""
-        # Input your macro commands here
-
-        self.change_setting_value(config, ["namelist:domain_nml", "nprocs"],
-                                  "'set_by_system'")
-        return config, self.reports
-
-
 class go6_gsi8_v2(rose.upgrade.MacroUpgrade):
 
     """Upgrade macro to move to nemo36_gsi8_v2 (with extra option for freshwater input from ice shelves)"""
 
-    BEFORE_TAG = "go6_cice_nprocs"
+    BEFORE_TAG = "nemo36_gsi8"
     AFTER_TAG = "nemo36_gsi8_v2"
 
     def upgrade(self, config, meta_config=None):

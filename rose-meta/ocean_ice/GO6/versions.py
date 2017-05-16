@@ -1,2 +1,2 @@
-from versionNEMO36GSI8_NEMOnnGSIn.py import *
+from versionNEMO36GSI8_NEMOnnGSIn import *
 
