@@ -16,17 +16,6 @@ class UpgradeError(Exception):
       __str__ = __repr__
 
 
-class pp20_tXXX(rose.upgrade.MacroUpgrade):
-
-    """Upgrade macro for ticket #XXXX by <author>."""
-    BEFORE_TAG = "postproc_2.0"
-    AFTER_TAG = "pp20_tXXX"
-
-    def upgrade(self, config, meta_config=None):
-        """Upgrade a Postproc make app configuration."""
-        # Input your macro commands here
-        return config, self.reports
-
 class pp20_t109(rose.upgrade.MacroUpgrade):
 
     """Upgrade macro for ticket #109 by Erica Neininger."""
@@ -40,5 +29,27 @@ class pp20_t109(rose.upgrade.MacroUpgrade):
         self.add_setting(config,
                          ["env", "verify_config",],
                          "verify.cfg")
+
+        return config, self.reports
+
+
+class pp20_t228(rose.upgrade.MacroUpgrade):
+
+    """
+    Upgrade macro for ticket #228 by Erica Neininger.
+    Version postproc_2.1 release.
+    """
+    BEFORE_TAG = "pp20_t109"
+    AFTER_TAG = "postproc_2.1"
+
+    def upgrade(self, config, meta_config=None):
+        """Upgrade a Postproc make app configuration."""
+        # Upgrade extract revision keywords
+        self.change_setting_value(config, ["env", "config_base"],
+                                  "fcm:moci.xm_tr", forced=True)
+        self.change_setting_value(config, ["env", "config_rev"],
+                                  "@postproc_2.1", forced=True)
+        self.change_setting_value(config, ["env", "pp_rev"],
+                                  "postproc_2.1", forced=True)
 
         return config, self.reports

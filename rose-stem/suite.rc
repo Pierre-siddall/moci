@@ -478,8 +478,8 @@ rm -rf {{dir1}}
 
     [[verify_final]]
        inherit=None, POSTPROC
-       script = "{{TASK_RUN}} --command-key=verify"
        [[[environment]]]
+           ROSE_APP_COMMAND_KEY = verify
            CYCLEPOINT_OVERRIDE = 19830101T0000Z
            DATE2 = 19830201
 

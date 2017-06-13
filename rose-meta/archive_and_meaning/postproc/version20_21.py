@@ -97,9 +97,14 @@ class pp20_t109(rose.upgrade.MacroUpgrade):
         self.add_setting(config,
                          ["namelist:commonverify", "prefix",], "$RUNID")
         self.add_setting(config,
-                         ["namelist:commonverify", "startdate",], "Validation_StartDate")
+                         ["namelist:commonverify", "startdate",],
+                         "${CYLC_SUITE_INITIAL_CYCLE_POINT}")
         self.add_setting(config,
-                         ["namelist:commonverify", "enddate",], "Validation_EndDate")
+                         ["env", "VERIFY_ENDDATE",],
+                         "$(rose date -c --calendar ${CYLC_CYCLING_MODE} --offset ${CYCLEPERIOD} -f %Y%m%d)")
+        self.add_setting(config,
+                         ["namelist:commonverify", "enddate",],
+                         "${VERIFY_ENDDATE}")
         self.add_setting(config, ["namelist:commonverify",
                                   "check_additional_files_archived",], "true")
 
@@ -285,14 +290,17 @@ class pp20_t181(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp12_tXXX(rose.upgrade.MacroUpgrade):
+class pp20_t228(rose.upgrade.MacroUpgrade):
 
-    """Upgrade macro for ticket #XXXX by <author>."""
-    BEFORE_TAG = "pp20_tXXX"
-    AFTER_TAG = "pp20_tXXX"
+    """
+    Upgrade macro for ticket #228 by Erica Neininger.
+    Version postproc_2.1 release.
+    """
+    BEFORE_TAG = "pp20_t181"
+    AFTER_TAG = "postproc_2.1"
 
     def upgrade(self, config, meta_config=None):
-        """Upgrade a Postproc make app configuration."""
+        """Upgrade a Postproc app to postproc_2.1."""
         # Input your macro commands here
         return config, self.reports
 
