@@ -1,0 +1,74 @@
+#!/usr/bin/env python2.7
+"""
+housekeeping_restart
+Author: Stephen Haddad
+
+A script to clean up output from restartability tests.
+"""
+import argparse
+import shutil
+
+def get_command_line_arguments():
+    """
+    Retrieve the command line arguments to the script.
+    """
+    desc_msg = 'Clean up work directories for restart tests.'
+    parser = argparse.ArgumentParser(description=desc_msg)
+    parser.add_argument('target')
+    parser.add_argument('--lrun_work', dest='lrun_work')
+    parser.add_argument('--crun_work_1', dest='crun_work_1')
+    parser.add_argument('--crun_work_2', dest='crun_work_2')
+    parser.add_argument('--nrun_work_1', dest='nrun_work_1')
+    parser.add_argument('--nrun_work_2', dest='nrun_work_2')
+
+    parser.add_argument('--lrun_shared', dest='lrun_shared')
+    parser.add_argument('--crun_shared', dest='crun_shared')
+    parser.add_argument('--nrun_shared', dest='nrun_shared')
+
+    return parser.parse_args()
+
+def remove_directory(dir1):
+    """
+    Wrapper function which tries to delete a directory using shutil.rmtree.
+    The function wraps the call in a try-except block, so that any directories
+    that are not present will simply be skipped.
+    """
+    try:
+        print 'removing directory {0}'.format(dir1)
+        shutil.rmtree(dir1)
+    except OSError as _:
+        print 'directory {0} not found'.format(dir1)
+
+def main():
+    """
+    Main function for the housekeeping_restart script.
+    """
+    cmd_args = get_command_line_arguments()
+
+    print 'Executing script to clean up output from restart tests'
+    print 'Mode: {0}'.format(cmd_args.target)
+
+    dirs_to_remove = []
+    if cmd_args.target == 'work':
+        dirs_to_remove = [cmd_args.lrun_work,
+                          cmd_args.crun_work_1,
+                          cmd_args.crun_work_2]
+        if cmd_args.nrun_work_1 and cmd_args.nrun_work_2:
+            dirs_to_remove += [cmd_args.nrun_work_1,
+                               cmd_args.nrun_work_2]
+    elif cmd_args.target == 'shared':
+        dirs_to_remove = [cmd_args.lrun_shared,
+                          cmd_args.crun_shared]
+        if cmd_args.nrun_shared:
+            dirs_to_remove += [cmd_args.nrun_shared]
+    else:
+        err_msg = 'unsupported housekeeping mode {0}'.format(cmd_args.target)
+        raise Exception(err_msg)
+
+    print 'the following directories will be removed:'
+    print '\n'.join(dirs_to_remove)
+    for dir1 in dirs_to_remove:
+        remove_directory(dir1)
+
+if __name__ == '__main__':
+    main()
