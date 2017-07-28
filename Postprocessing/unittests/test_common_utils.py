@@ -584,18 +584,18 @@ class SmallUtilsTests(unittest.TestCase):
     def test_ensure_list(self):
         ''' Assert return of a list for a given input '''
         func.logtest('Assert return of a list for a given input:')
-        self.assertListEqual(utils.ensure_list(None), [None])
-        self.assertIsNone(utils.ensure_list(None, listnone=False))
+        self.assertListEqual(utils.ensure_list(None, listnone=True), [None])
+        self.assertListEqual(utils.ensure_list(None), [])
 
-        self.assertListEqual(utils.ensure_list(''), [''])
-        self.assertEqual(utils.ensure_list('', listnone=False), '')
+        self.assertListEqual(utils.ensure_list('', listnone=True), [''])
+        self.assertListEqual(utils.ensure_list(''), [])
 
-        self.assertListEqual(utils.ensure_list('mystring'), ['mystring'])
-        self.assertListEqual(utils.ensure_list('mystring', listnone=False),
+        self.assertListEqual(utils.ensure_list('mystring', listnone=True),
                              ['mystring'])
+        self.assertListEqual(utils.ensure_list('mystring'), ['mystring'])
 
-        self.assertListEqual(utils.ensure_list([1, 2]), [1, 2])
-        self.assertListEqual(utils.ensure_list([1, 2], listnone=False), [1, 2])
+        self.assertListEqual(utils.ensure_list([1, 2], listnone=True), [1, 2])
+        self.assertTupleEqual(utils.ensure_list((1, 2)), (1, 2))
 
     def test_get_frequency(self):
         ''' Assert return of int frequency and base period from delta string '''

@@ -112,21 +112,37 @@ class Propertytests(unittest.TestCase):
         '''Test the return value of the fields property - default'''
         func.logtest('Assert return value of fields property:')
         self.assertEqual(self.nemo.naml.means_fieldsfiles, None)
-        self.assertEqual(self.nemo._fields, ('diad_T', 'diaptr', 'grid_T',
-                                             'grid_U', 'grid_V', 'grid_W',
-                                             'ptrc_T', 'scalar', 'trnd3d',))
+        self.assertListEqual(self.nemo.mean_fields,
+                             ['diad_T', 'diaptr', 'grid_T',
+                              'grid_U', 'grid_V', 'grid_W',
+                              'ptrc_T', 'scalar', 'trnd3d'])
+        self.assertEqual(self.nemo.naml.region_fieldsfiles, None)
+        self.assertListEqual(self.nemo.inst_fields, [])
 
     def test_fields_property_single(self):
         '''Test the return value of the fields property - single'''
         func.logtest('Assert return of the fields property - single supplied:')
         self.nemo.naml.means_fieldsfiles = 'grid_W'
-        self.assertEqual(self.nemo._fields, ('grid_W',))
+        self.assertListEqual(self.nemo._mean_fields, ['grid_W'])
 
     def test_fields_property_list(self):
         '''Test the return value of the fields property - list'''
         func.logtest('Assert return of fields property - list supplied:')
         self.nemo.naml.means_fieldsfiles = ['grid_U', 'grid_T']
-        self.assertEqual(self.nemo._fields, ('grid_T', 'grid_U'))
+        self.assertListEqual(self.nemo._mean_fields, ['grid_T', 'grid_U'])
+
+    def test_region_fields_property(self):
+        '''Test the return value of the fields property - regional inst'''
+        func.logtest('Assert return value of fields property (regional):')
+        self.nemo.naml.extract_region = True
+        self.assertListEqual(self.nemo._region_fields,
+                             ['UK_shelf_T', 'UK_shelf_U', 'UK_shelf_V'])
+        self.nemo.naml.region_fieldsfiles = ''
+        self.assertListEqual(self.nemo._region_fields, [])
+        self.nemo.naml.region_fieldsfiles = 'region_T'
+        self.assertListEqual(self.nemo._region_fields, ['region_T'])
+        self.nemo.naml.region_fieldsfiles = ['reg_T', 'reg_V']
+        self.assertListEqual(self.nemo._region_fields, ['reg_T', 'reg_V'])
 
 
 class RebuildTests(unittest.TestCase):
@@ -183,14 +199,15 @@ class RebuildTests(unittest.TestCase):
             mock_fs.assert_called_with('ShareDir',
                                        r'RUNIDo__?\d{8}_restart_trc(\.nc)?')
 
-    def test_call_rebuild_means(self):
-        '''Test call to rebuild_means method'''
-        func.logtest('Assert call to rebuild_fileset from rebuild_means:')
-        pattern = r'[a-z]*_runido_10d_\d{4}\d{2}\d{2}-\d{4}\d{2}\d{2}_' + \
-            self.nemo.fields[-1]
+    def test_call_rebuild_diagnostics(self):
+        '''Test call to rebuild_diagnostics method'''
+        func.logtest('Assert call to rebuild_fileset from rebuild_diagnostics:')
+        pattern = r'[a-z]*_runido_10d_\d{4}\d{2}\d{2}-\d{4}\d{2}\d{2}_'
         with mock.patch('nemo.NemoPostProc.rebuild_fileset') as mock_fs:
-            self.nemo.rebuild_means()
-            mock_fs.assert_called_with('ShareDir', pattern, rebuildall=True)
+            self.nemo.rebuild_diagnostics(['FIELD'], bases=['10d'])
+            mock_fs.assert_called_with('ShareDir',
+                                       pattern + 'FIELD',
+                                       rebuildall=True)
 
     def test_namlist_properties(self):
         '''Test definition of NEMO namelist properties'''
@@ -372,7 +389,7 @@ class RebuildTests(unittest.TestCase):
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
     @mock.patch('nemo.utils.get_subset')
     @mock.patch('nemo.utils.remove_files')
-    def test_rebuild_means_finalcycle(self, mock_rm, mock_subset, mock_nl):
+    def test_rebuild_diags_finalcycle(self, mock_rm, mock_subset, mock_nl):
         '''Test final cycle behaviour - deleting components of means'''
         func.logtest('Assert component files not deleted on final cycle:')
         mock_subset.side_effect = [['file_11112233_mean1_0000.nc',
@@ -657,66 +674,26 @@ class AdditionalArchiveTests(unittest.TestCase):
     @mock.patch('nemo.utils.get_subset')
     @mock.patch('nemo.utils.exec_subproc', return_value=(0, ''))
     @mock.patch('nemo.utils.remove_files')
-    def test_arch_iberg_trajectory(self, mock_rm, mock_exec, mock_set):
-        '''Test call to iceberg_trajectory archive method'''
-        func.logtest('Assert call to iceberg_trajectory archive method:')
-        # Mock results for 3 calls to utils.get_subset
+    def test_create_iberg_trajectory(self, mock_rm, mock_exec, mock_set):
+        '''Test call to iceberg_trajectory creation method'''
+        func.logtest('Assert call to iceberg_trajectory creation method:')
+        # Mock results for 2 calls to utils.get_subset
         mock_set.side_effect = [['file1_0000.nc'],
-                                ['file1_0000.nc', 'file1_0001.nc'],
-                                ['arch1.nc']]
-        self.nemo.archive_files.return_value = {'arch1.nc': 'FAILED',
-                                                'arch2.nc': 'SUCCEEDED'}
+                                ['file1_0000.nc', 'file1_0001.nc']]
 
         self.nemo.naml.archive_iceberg_trajectory = True
-        self.nemo.archive_general()
-
-        cmd = 'python2.7 ICB_PP -t HERE/file1_ -n 2 -o HERE/RUNIDo_file1.nc'
-        mock_exec.assert_called_once_with(cmd)
-        removed = mock_rm.mock_calls
-        self.assertEqual(len(removed), 2)
-        self.assertEqual(mock.call(['file1_0000.nc', 'file1_0001.nc'],
-                                   path='HERE'), removed[0])
-        self.assertEqual(mock.call(['arch2.nc'], path='HERE'), removed[1])
-        self.nemo.archive_files.assert_called_once_with(['arch1.nc'])
-        self.assertIn('Successfully rebuilt iceberg trajectory',
-                      func.capture())
-
-    @mock.patch('nemo.utils.get_subset')
-    @mock.patch('nemo.utils.exec_subproc', return_value=(0, ''))
-    @mock.patch('nemo.utils.remove_files')
-    @mock.patch('nemo.os.rename')
-    def test_arch_iberg_traj_debug(self, mock_name, mock_rm,
-                                   mock_exec, mock_set):
-        '''Test call to iceberg_trajectory archive method - debug mode'''
-        func.logtest('Assert call to iceberg_traj archive method - debug:')
-        # Mock results for 3 calls to utils.get_subset
-        mock_set.side_effect = [['file1_0000.nc'],
-                                ['file1_0000.nc', 'file1_0001.nc'],
-                                ['arch1.nc']]
-        self.nemo.archive_files.return_value = {'arch1.nc': 'FAILED',
-                                                'arch2.nc': 'SUCCEEDED',
-                                                'arch3.nc': 'SUCCEEDED'}
-
-        self.nemo.naml.archive_iceberg_trajectory = True
-        with mock.patch('nemo.utils.get_debugmode', return_value=True):
-            self.nemo.archive_general()
+        self.nemo.create_general()
 
         cmd = 'python2.7 ICB_PP -t HERE/file1_ -n 2 -o HERE/RUNIDo_file1.nc'
         mock_exec.assert_called_once_with(cmd)
         mock_rm.assert_called_once_with(['file1_0000.nc', 'file1_0001.nc'],
                                         path='HERE')
-        self.nemo.archive_files.assert_called_once_with(['arch1.nc'])
         self.assertIn('Successfully rebuilt iceberg trajectory',
                       func.capture())
-        self.assertEqual(len(mock_name.mock_calls), 2)
-        self.assertIn(mock.call('HERE/arch2.nc', 'HERE/arch2.nc_ARCHIVED'),
-                      mock_name.mock_calls)
-        self.assertIn(mock.call('HERE/arch3.nc', 'HERE/arch3.nc_ARCHIVED'),
-                      mock_name.mock_calls)
 
     @mock.patch('nemo.utils.exec_subproc')
     @mock.patch('nemo.utils.get_subset')
-    def test_arch_iberg_trajectory_fail(self, mock_set, mock_exec):
+    def test_create_iberg_traj_fail(self, mock_set, mock_exec):
         '''Test call to iceberg_trajectory archive method - fail'''
         func.logtest('Assert failed call to iceberg_trajectory method:')
         # Mock results for 3 calls to utils.get_subset
@@ -726,7 +703,7 @@ class AdditionalArchiveTests(unittest.TestCase):
         mock_exec.return_value = (1, 'ICB_PP failed')
         self.nemo.naml.archive_iceberg_trajectory = True
         with self.assertRaises(SystemExit):
-            self.nemo.archive_general()
+            self.nemo.create_general()
         with self.assertRaises(AssertionError):
             self.nemo.archive_files.assert_called_with(mock.ANY)
         self.assertIn('Error=1\n\tICB_PP failed', func.capture('err'))
@@ -736,25 +713,23 @@ class AdditionalArchiveTests(unittest.TestCase):
     def test_create_iberg_traj_debug(self, mock_set, mock_exec):
         '''Test call to iceberg_trajectory creation method - debug'''
         func.logtest('Assert debug build call to iceberg_trajectory method:')
-        # Mock results for 3 calls to utils.get_subset
+        # Mock results for 2 calls to utils.get_subset
         mock_set.side_effect = [['file1_0000.nc'],
-                                ['file1_0000.nc', 'file1_0001.nc'],
-                                ['arch1.nc']]
+                                ['file1_0000.nc', 'file1_0001.nc']]
         mock_exec.return_value = (1, 'ICB_PP failed')
         self.nemo.naml.archive_iceberg_trajectory = True
         with mock.patch('nemo.utils.get_debugmode', return_value=True):
-            self.nemo.archive_general()
+            self.nemo.create_general()
         self.assertIn('Error=1\n\tICB_PP failed', func.capture('err'))
-        self.nemo.archive_files.assert_called_once_with(['arch1.nc'])
 
     @mock.patch('nemo.mt.ModelTemplate.move_to_share')
-    def test_arch_iberg_trajectory_move(self, mock_mv):
+    def test_create_iberg_traj_move(self, mock_mv):
         '''Test call to iceberg_trajectory archive method - move files'''
         func.logtest('Assert call to archive_iceberg_trajectory with move:')
         self.nemo.naml.archive_iceberg_trajectory = True
         self.nemo.share = 'THERE'
         with mock.patch('nemo.utils.get_subset'):
-            self.nemo.archive_general()
+            self.nemo.create_general()
         iberg_pattern = r'trajectory_icebergs_\d{6,8}(-\d{8})?_\d{4}\.nc'
         mock_mv.assert_called_once_with(pattern=iberg_pattern)
         self.assertIsNotNone(re.match(iberg_pattern,
@@ -763,6 +738,48 @@ class AdditionalArchiveTests(unittest.TestCase):
             re.match(iberg_pattern,
                      'trajectory_icebergs_11112233-44445566_0000.nc')
             )
+
+    @mock.patch('nemo.utils.get_subset')
+    @mock.patch('nemo.mt.ModelTemplate.clean_archived_files')
+    def test_arch_iberg_trajectory(self, mock_clean, mock_set):
+        '''Test call to archive iceberg trajectory'''
+        func.logtest('Assert call to archive iceberg trajectory')
+        mock_set.side_effect = [['arch1.nc']]
+        self.nemo.naml.archive_iceberg_trajectory = True
+        self.nemo.archive_general()
+        self.nemo.archive_files.assert_called_once_with(['arch1.nc'])
+        iberg_pattern = r'^RUNIDo_trajectory_icebergs_\d{6,8}(-\d{8})?\.nc$'
+        mock_set.assert_called_once_with('HERE', iberg_pattern)
+        mock_clean.assert_called_once_with(self.nemo.archive_files.return_value,
+                                           'iceberg_trajectory')
+
+    @mock.patch('nemo.utils.get_subset')
+    @mock.patch('nemo.utils.remove_files')
+    @mock.patch('nemo.os.rename')
+    def test_arch_iberg_traj_debug(self, mock_name, mock_rm, mock_set):
+        '''Test call to iceberg_trajectory archive method - debug mode'''
+        func.logtest('Assert call to iceberg_traj archive method - debug:')
+        self.nemo.archive_files.return_value = {'arch1.nc': 'FAILED',
+                                                'arch2.nc': 'SUCCESS',
+                                                'arch3.nc': 'SUCCESS'}
+
+        self.nemo.naml.archive_iceberg_trajectory = True
+        with mock.patch('nemo.utils.get_debugmode', return_value=True):
+            self.nemo.archive_general()
+
+        self.nemo.archive_files.assert_called_once_with(mock_set.return_value)
+        self.assertListEqual(mock_rm.mock_calls, [])
+
+        self.assertEqual(len(mock_name.mock_calls), 2)
+        self.assertIn(mock.call('HERE/arch2.nc', 'HERE/arch2.nc_ARCHIVED'),
+                      mock_name.mock_calls)
+        self.assertIn(mock.call('HERE/arch3.nc', 'HERE/arch3.nc_ARCHIVED'),
+                      mock_name.mock_calls)
+        self.assertIn('iceberg_trajectory: deleting archived file(s):',
+                      func.capture())
+        self.assertNotIn('arch1.nc', func.capture())
+        self.assertIn('arch2.nc', func.capture())
+        self.assertIn('arch3.nc', func.capture())
 
     @mock.patch('nemo.utils.remove_files')
     def test_arch_iberg_traj_archpass(self, mock_rm):
@@ -784,8 +801,261 @@ class AdditionalArchiveTests(unittest.TestCase):
         with mock.patch('nemo.utils.get_subset'):
             self.nemo.archive_general()
         self.nemo.archive_files.assert_called_once_with(mock.ANY)
-        with self.assertRaises(AssertionError):
-            mock_rm.assert_called_with(mock.ANY)
+        self.assertListEqual(mock_rm.mock_calls, [])
+
+    @mock.patch('nemo.utils.get_subset')
+    @mock.patch('nemo.utils.move_files')
+    def test_create_region_extract(self, mock_mv, mock_set):
+        '''Test call to create_regional_extraction method'''
+        func.logtest('Assert call to create_regional_extraction:')
+        self.nemo.naml.extract_region = True
+        self.nemo.region_fields = self.nemo._region_fields
+        self.nemo.diagsdir = os.getcwd()
+        mock_set.side_effect = [['fileT'], [], ['fileV1', 'fileV2']]
+        self.nemo.suite.preprocess_file.side_effect = ['ncdump_outT',
+                                                       (0, 'nkcs_outT'),
+                                                       'ncdump_outV1',
+                                                       (0, 'nkcs_outV1'),
+                                                       'ncdump_outV2',
+                                                       (0, 'nkcs_outV2')]
+        self.nemo.create_general()
+
+        pattern = r'[a-z]*_runido_\d+[hdmsyx]{{1}}_\d{{4}}\d{{2}}\d{{2}}' + \
+            r'-\d{{4}}\d{{2}}\d{{2}}_{}.nc'
+        mockset_calls = []
+        for field in ['UK_shelf_T', 'UK_shelf_U', 'UK_shelf_V']:
+            mockset_calls.append(mock.call('HERE', pattern.format(field)))
+        self.assertListEqual(mock_set.mock_calls, mockset_calls)
+
+        self.assertIn(mock.call('ncdump', 'HERE/fileT', h=''),
+                      self.nemo.suite.preprocess_file.mock_calls)
+        self.assertIn(mock.call('ncks', 'HERE/fileV1', O='', a='',
+                                d_1='x,1055,1198', d_2='y,850,1040'),
+                      self.nemo.suite.preprocess_file.mock_calls)
+
+        mockmv_calls = [mock.call('HERE/fileT', os.getcwd()),
+                        mock.call('HERE/fileV1', os.getcwd()),
+                        mock.call('HERE/fileV2', os.getcwd())]
+        self.assertListEqual(mock_mv.mock_calls, mockmv_calls)
+
+    @mock.patch('nemo.utils.get_subset')
+    @mock.patch('nemo.utils.move_files')
+    def test_create_region_fielddim(self, mock_mv, mock_set):
+        '''Test call to create_regional_extraction - field specific dims'''
+        func.logtest('Assert call to create_regional_extraction - field dims:')
+        self.nemo.naml.extract_region = True
+        self.nemo.naml.region_dimensions = ['xgrid_%G', 1, 2, 'ygrid_%G', 3, 4]
+        self.nemo.region_fields = ['shelf-T']
+        self.nemo.diagsdir = os.getcwd()
+        mock_set.side_effect = [['fileT']]
+        self.nemo.suite.preprocess_file.side_effect = ['ncdump_outT',
+                                                       (0, 'nkcs_outT')]
+        self.nemo.create_general()
+
+        pattern = r'[a-z]*_runido_\d+[hdmsyx]{{1}}_\d{{4}}\d{{2}}\d{{2}}' + \
+            r'-\d{{4}}\d{{2}}\d{{2}}_{}.nc'
+        self.assertListEqual(mock_set.mock_calls,
+                             [mock.call('HERE', pattern.format('shelf-T'))])
+
+        self.assertEqual(self.nemo.suite.preprocess_file.mock_calls[0],
+                         mock.call('ncdump', 'HERE/fileT', h=''))
+        self.assertEqual(self.nemo.suite.preprocess_file.mock_calls[1],
+                         mock.call('ncks', 'HERE/fileT', O='', a='',
+                                   d_1='xgrid_T,1,2', d_2='ygrid_T,3,4'))
+
+        self.assertListEqual(mock_mv.mock_calls,
+                             [mock.call('HERE/fileT', os.getcwd())])
+
+    @mock.patch('nemo.utils.get_subset')
+    @mock.patch('nemo.utils.move_files')
+    def test_create_region_pass(self, mock_mv, mock_set):
+        '''Test call to create_regional_extraction - file already regional'''
+        func.logtest('Assert call to create_regional_extraction - pass:')
+        self.nemo.naml.extract_region = True
+        self.nemo.region_fields = ['shelf-T']
+        self.nemo.diagsdir = os.getcwd()
+        mock_set.side_effect = [['fileT']]
+        self.nemo.suite.preprocess_file.side_effect = \
+            ['ncdump_outT\nLine1\nLine2\n x = 144']
+        self.nemo.create_general()
+
+        self.assertListEqual(self.nemo.suite.preprocess_file.mock_calls,
+                             [mock.call('ncdump', 'HERE/fileT', h='')])
+        self.assertListEqual(mock_mv.mock_calls,
+                             [mock.call('HERE/fileT', os.getcwd())])
+        self.assertIn('No extraction necessary', func.capture())
+
+    @mock.patch('nemo.utils.get_subset')
+    @mock.patch('nemo.mt.ModelTemplate.compress_file')
+    @mock.patch('nemo.utils.move_files')
+    def test_create_region_compress(self, mock_mv, mock_cmp, mock_set):
+        '''Test call to create_regional_extraction - compress file'''
+        func.logtest('Assert call to create_regional_extraction - compress:')
+        self.nemo.naml.extract_region = True
+        self.nemo.region_fields = ['shelf-T']
+        self.nemo.naml.compression_level = 2
+        self.nemo.diagsdir = os.getcwd()
+        mock_set.side_effect = [['fileT']]
+        self.nemo.suite.preprocess_file.side_effect = \
+            ['ncdump_outT\nLine1\nLine2\n x = 144']
+        self.nemo.create_general()
+
+        mock_cmp.assert_called_once_with(
+            'HERE/fileT', 'nccopy',
+            chunking=['time_counter/1', 'y/191', 'x/144'],
+            compression=2
+            )
+        self.assertListEqual(mock_mv.mock_calls, [])
+
+    @mock.patch('nemo.utils.get_subset')
+    @mock.patch('nemo.utils.move_files')
+    def test_create_region_meanfield(self, mock_mv, mock_set):
+        '''Test call to create_regional_extraction - future mean field'''
+        func.logtest('Assert call to create_regional_extraction - mean field:')
+        self.nemo.naml.extract_region = True
+        self.nemo.region_fields = ['shelf_T', 'grid_T']
+        self.nemo.diagsdir = os.getcwd()
+        mock_set.side_effect = [['shelfT'], ['gridT']]
+        self.nemo.suite.preprocess_file.return_value = \
+            'ncdump_outT \n Line1 \n Line2 \n x = 144'
+
+        self.nemo.create_general()
+        self.assertListEqual(mock_mv.mock_calls,
+                             [mock.call('HERE/shelfT', os.getcwd())])
+
+    @mock.patch('nemo.utils.get_subset')
+    @mock.patch('nemo.utils.move_files')
+    def test_create_region_nodims(self, mock_mv, mock_set):
+        '''Test call to create_regional_extraction - no dims'''
+        func.logtest('Assert call to create_regional_extraction - no dims:')
+        self.nemo.naml.extract_region = True
+        self.nemo.naml.region_dimensions = []
+        self.nemo.region_fields = ['shelf-T']
+        self.nemo.diagsdir = os.getcwd()
+        mock_set.side_effect = [['fileT']]
+        self.nemo.suite.preprocess_file.side_effect = ['ncdump_outT',
+                                                       (0, 'nkcs_outT')]
+        with self.assertRaises(SystemExit):
+            self.nemo.create_general()
+
+        pattern = r'[a-z]*_runido_\d+[hdmsyx]{{1}}_\d{{4}}\d{{2}}\d{{2}}' + \
+            r'-\d{{4}}\d{{2}}\d{{2}}_{}.nc'
+        self.assertListEqual(mock_set.mock_calls,
+                             [mock.call('HERE', pattern.format('shelf-T'))])
+
+        self.assertListEqual(self.nemo.suite.preprocess_file.mock_calls, [])
+        self.assertListEqual(mock_mv.mock_calls, [])
+        self.assertIn('Unable to determine x-y dimensions', func.capture('err'))
+
+    @mock.patch('nemo.utils.get_subset')
+    @mock.patch('nemo.utils.move_files')
+    def test_create_region_nodims_debug(self, mock_mv, mock_set):
+        '''Test call to create_regional_extraction - no dims in debug mode'''
+        func.logtest('Assert debug call to regional extraction - no dims:')
+        self.nemo.naml.extract_region = True
+        self.nemo.naml.region_dimensions = []
+        self.nemo.region_fields = ['shelf-T']
+        self.nemo.diagsdir = os.getcwd()
+        mock_set.side_effect = [['fileT']]
+        self.nemo.suite.preprocess_file.side_effect = ['ncdump_outT']
+        with mock.patch('nemo.utils.get_debugmode', return_value=True):
+            self.nemo.create_general()
+
+        pattern = r'[a-z]*_runido_\d+[hdmsyx]{{1}}_\d{{4}}\d{{2}}\d{{2}}' + \
+            r'-\d{{4}}\d{{2}}\d{{2}}_{}.nc'
+        self.assertListEqual(mock_set.mock_calls,
+                             [mock.call('HERE', pattern.format('shelf-T'))])
+
+        self.assertListEqual(self.nemo.suite.preprocess_file.mock_calls, [])
+        self.assertListEqual(mock_mv.mock_calls, [])
+        self.assertIn('Unable to determine x-y dimensions', func.capture('err'))
+
+    @mock.patch('nemo.utils.get_subset')
+    @mock.patch('nemo.mt.ModelTemplate.clean_archived_files')
+    def test_arch_region_extract(self, mock_clean, mock_set):
+        '''Test call to archive_regional_extraction'''
+        func.logtest('Assert call to archive_regional_extraction')
+        mock_set.side_effect = [['archT1'], [], ['archV1', 'archV2']]
+        self.nemo.naml.extract_region = True
+        self.nemo.region_fields = self.nemo._region_fields
+        self.nemo.diagsdir = 'DDIR'
+        with mock.patch('nemo.utils.check_directory', return_value='DDIR'):
+            self.nemo.archive_general()
+
+        self.assertListEqual(self.nemo.archive_files.mock_calls,
+                             [mock.call(['DDIR/archT1']),
+                              mock.call([]),
+                              mock.call(['DDIR/archV1', 'DDIR/archV2'])])
+
+        pattern = r'^[a-z]*_runido_\d+[hdmsyx]{{1}}_\d{{4}}\d{{2}}\d{{2}}-' + \
+            r'\d{{4}}\d{{2}}\d{{2}}_{}.nc$'
+        self.assertListEqual(mock_set.mock_calls,
+                             [mock.call('DDIR', pattern.format('UK_shelf_T')),
+                              mock.call('DDIR', pattern.format('UK_shelf_U')),
+                              mock.call('DDIR', pattern.format('UK_shelf_V'))])
+        for call in range(3):
+            self.assertEqual(mock_clean.mock_calls[call],
+                             mock.call(self.nemo.archive_files.return_value,
+                                       'UK Shelf region'))
+        self.assertEqual(len(mock_clean.mock_calls), 3)
+
+    @mock.patch('nemo.utils.get_subset')
+    @mock.patch('nemo.utils.remove_files')
+    @mock.patch('nemo.os.rename')
+    def test_arch_region_debug(self, mock_name, mock_rm, mock_set):
+        '''Test call to archive_regional_extraction - debug mode'''
+        func.logtest('Assert call to archive_regional_extraction - debug mode')
+        self.nemo.archive_files.return_value = {'DDIR/arch1.nc': 'FAILED',
+                                                'DDIR/arch2.nc': 'SUCCESS',
+                                                'arch3.nc': 'SUCCESS'}
+        self.nemo.naml.extract_region = True
+        self.nemo.region_fields = ['shelf-T']
+        self.nemo.diagsdir = 'DDIR'
+        with mock.patch('nemo.utils.get_debugmode', return_value=True):
+            with mock.patch('nemo.utils.check_directory', return_value='DDIR'):
+                self.nemo.archive_general()
+
+        self.nemo.archive_files.assert_called_once_with([mock_set.return_value])
+        self.assertListEqual(mock_rm.mock_calls, [])
+
+        self.assertEqual(len(mock_name.mock_calls), 2)
+        self.assertIn(mock.call('DDIR/arch2.nc', 'DDIR/arch2.nc_ARCHIVED'),
+                      mock_name.mock_calls)
+        self.assertIn(mock.call('DDIR/arch3.nc', 'DDIR/arch3.nc_ARCHIVED'),
+                      mock_name.mock_calls)
+        self.assertIn('UK Shelf region: deleting archived file(s):',
+                      func.capture())
+        self.assertNotIn('arch1.nc', func.capture())
+        self.assertIn('arch2.nc', func.capture())
+        self.assertIn('arch3.nc', func.capture())
+
+    @mock.patch('nemo.utils.remove_files')
+    def test_arch_region_archpass(self, mock_rm):
+        '''Test call to archive_regional_extraction - arch pass'''
+        func.logtest('Assert call to archive_regional_extraction - arch pass')
+        self.nemo.naml.extract_region = True
+        self.nemo.region_fields = ['shelf-T']
+        self.nemo.diagsdir = 'DDIR'
+        self.nemo.archive_files.return_value = {'DDIR/arch1': 'SUCCESS'}
+        with mock.patch('nemo.utils.check_directory', return_value='DDIR'):
+            with mock.patch('nemo.utils.get_subset'):
+                self.nemo.archive_general()
+        self.nemo.archive_files.assert_called_once_with(mock.ANY)
+        mock_rm.assert_called_with(['DDIR/arch1'], path='DDIR')
+
+    @mock.patch('nemo.utils.remove_files')
+    def test_arch_region_archfail(self, mock_rm):
+        '''Test call to archive_regional_extraction - arch fail'''
+        func.logtest('Assert call to archive_regional_extraction - arch fail')
+        self.nemo.naml.extract_region = True
+        self.nemo.region_fields = ['shelf-T']
+        self.nemo.diagsdir = 'DDIR'
+        self.nemo.archive_files.return_value = {'arch1': 'FAILED'}
+        with mock.patch('nemo.utils.check_directory', return_value='DDIR'):
+            with mock.patch('nemo.utils.get_subset'):
+                self.nemo.archive_general()
+        self.nemo.archive_files.assert_called_once_with(mock.ANY)
+        self.assertListEqual(mock_rm.mock_calls, [])
 
 
 class UtilityMethodTests(unittest.TestCase):
@@ -816,16 +1086,20 @@ class UtilityMethodTests(unittest.TestCase):
         enddate = self.nemo.get_date(fname, enddate=True)
         self.assertTupleEqual(enddate, ('4444', '44', '44', '44'))
 
-    @mock.patch('nemo.NemoPostProc.rebuild_means')
+    @mock.patch('nemo.NemoPostProc.rebuild_diagnostics')
     @mock.patch('nemo.mt.ModelTemplate.move_to_share')
     def test_move_to_share(self, mock_mt, mock_rbld):
         '''Test NEMO Specific move_to_share functionality'''
         func.logtest('Assert additional move_to_share processing in NEMO:')
+        self.nemo.mean_fields = ['mean1', 'mean2']
+        self.nemo.inst_fields = ['inst1']
         self.nemo.move_to_share()
         mock_mt.assert_called_once_with(pattern=None)
-        mock_rbld.assert_called_once_with()
+        self.assertListEqual(mock_rbld.mock_calls,
+                             [mock.call(['mean1', 'mean2'], bases=['10d']),
+                              mock.call(['inst1'])])
 
-    @mock.patch('nemo.NemoPostProc.rebuild_means')
+    @mock.patch('nemo.NemoPostProc.rebuild_diagnostics')
     @mock.patch('nemo.mt.ModelTemplate.move_to_share')
     def test_move_to_share_pattern(self, mock_mt, mock_rbld):
         '''Test move_to_share functionality - with pattern'''

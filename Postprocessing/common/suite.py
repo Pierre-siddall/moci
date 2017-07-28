@@ -283,6 +283,40 @@ class SuiteEnvironment(object):
 
         return ret_code
 
+    @timer.run_timer
+    def preproc_ncks(self, fname, **kwargs):
+        '''
+        Invoke netCDF utility ncks for manipulating file data
+        Arguments should be provided in the form of a dictionary
+        '''
+        tmpfile = fname + '.tmp'
+        cmd = self.naml.ncks_path
+        if not os.path.basename(cmd) == 'ncks':
+            cmd = os.path.join(cmd, 'ncks')
+
+        for key, val in sorted(kwargs.items()):
+            print 'key:', key, 'val:', val, '.'
+            cmd = ' '.join([cmd, '-' + key.split('_')[0], val])
+        cmd = ' '.join([cmd, fname, tmpfile])
+
+        utils.log_msg('ncks: {}'.format(cmd), level='INFO')
+        ret_code, output = utils.exec_subproc(cmd)
+        level = 'OK'
+        if ret_code == 0:
+            msg = 'ncks: Command successful'
+            try:
+                os.rename(tmpfile, fname)
+            except OSError:
+                msg = msg + '\n -> Failed to rename temporary modified file'
+                level = 'ERROR'
+                ret_code = 99
+        else:
+            msg = 'ncks: Command failed:\n{}'.format(output)
+            level = 'ERROR'
+        utils.log_msg(msg, level=level)
+
+        return ret_code, output
+
 
 class SuitePostProc(object):
     ''' Default namelist for model independent properties '''
@@ -293,7 +327,10 @@ class SuitePostProc(object):
     nccopy_path = ''
     ncdump_path = ''
     ncrcat_path = ''
+    ncks_path = '/projects/ocean/hadgem3/nco/nco-4.4.7/bin'
     mean_reference_date = [0, 12, 1]
+    process_toplevel = False
+    archive_toplevel = False
 
 
 class TimerInfo(object):

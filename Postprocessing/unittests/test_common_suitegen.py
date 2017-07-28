@@ -403,3 +403,99 @@ class PreProcessTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.mysuite.preproc_ncrcat(infiles, kwarg='KWARG')
         self.assertIn('ncrcat: Cannot continue', func.capture('err'))
+
+    def test_ncks(self):
+        '''Test file manipulation with ncks'''
+        func.logtest('Assert function of file manipulation with ncks:')
+        infile = 'TestDir/myFile'
+        cmd = ' '.join(['ncks -O  -a  -d x,1,2 -d y,1,2',
+                        infile, infile + '.tmp'])
+        self.mysuite.naml.ncks_path = ''
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
+            with mock.patch('suite.os.rename') as mock_mv:
+                mock_exec.return_value = (0, '')
+                self.mysuite.preproc_ncks(infile, O='', a='',
+                                          d_1='x,1,2', d_2='y,1,2')
+                mock_mv.assert_called_with(infile + '.tmp', infile)
+            mock_exec.assert_called_with(cmd)
+
+    def test_ncks_complete_path(self):
+        '''Test file manipulation with ncks (complete path given)'''
+        func.logtest('Assert function of ncks method given full path:')
+        infile = 'TestDir/myFile'
+        cmd = ' '.join(['PATH/ncks -O  -a  -d x,1,2 -d y,1,2',
+                        infile, infile + '.tmp'])
+        self.mysuite.naml.ncks_path = 'PATH/ncks'
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
+            with mock.patch('suite.os.rename') as mock_mv:
+                mock_exec.return_value = (0, '')
+                self.mysuite.preproc_ncks(infile, O='', a='',
+                                          d_1='x,1,2', d_2='y,1,2')
+                mock_mv.assert_called_with(infile + '.tmp', infile)
+            mock_exec.assert_called_with(cmd)
+
+    def test_ncks_fail(self):
+        '''Test file manipulation with ncks'''
+        func.logtest('Assert function of file manipulation with ncks:')
+        infile = 'TestDir/myFile'
+        cmd = ' '.join(['ncks -O  -a  -d x,1,2 -d y,1,2',
+                        infile, infile + '.tmp'])
+        self.mysuite.naml.ncks_path = ''
+
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
+            mock_exec.return_value = (1, '')
+            with self.assertRaises(SystemExit):
+                _ = self.mysuite.preproc_ncks(infile, O='', a='',
+                                              d_1='x,1,2', d_2='y,1,2')
+            mock_exec.assert_called_with(cmd)
+        self.assertIn('ncks: Command failed:', func.capture('err'))
+
+    def test_ncks_rename_fail(self):
+        '''Test file manipulation with ncks - fail rename'''
+        func.logtest('Assert file manipulation with ncks - failure to rename:')
+        infile = 'TestDir/myFile'
+        cmd = ' '.join(['ncks -O  -a  -d x,1,2 -d y,1,2',
+                        infile, infile + '.tmp'])
+        self.mysuite.naml.ncks_path = ''
+
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
+            mock_exec.return_value = (0, '')
+            with self.assertRaises(SystemExit):
+                _ = self.mysuite.preproc_ncks(infile, O='', a='',
+                                              d_1='x,1,2', d_2='y,1,2')
+            mock_exec.assert_called_with(cmd)
+        self.assertIn('Failed to rename', func.capture('err'))
+
+    @mock.patch('suite.os.rename')
+    def test_ncks_fail_debug(self, mock_rename):
+        '''Test file manipulation with ncks - debug failure'''
+        func.logtest('Assert file manipulation with ncks - debug failure:')
+        infile = 'TestDir/myFile'
+        cmd = ' '.join(['ncks -d x,1,2 -d y,1,2', infile, infile + '.tmp'])
+        self.mysuite.naml.ncks_path = ''
+
+        with mock.patch('suite.utils.get_debugmode', return_value=True):
+            with mock.patch('suite.utils.exec_subproc') as mock_exec:
+                mock_exec.return_value = (1, '')
+                rtn = self.mysuite.preproc_ncks(infile,
+                                                d_1='x,1,2', d_2='y,1,2')
+                mock_exec.assert_called_with(cmd)
+        self.assertListEqual(mock_rename.mock_calls, [])
+        self.assertIn('Command failed:', func.capture('err'))
+        self.assertTupleEqual(rtn, (1, ''))
+
+    def test_ncks_rename_fail_debug(self):
+        '''Test file manipulation with ncks - rename failure debug'''
+        func.logtest('Assert file manipulation with ncks - rename fail debug:')
+        infile = 'TestDir/myFile'
+        cmd = ' '.join(['ncks -d x,1,2 -d y,1,2', infile, infile + '.tmp'])
+        self.mysuite.naml.ncks_path = ''
+
+        with mock.patch('suite.utils.get_debugmode', return_value=True):
+            with mock.patch('suite.utils.exec_subproc') as mock_exec:
+                mock_exec.return_value = (0, '')
+                rtn = self.mysuite.preproc_ncks(infile,
+                                                d_1='x,1,2', d_2='y,1,2')
+                mock_exec.assert_called_with(cmd)
+        self.assertIn('Failed to rename', func.capture('err'))
+        self.assertTupleEqual(rtn, (99, ''))

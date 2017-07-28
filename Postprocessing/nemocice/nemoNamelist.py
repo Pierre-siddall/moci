@@ -42,7 +42,7 @@ class NemoNamelist:
     buffer_archive = 0
     archive_iceberg_trajectory = False
     means_cmd = '/projects/ocean/hadgem3/scripts/GC2.0/mean_nemo.exe'
-    means_directory = os.environ['CYLC_TASK_WORK_DIR'] + '/../coupled'
+    work_directory = os.environ['CYLC_TASK_WORK_DIR'] + '/../coupled'
     process_all_fieldsfiles = True
     means_fieldsfiles = None
     ncatted_cmd = '/projects/ocean/hadgem3/nco/nco-4.4.7/bin/ncatted'
@@ -56,11 +56,15 @@ class NemoNamelist:
     means_to_archive = None
     archive_set = os.environ['CYLC_SUITE_NAME']
     debug = False
-    compress_means = 'nccopy'
+    compress_netcdf = 'nccopy'
     compression_level = 0
     chunking_arguments = 'time_counter/1,y/205,x/289'
     correct_time_variables = False
     correct_time_bounds_variables = False
     time_vars = 'time_counter', 'time_centered'
+    extract_region = False
+    region_fieldsfiles = None
+    region_dimensions = 'x', '1055,1198', 'y', '850,1040'
+    region_chunking_args = 'time_counter/1,y/191,x/144'
 
 NAMELISTS = {'nemopostproc': NemoNamelist}

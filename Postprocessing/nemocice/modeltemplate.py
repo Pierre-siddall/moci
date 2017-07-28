@@ -54,13 +54,15 @@ class ModelTemplate(control.RunPostProc):
     def __init__(self, input_nl='nemocicepp.nl'):
         name = self.__class__.__name__
         self.naml = getattr(nlist.loadNamelist(input_nl), name.lower())
-        self.fields = self._fields
+        self.mean_fields = self._mean_fields
+        self.inst_fields = self._inst_fields
+
         if self.runpp:
             self.share = self._directory(self.naml.restart_directory,
                                          name.upper()[:-8] + ' SHARE')
-            self.work = self._directory(self.naml.means_directory,
+            self.work = self._directory(self.naml.work_directory,
                                         name.upper()[:-8] + ' WORK')
-            self.meansdir = os.path.join(self.share, 'archive_ready_means')
+            self.diagsdir = os.path.join(self.share, 'archive_ready')
             self.suite = suite.SuiteEnvironment(self.share, input_nl)
             self.suite.envars = utils.loadEnv('CYLC_SUITE_INITIAL_CYCLE_POINT',
                                               'INITCYCLE_OVERRIDE',
@@ -95,21 +97,29 @@ class ModelTemplate(control.RunPostProc):
                                     self.naml.create_annual_mean,
                                     self.naml.create_decadal_mean,
                                     self.naml.archive_means])),
+             ('create_general', self.suite.naml.process_toplevel and
+              any(ftype[1] for ftype in self.process_types if
+                  isinstance(ftype[1], bool) and ftype[1])),
              ('create_means', any([self.naml.create_monthly_mean,
                                    self.naml.create_seasonal_mean,
                                    self.naml.create_annual_mean,
                                    self.naml.create_decadal_mean])),
-             ('archive_means', self.naml.archive_means),
-             ('archive_general',
-              any(ftype[1] for ftype in self.archive_types if
+             ('archive_general', self.suite.naml.archive_toplevel and
+              any(ftype[1] for ftype in self.process_types if
                   isinstance(ftype[1], bool) and ftype[1])),
+             ('archive_means', self.naml.archive_means),
              ('finalise_debug', self.naml.debug)]
             )
 
     @property
-    def _fields(self):
-        ''' Returns a tuple of means fields available'''
-        return ('',)
+    def _mean_fields(self):
+        ''' Return a list of means fields available '''
+        return ['',]
+
+    @property
+    def _inst_fields(self):
+        ''' Return a list of instantaneous fields available '''
+        return []
 
     @abc.abstractproperty
     def model_components(self):
@@ -146,11 +156,11 @@ class ModelTemplate(control.RunPostProc):
         return ('',)
 
     @property
-    def archive_types(self):
+    def process_types(self):
         '''
-        Additional namelist logicals controlling the archive of files
-        other than restarts and means.
-        Returns a list of tuples: (method_name, bool)
+        Return a list of tuples controlling the processing (creation/archive)
+        of files other than restarts and means
+           (<type str> method_name, <type bool>)
         '''
         return []
 
@@ -376,13 +386,13 @@ class ModelTemplate(control.RunPostProc):
     @timer.run_timer
     def get_raw_output(self, source):
         '''
-        Create a list of means files available with the raw model output
+        Create a list of diagnostic files available with the raw model output
         filenames.
         Arguments:
             source = source directory
         '''
         raw_files = []
-        for field in self.fields:
+        for field in set(self.mean_fields + self.inst_fields):
             raw_files += utils.get_subset(source, self.mean_stencil(field))
 
         return raw_files
@@ -410,7 +420,8 @@ class ModelTemplate(control.RunPostProc):
                 ncfile = self.filename_components(fname)
                 ncfile.rename_ncf(os.path.join(self.share, fname),
                                   target=self.datestamp_period(fname))
-            self.fields = tuple([f.replace('_', '-') for f in self.fields])
+            self.mean_fields = [f.replace('_', '-') for f in self.mean_fields]
+            self.inst_fields = [f.replace('_', '-') for f in self.inst_fields]
 
     def timestamps(self, month, day, process='archive'):
         '''
@@ -566,18 +577,18 @@ class ModelTemplate(control.RunPostProc):
         while not data_period:
             multiplier += frequency
             date = utils.add_period_to_date(date, delta)
-
             if date[:len(enddate)] == enddate:
                 data_period = str(multiplier) + base
             elif date[:len(enddate)] > enddate:
                 data_period = str(multiplier - frequency) + base
 
-        if data_period == '30d' and \
-                any([self.suite.envars.CYLC_CYCLING_MODE == '360day',
-                     self.suite.envars.CYLC_CYCLING_MODE == 'integer']):
-            data_period = '1m'
-        elif data_period == '24h':
+        if data_period == '24h':
             data_period = '1d'
+        elif self.suite.envars.CYLC_CYCLING_MODE in ['360day', 'integer']:
+            if data_period in ['30d', '720h', str(720 - 24 + frequency) + 'h']:
+                # Non-CF will calculate (720h - 1d + frequency) for 1m period
+                data_period = '1m'
+
 
         return data_period
 
@@ -675,9 +686,9 @@ class ModelTemplate(control.RunPostProc):
         Create monthly, seasonal, annual means.
         Delete component files as necessary.
         '''
-        utils.create_dir(self.meansdir)
+        utils.create_dir(self.diagsdir)
 
-        for inputs in self.loop_inputs(self.fields):
+        for inputs in self.loop_inputs(self.mean_fields):
             # Loop over set of means which it should be possible to create
             # from files available.
             for setend in self.periodfiles(inputs, 'end'):
@@ -751,7 +762,7 @@ class ModelTemplate(control.RunPostProc):
                         utils.remove_files(meanset, path=self.share)
                     else:
                         # Move component files to `archive_ready` directory
-                        utils.move_files(meanset, self.meansdir,
+                        utils.move_files(meanset, self.diagsdir,
                                          originpath=self.share)
 
     def means_spinup(self, description, mean_enddate):
@@ -822,6 +833,17 @@ class ModelTemplate(control.RunPostProc):
         return component
 
     @timer.run_timer
+    def create_general(self):
+        ''' Call processing methods for additional model output filetypes '''
+        for method, process in self.process_types:
+            if process:
+                try:
+                    getattr(self, 'create_' + method)()
+                except AttributeError:
+                    # Not all filetypes to be archived require pre-processing
+                    pass
+
+    @timer.run_timer
     def archive_means(self):
         '''
         Compile list of means files to archive.
@@ -829,12 +851,12 @@ class ModelTemplate(control.RunPostProc):
         '''
         to_archive = []
         do_not_delete = []
-        for inputs in self.loop_inputs(self.fields):
+        for inputs in self.loop_inputs(self.mean_fields):
             for setend in self.periodfiles(inputs, 'end', archive_mean=True):
                 inputs.start_date = self.get_date(setend)
                 to_archive += self.periodfiles(inputs, 'set', archive_mean=True)
 
-        for field in self.fields:
+        for field in self.mean_fields:
             custom = '_' + field if field else ''
             ncf = netcdf_filenames.NCFilename(self.component(field),
                                               self.suite.prefix,
@@ -842,10 +864,10 @@ class ModelTemplate(control.RunPostProc):
                                               custom=custom)
 
             # Select all files in "archive ready" directory
-            if os.path.exists(self.meansdir):
+            if os.path.exists(self.diagsdir):
                 pattern = r'{}.*{}\.nc$'.format(self.prefix.lower(), field)
-                files = utils.get_subset(self.meansdir, pattern)
-                to_archive += [os.path.join(self.meansdir, fn) for fn in files]
+                files = utils.get_subset(self.diagsdir, pattern)
+                to_archive += [os.path.join(self.diagsdir, fn) for fn in files]
 
             # Select additional means files, not in base_component
             # or standard means
@@ -874,31 +896,29 @@ class ModelTemplate(control.RunPostProc):
 
         if to_archive:
             for fname in to_archive:
+                if not os.path.dirname(fname):
+                    fname = os.path.join(self.share, fname)
                 # Compress means files prior to archive.
                 if (self.naml.compression_level > 0 and
                         '_diaptr' not in fname and '_scalar' not in fname):
                     # NEMO diaptr files cannot currently be compressed.
-                    rcode = self.compress_file(fname, self.naml.compress_means)
+
+                    rcode = self.compress_file(
+                        fname,
+                        self.naml.compress_netcdf,
+                        compression=self.naml.compression_level,
+                        chunking=self.naml.chunking_arguments
+                        )
                     if rcode != 0:
                         # Do not archive - failed to compress (debug_mode only)
                         continue
 
-                arch_rtn = self.archive_files(fname)[fname]
-                if arch_rtn != 'FAILED' and fname not in do_not_delete:
+                arch_rtn = self.archive_files(fname)
+                if os.path.basename(fname) not in do_not_delete:
                     # Delete successfully archived files except those to remain
                     # after the final cycle
-                    utils.log_msg('Deleting archived file: ' + fname)
-                    dirname = os.path.dirname(fname)
-                    if utils.get_debugmode():
-                        # Append "ARCHIVED" suffix to file rather than delete
-                        if not dirname:
-                            fname = os.path.join(self.share, fname)
-                        os.rename(fname, fname + '_ARCHIVED')
-                    else:
-                        utils.remove_files(
-                            fname,
-                            path=dirname if dirname else self.share
-                            )
+                    self.clean_archived_files(arch_rtn, 'means files')
+
         else:
             utils.log_msg(' -> Nothing to archive')
 
@@ -931,34 +951,22 @@ class ModelTemplate(control.RunPostProc):
                     utils.remove_files(rst, path=self.share)
 
             if to_archive:
-                arch = self.archive_files(to_archive)
-                to_delete = [fn for fn in arch if arch[fn] == 'SUCCESS']
-                try:
-                    # Do not delete the final restart file following archive
-                    to_delete.remove(final_rst)
-                except ValueError:
-                    pass
-                msg = 'Deleting archived files: \n\t' + '\n\t'.join(to_delete)
-                if utils.get_debugmode():
-                    # Append "ARCHIVED" suffix to files, rather than deleting
-                    for fname in to_delete:
-                        fname = os.path.join(self.share, fname)
-                        os.rename(fname,
-                                  fname.rstrip('_ARCHIVED') + '_ARCHIVED')
-                else:
-                    utils.remove_files(to_delete, path=self.share)
+                arch_rtn = self.archive_files(to_archive)
+                # Do not delete the final restart file following archive
+                _ = arch_rtn.pop(final_rst, None)
+                self.clean_archived_files(arch_rtn, 'restart files')
             else:
                 msg = ' -> Nothing to archive'
                 if rstfiles:
                     msg = '{} - {} restart{} files available ({} retained).'.\
                         format(msg, len(rstfiles), rsttype,
                                self.buffer_archive)
-            utils.log_msg(msg)
+                utils.log_msg(msg)
 
     @timer.run_timer
     def archive_general(self):
         '''Call archive methods for additional model file types'''
-        for method, archive in self.archive_types:
+        for method, archive in self.process_types:
             if archive:
                 try:
                     getattr(self, 'archive_' + method)()
@@ -990,14 +998,47 @@ class ModelTemplate(control.RunPostProc):
         return returnfiles
 
     @timer.run_timer
-    def compress_file(self, fname, utility):
-        '''Create command to compress netCDF file'''
+    def clean_archived_files(self, archived_files, filetype, path=None):
+        '''
+        Delete successfully archived files from disk
+        Arguments:
+            archived_files - <type dict> Return value from self.archive_files -
+                                         { <filename>: "SUCCESS"|"FAILED" }
+            filetype       - <type str>  Description of filetype
+        '''
+        # Check for archive failures
+        del_files = [fn for fn in archived_files
+                     if archived_files[fn] == 'SUCCESS']
+        if del_files:
+            msg = '{}: deleting archived file(s): \n\t'.format(filetype)
+            utils.log_msg(msg + '\n\t'.join(del_files))
+
+            dirname = path if path else os.path.dirname(del_files[0])
+            if utils.get_debugmode():
+                # Append "ARCHIVED" suffix to files, rather than deleting
+                for fname in del_files:
+                    if not os.path.dirname(fname):
+                        fname = os.path.join(dirname if dirname else self.share,
+                                             fname)
+                    os.rename(fname, fname.rstrip('_ARCHIVED') + '_ARCHIVED')
+            else:
+                utils.remove_files(del_files,
+                                   path=dirname if dirname else self.share)
+
+    @timer.run_timer
+    def compress_file(self, fname, utility, **kwargs):
+        '''
+        Create command to compress netCDF file
+        Arguments:
+          fname - Filename to include full path
+          utiilty - Compression utility
+          kwargs - Dictionary containing command line arguments
+        '''
         if utility == 'nccopy':
             rcode = self.suite.preprocess_file(
-                utility,
-                os.path.join(self.share, fname),
-                compression=self.naml.compression_level,
-                chunking=self.naml.chunking_arguments
+                utility, fname,
+                compression=kwargs.pop('compression', 0),
+                chunking=kwargs.pop('chunking', None)
                 )
         else:
             utils.log_msg('Preprocessing command not yet implemented',

@@ -204,8 +204,7 @@ class RestartFiles(ArchivedFiles):
             tstamps = [[max(seasons) - 6, meanref[2]],
                        [max(seasons), meanref[2]]]
         else:
-            nlist_stamps = utils.ensure_list(self.naml.archive_timestamps,
-                                             listnone=False)
+            nlist_stamps = utils.ensure_list(self.naml.archive_timestamps)
             try:
                 tstamps = [[int(x) for x in tstamp.split('-')]
                            for tstamp in nlist_stamps]
@@ -334,8 +333,9 @@ class DiagnosticFiles(ArchivedFiles):
         ''' Initialise MeansFiles methods '''
         super(DiagnosticFiles, self).__init__(startdate, enddate,
                                               prefix, model, naml)
-        fields = self.naml.fields if self.naml.fields else ''
-        self.fields = utils.ensure_list(fields)
+        fields = self.naml.meanfields if self.naml.meanfields else ''
+        self.meanfields = utils.ensure_list(fields, listnone=True)
+
         self.meanref = nlist_date(self.naml.mean_reference_date,
                                   'mean reference date')
         self.tlim = self.time_limited_streams()
@@ -346,27 +346,26 @@ class DiagnosticFiles(ArchivedFiles):
         for each stream.
         '''
         for reinit in reinit_periods:
+            # In the case of concatenated files, delta follows '_'
+            # Otherwise it is the same as the base frequency
+            base = reinit.replace('streams_', '').split('_')[0]
+            delta = reinit.split('_')[-1]
+
             if reinit in dir(self.naml):
                 descript = 'instantaneous'
-                value = reinit.split('_')[1]
-                streams = utils.ensure_list(getattr(self.naml, reinit),
-                                            listnone=False)
+                streams = utils.ensure_list(getattr(self.naml, reinit))
+                if len(streams) == 1 and streams[0] is True:
+                    # Allow for blank field name
+                    streams = ['']
             else:
                 descript = 'mean'
-                value = reinit
                 if self.model == 'atmos':
                     streams = [reinit[-1]]
                 else:
-                    streams = self.fields
+                    streams = self.meanfields
 
             if streams:
-                step, period = utils.get_frequency(value)
-                try:
-                    # Check for concatenated files
-                    concat = int(value.split('_')[1])
-                except IndexError:
-                    concat = 1
-                yield step, period, concat, streams, descript
+                yield base, delta, list(set(streams)), descript
 
     def get_period_startdate(self, period, refday=True):
         '''
@@ -412,29 +411,16 @@ class DiagnosticFiles(ArchivedFiles):
         ''' Generate a list of expected diagnostic output files '''
         all_files = {}
 
-        # Dictionary value = tuple(date index, multiple)
-        diags = {'h': (3, 1), 'd': (2, 1), 'm': (1, 1),
-                 's': (1, 3), 'y': (0, 1), 'x': (0, 10)}
-
         all_streams = [a for a in dir(self.naml) if a.startswith('streams')]
-        if self.naml.meanstreams:
-            all_streams += utils.ensure_list(self.naml.meanstreams)
+        all_streams += utils.ensure_list(self.naml.meanstreams)
         try:
             spawn_ncf = utils.ensure_list(self.naml.spawn_netcdf_streams)
         except AttributeError:
             spawn_ncf = []
 
-        for step, period, concat, streams, desc in \
-                self.gen_reinit_period(all_streams):
-            delta = [0]*5
-            delta[diags[period][0]] = step * concat * diags[period][1]
-            if concat > 1:
-                # Move forward one mean period for start of concatenated files
-                order = ['h', 'd', 'm', 's', 'y', 'x']
-                date = self.get_period_startdate(order[order.index(period) + 1],
-                                                 refday=False)
-            else:
-                date = self.get_period_startdate(period)
+        for base, delta, streams, desc in \
+                self.gen_reinit_period(list(set(all_streams))):
+            date = self.get_period_startdate(delta[-1])
             edate = self.edate[:]
             while len(edate) < 5:
                 edate.append(0)
@@ -452,7 +438,7 @@ class DiagnosticFiles(ArchivedFiles):
                 newdate = utils.add_period_to_date(date, delta)
 
                 add_file = True
-                if desc == 'instantaneous':
+                if desc == 'instantaneous' and self.model == 'atmos':
                     # Atmos instantaneous streams not available at the edate
                     # due to reinitialisation method.
                     if date == edate:
@@ -473,11 +459,9 @@ class DiagnosticFiles(ArchivedFiles):
                                  date >= self.tlim[stream][1]):
                             # Time limited stream - outside output dates
                             continue
-                        coll = self.get_collection(
-                            period='{}{}'.format(step, period), stream=stream
-                            )
-                        newfile = self.get_filename('{}{}'.format(step, period),
-                                                    date, newdate, stream)
+
+                        coll = self.get_collection(period=base, stream=stream)
+                        newfile = self.get_filename(base, date, newdate, stream)
                         try:
                             all_files[coll].append(newfile)
                         except KeyError:
@@ -513,9 +497,10 @@ class DiagnosticFiles(ArchivedFiles):
                         else:
                             all_files[fileset].remove(all_files[fileset][-1])
                 except AttributeError:
-                    all_files[fileset] = self.remove_higher_mean_components(
-                        all_files[fileset], fileset[2]
-                        )
+                    if fileset[2] in 'dmsyx':
+                        all_files[fileset] = self.remove_higher_mean_components(
+                            all_files[fileset], fileset[2]
+                            )
 
         all_files.update(self.iceberg_trajectory())
 
@@ -554,9 +539,12 @@ class DiagnosticFiles(ArchivedFiles):
                 # No further periods
                 pass
 
+        meansfiles = [fn for fn in reversed(periodfiles) if
+                      any([fd in fn for fd in self.meanfields])]
+
         to_remove = []
         season_starts = [m for m, _ in self.seasons(self.meanref)]
-        for fname in reversed(periodfiles):
+        for fname in meansfiles:
             year, month, day = self.extract_date(fname, start=False)[:3]
             conditions = {
                 'd': day == self.meanref[2],
@@ -565,7 +553,7 @@ class DiagnosticFiles(ArchivedFiles):
                 'y': [year, month, day] == self.meanref[:3],
                 'x': True,
                 }
-            if period == topmean or conditions[period_condition]:
+            if topmean or conditions[period_condition]:
                 break
             else:
                 to_remove.append(fname)
@@ -597,7 +585,7 @@ class DiagnosticFiles(ArchivedFiles):
             tlim = False
 
         if tlim:
-            streams = utils.ensure_list(self.naml.tlim_streams, listnone=False)
+            streams = utils.ensure_list(self.naml.tlim_streams)
             if streams:
                 startdates = utils.ensure_list(self.naml.tlim_starts)
                 enddates = utils.ensure_list(self.naml.tlim_ends)
@@ -705,8 +693,7 @@ class DiagnosticFiles(ArchivedFiles):
             m_streams = ['m']
             if self.naml.streams_30d:
                 m_streams += [str(s) for s in
-                              utils.ensure_list(self.naml.streams_30d,
-                                                listnone=False)]
+                              utils.ensure_list(self.naml.streams_30d)]
             if stream in m_streams:
                 start[2] = ''
                 start[1] = MONTHS[int(start[1])]

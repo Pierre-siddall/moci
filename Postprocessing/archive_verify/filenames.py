@@ -25,7 +25,8 @@ MODEL_COMPONENTS = {
     # Value=tuple(realm, dict(fields associated with netCDF model component(s)))
     'atmos': ('a', {'atmos': [FIELD_REGEX]}),
     'nemo': ('o', {'nemo': ['grid-U', 'grid-V', 'grid-W', 'grid-T',
-                            'diaptr', 'trnd3d', 'scalar'],
+                            'diaptr', 'trnd3d', 'scalar',
+                            'UK-shelf-T', 'UK-shelf-U', 'UK-shelf-V'],
                    'medusa': ['ptrc-T', 'diad-T']}),
     'cice': ('i', {'cice': ''}),
     }
@@ -63,5 +64,8 @@ def model_components(model, field):
             if field in MODEL_COMPONENTS[model][1][comp]:
                 component = comp
                 break
+            if not component and len(field) != 1:
+                # Fall back to model name except for single character stream IDs
+                component = model
 
     return realm, component

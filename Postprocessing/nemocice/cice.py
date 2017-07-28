@@ -55,11 +55,11 @@ class CicePostProc(mt.ModelTemplate):
         return ('', r'.age')
 
     @property
-    def archive_types(self):
+    def process_types(self):
         '''
-        Additional archiving methods to call for files
-        other than restarts and means.
-        Returns a list of tuples: (method_name, bool)
+        Return a list of tuples controlling the processing (creation/archive)
+        of files other than restarts and means.
+           (<type str> method_name, <type bool>)
         '''
         return [('concat_daily_means', self.naml.cat_daily_means)]
 
@@ -124,7 +124,7 @@ class CicePostProc(mt.ModelTemplate):
         return tuple(rtndate)
 
     @timer.run_timer
-    def archive_concat_daily_means(self):
+    def create_concat_daily_means(self):
         '''
         Concatenate daily mean data into a single file.
         Files dated YYYY-M1-01 to YYYY-M2-01 are included in a monthly file.
@@ -167,24 +167,19 @@ class CicePostProc(mt.ModelTemplate):
                                                           catfiles)
                 utils.log_msg(msg, level='ERROR')
 
+    @timer.run_timer
+    def archive_concat_daily_means(self):
+        ''' Archive concatenated daily mean data '''
+
         to_archive = utils.get_subset(self.share,
                                       r'cice_{}{}_1d_\d{{8}}-\d{{8}}\.nc'.
                                       format(self.suite.prefix.lower(),
                                              self.model_realm))
         if to_archive:
             arch_files = self.archive_files(to_archive)
-            del_files = [fn for fn in arch_files if arch_files[fn] != 'FAILED']
-            if del_files:
-                msg = 'Deleting archived files: \n\t' + '\n\t'.join(to_archive)
-                utils.log_msg(msg)
 
-                if utils.get_debugmode():
-                    # Append "ARCHIVED" suffix to files, rather than deleting
-                    for fname in del_files:
-                        fname = os.path.join(self.share, fname)
-                        os.rename(fname, fname + '_ARCHIVED')
-                else:
-                    utils.remove_files(del_files, path=self.share)
+            self.clean_archived_files(arch_files,
+                                      'CICE concatenated daily means')
         else:
             utils.log_msg(' -> Nothing to archive')
 

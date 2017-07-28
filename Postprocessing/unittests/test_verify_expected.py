@@ -20,6 +20,7 @@ import testing_functions as func
 import expected_content
 import verify_namelist
 
+
 class DateTests(unittest.TestCase):
     ''' Unit test for 8char datestring conversion to 3 element date lists '''
     def setUp(self):
@@ -48,6 +49,7 @@ class DateTests(unittest.TestCase):
         self.assertIn('my date should consist of 8 digits: "00YY1111"',
                       func.capture('err'))
 
+
 class ArchivedFilesTests(unittest.TestCase):
     ''' Unit tests relating to the ArchivedFiles (parent) class methods '''
     def setUp(self):
@@ -68,7 +70,6 @@ class ArchivedFilesTests(unittest.TestCase):
         self.assertEqual(self.files.prefix, 'PREFIX')
         self.assertEqual(self.files.model, 'model')
         self.assertFalse(self.files.finalcycle)
-
 
     def test_extract_start_date(self):
         '''Assert correct extraction of date from various filenames '''
@@ -329,7 +330,6 @@ class RestartFilesTests(unittest.TestCase):
         self.assertListEqual(self.files.expected_files()['ada.file'],
                              expect[:-1])
 
-
     def test_expected_atmos_nodumps(self):
         ''' Test calculation of expected restart files - none in period'''
         func.logtest('Assert list of archived atmos dumps - none:')
@@ -379,7 +379,7 @@ class RestartFilesTests(unittest.TestCase):
                   'PREFIXo_19971201_restart.nc',
                   'PREFIXo_19980601_restart.nc',
                   'PREFIXo_19980701_restart.nc']
-        self.files.naml.buffer_restart = 4 # 40 days
+        self.files.naml.buffer_restart = 4  # 40 days
         files_returned = self.files.expected_files()['oda.file']
         self.assertListEqual(files_returned, expect[:-2])
         mock_ctime.assert_called_once_with()
@@ -440,7 +440,7 @@ class RestartFilesTests(unittest.TestCase):
                   'PREFIXi.restart.age.1998-03-01-00000.nc',
                   'PREFIXi.restart.1998-11-01-00000.nc',
                   'PREFIXi.restart.age.1998-11-01-00000.nc']
-        self.files.naml.buffer_restart = 9 # 9*1m --> effective edate=1998,3,1
+        self.files.naml.buffer_restart = 9  # 9*1m --> effective edate=1998,3,1
         self.assertListEqual(self.files.expected_files()['ida.file'],
                              expect[:-4])
 
@@ -490,7 +490,7 @@ class DiagnosticFilesTests(unittest.TestCase):
         func.logtest('Assert correct attributes for ArchivedFiles instance:')
         # Default namelist is AtmosVerify
         self.assertListEqual(self.files.meanref, [1000, 12, 1])
-        self.assertListEqual(self.files.fields, [''])
+        self.assertListEqual(self.files.meanfields, [''])
         self.assertEqual(self.files.tlim, {})
 
     def test_reinit_generator_atmos(self):
@@ -504,34 +504,46 @@ class DiagnosticFilesTests(unittest.TestCase):
                                                   'streams_2d', 'streams_10d',
                                                   'streams_90d']):
             yield_rtn.append(rval)
-        self.assertListEqual(yield_rtn, [(1, 'm', 1, ['m'], 'mean'),
-                                         (2, 's', 1, ['s'], 'mean'),
-                                         (1, 'y', 1, ['y'], 'mean'),
-                                         (90, 'd', 1, ['a'], 'instantaneous')])
+        self.assertListEqual(yield_rtn,
+                             [('m', 'm', ['m'], 'mean'),
+                              ('2s', '2s', ['s'], 'mean'),
+                              ('y', 'y', ['y'], 'mean'),
+                              ('90d', '90d', ['a'], 'instantaneous')])
 
     def test_reinit_generator_nemo(self):
         ''' Test performance of the reinit periods generator - nemo '''
         func.logtest('Test performance of the reinit periods generator:')
         yield_rtn = []
-        for rval in self.files.gen_reinit_period(['m', '2s', 'y']):
+        self.files.naml.meanstreams = ['1m', '1s', '1y']
+        self.files.naml.streams_1d = 'grid-T'
+        self.files.naml.streams_6h_1m = ['OtherFld1', 'OtherFld2']
+        for rval in self.files.gen_reinit_period(['streams_6h_1m', 'streams_1d',
+                                                  '1m', '2s', 'y']):
             yield_rtn.append(rval)
+
         self.assertListEqual(yield_rtn,
-                             [(1, 'm', 1, self.files.naml.fields, 'mean'),
-                              (2, 's', 1, self.files.naml.fields, 'mean'),
-                              (1, 'y', 1, self.files.naml.fields, 'mean')])
-        self.assertListEqual(self.files.naml.fields,
-                             verify_namelist.NemoVerify().fields)
+                             [('6h', '1m', ['OtherFld1', 'OtherFld2'],
+                               'instantaneous'),
+                              ('1d', '1d', ['grid-T'], 'instantaneous'),
+                              ('1m', '1m', self.files.naml.meanfields, 'mean'),
+                              ('2s', '2s', self.files.naml.meanfields, 'mean'),
+                              ('y', 'y', self.files.naml.meanfields, 'mean')])
+        self.assertListEqual(self.files.naml.meanfields,
+                             verify_namelist.NemoVerify().meanfields)
 
     def test_reinit_generator_cice(self):
         ''' Test performance of the reinit periods generator - nemo '''
         func.logtest('Test performance of the reinit periods generator:')
         yield_rtn = []
-        for rval in self.files.gen_reinit_period(['m', '2s', 'y']):
+        self.files.naml.streams_1d_1m = True
+        for rval in self.files.gen_reinit_period(['streams_1d_1m',
+                                                  'm', 's', 'y']):
             yield_rtn.append(rval)
         self.assertListEqual(yield_rtn,
-                             [(1, 'm', 1, [''], 'mean'),
-                              (2, 's', 1, [''], 'mean'),
-                              (1, 'y', 1, [''], 'mean')])
+                             [('1d', '1m', [''], 'instantaneous'),
+                              ('m', 'm', [''], 'mean'),
+                              ('s', 's', [''], 'mean'),
+                              ('y', 'y', [''], 'mean')])
 
     def test_get_period_startdate(self):
         ''' Assert return of adjusted startdate for a given period '''
@@ -626,13 +638,13 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.files.naml.iberg_traj_tstamp = 'Timestep'
         ibergs = self.files.iceberg_trajectory()
         outlist = ['PREFIXo_trajectory_icebergs_000720.nc',
-                   'PREFIXo_trajectory_icebergs_001440.nc', # To 19950901
+                   'PREFIXo_trajectory_icebergs_001440.nc',  # To 19950901
                    'PREFIXo_trajectory_icebergs_002160.nc',
                    'PREFIXo_trajectory_icebergs_002880.nc',
-                   'PREFIXo_trajectory_icebergs_003600.nc', # To 19951001
+                   'PREFIXo_trajectory_icebergs_003600.nc',  # To 19951001
                    'PREFIXo_trajectory_icebergs_004320.nc',
                    'PREFIXo_trajectory_icebergs_005040.nc',
-                   'PREFIXo_trajectory_icebergs_005760.nc'] # To 19951101
+                   'PREFIXo_trajectory_icebergs_005760.nc']  # To 19951101
         self.assertEqual(ibergs, {'oni.nc.file': outlist})
 
     def test_nemo_iberg_traj_30days(self):
@@ -645,8 +657,8 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.files.naml.iberg_traj_freq = '30d'
         self.files.naml.iberg_traj_ts_per_day = 100
         ibergs = self.files.iceberg_trajectory()
-        outlist = ['PREFIXo_trajectory_icebergs_003000.nc', # To 19950911
-                   'PREFIXo_trajectory_icebergs_006000.nc'] # To 19951011
+        outlist = ['PREFIXo_trajectory_icebergs_003000.nc',  # To 19950911
+                   'PREFIXo_trajectory_icebergs_006000.nc']  # To 19951011
         self.assertEqual(ibergs, {'oni.nc.file': outlist})
 
     def test_nemo_iberg_traj_cal_fail(self):
@@ -812,7 +824,9 @@ class DiagnosticFilesTests(unittest.TestCase):
                             r'[a-zA-Z0-9\-]*\.nc$']
             }
         expected = self.files.expected_diags()
+        print expected.keys()
         for key in outfiles:
+            print 'Checking', key
             self.assertListEqual(expected[key][:2], outfiles[key][:2])
             self.assertListEqual(expected[key][-2:], outfiles[key][-2:])
         self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
@@ -841,20 +855,42 @@ class DiagnosticFilesTests(unittest.TestCase):
     def test_expected_nemo(self):
         ''' Assert correct list of expected nemo files'''
         func.logtest('Assert correct return of expected nemo files:')
-        self.files.fields = ['grid-W', 'diad-T']
+        self.files.meanfields = ['grid-W', 'diad-T']
+        self.files.naml.streams_1d_10d = 'UK-shelf-V'
+        self.files.naml.streams_1m = 'UK-shelf'
         self.files.edate = [1996, 1, 1]
         outfiles = {
-            'onm.nc.file': ['nemo_prefixo_1m_19950901-19951001_grid-W.nc',
+            'ond.nc.file': ['nemo_prefixo_1d_19950811-19950821_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19950821-19950901_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19950901-19950911_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19950911-19950921_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19950921-19951001_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19951001-19951011_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19951011-19951021_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19951021-19951101_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19951101-19951111_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19951111-19951121_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19951121-19951201_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19951201-19951211_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19951211-19951221_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19951221-19960101_UK-shelf-V.nc'],
+            'onm.nc.file': ['nemo_prefixo_1m_19950901-19951001_UK-shelf.nc',
+                            'nemo_prefixo_1m_19951001-19951101_UK-shelf.nc',
+                            'nemo_prefixo_1m_19951101-19951201_UK-shelf.nc',
+                            'nemo_prefixo_1m_19951201-19960101_UK-shelf.nc',
+                            'nemo_prefixo_1m_19950901-19951001_grid-W.nc',
                             'medusa_prefixo_1m_19950901-19951001_diad-T.nc',
                             'nemo_prefixo_1m_19951001-19951101_grid-W.nc',
                             'medusa_prefixo_1m_19951001-19951101_diad-T.nc',
                             'nemo_prefixo_1m_19951101-19951201_grid-W.nc',
                             'medusa_prefixo_1m_19951101-19951201_diad-T.nc',
                             'nemo_prefixo_1m_19951201-19960101_grid-W.nc',
-                            'medusa_prefixo_1m_19951201-19960101_diad-T.nc'],
+                            'medusa_prefixo_1m_19951201-19960101_diad-T.nc',
+                           ],
             'ons.nc.file': ['nemo_prefixo_1s_19950901-19951201_grid-W.nc',
                             'medusa_prefixo_1s_19950901-19951201_diad-T.nc']
             }
+
         expected = self.files.expected_diags()
         self.assertListEqual(expected['onm.nc.file'],
                              outfiles['onm.nc.file'][:-2])
@@ -871,7 +907,7 @@ class DiagnosticFilesTests(unittest.TestCase):
         ''' Assert correct list of expected nemo files - topmean = 1s'''
         func.logtest('Assert correct return of expected nemo files - top=1s:')
         self.files.naml.meanstreams = '1s'
-        self.files.fields = ['grid-W', 'diad-T']
+        self.files.meanfields = ['grid-W', 'diad-T']
         self.files.edate = [1996, 3, 1]
         outfiles = {
             'ons.nc.file': ['nemo_prefixo_1s_19950901-19951201_grid-W.nc',
@@ -879,22 +915,22 @@ class DiagnosticFilesTests(unittest.TestCase):
                             'nemo_prefixo_1s_19951201-19960301_grid-W.nc',
                             'medusa_prefixo_1s_19951201-19960301_diad-T.nc']
             }
+
         expected = self.files.expected_diags()
         self.assertListEqual(expected['ons.nc.file'], outfiles['ons.nc.file'])
 
         self.files.finalcycle = True
         expected = self.files.expected_diags()
-        for key in outfiles:
-            self.assertListEqual(expected[key], outfiles[key])
-
-        self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
+        self.assertListEqual(expected['ons.nc.file'], outfiles['ons.nc.file'])
 
     def test_expected_nemo_buffer(self):
         ''' Assert correct list of expected nemo files - buffered'''
         func.logtest('Assert correct return of expected nemo files buffer=2:')
         self.files.naml.meanstreams = '1m'
-        self.files.fields = ['grid-W', 'diad-T']
+        self.files.meanfields = ['grid-W', 'diad-T']
         self.files.edate = [1996, 2, 1]
+        # Default base_mean=10d
+        self.files.naml.buffer_mean = 4
         outfiles = {
             'onm.nc.file': ['nemo_prefixo_1m_19950901-19951001_grid-W.nc',
                             'medusa_prefixo_1m_19950901-19951001_diad-T.nc',
@@ -907,16 +943,14 @@ class DiagnosticFilesTests(unittest.TestCase):
                             'nemo_prefixo_1m_19960101-19960201_grid-W.nc',
                             'medusa_prefixo_1m_19960101-19960201_diad-T.nc']
             }
-        # Default base_mean=10d
-        self.files.naml.buffer_mean = 4
+
         expected = self.files.expected_diags()
-        for key in outfiles:
-            self.assertListEqual(expected[key], outfiles[key][:-4])
+        self.assertListEqual(expected['onm.nc.file'],
+                             outfiles['onm.nc.file'][:-4])
 
         self.files.finalcycle = True
         expected = self.files.expected_diags()
-        for key in outfiles:
-            self.assertListEqual(expected[key], outfiles[key])
+        self.assertListEqual(expected['onm.nc.file'], outfiles['onm.nc.file'])
 
     def test_expected_cice_final(self):
         ''' Assert correct list of expected cice files'''
@@ -929,7 +963,7 @@ class DiagnosticFilesTests(unittest.TestCase):
                             'cice_prefixi_1s_19980301-19980601.nc',
                             'cice_prefixi_1s_19980601-19980901.nc'],
             'iny.nc.file': ['cice_prefixi_1y_19951201-19961201.nc',
-                            'cice_prefixi_1y_19961201-19971201.nc',],
+                            'cice_prefixi_1y_19961201-19971201.nc'],
             }
         expected = self.files.expected_diags()
         for key in outfiles:
@@ -937,11 +971,10 @@ class DiagnosticFilesTests(unittest.TestCase):
             self.assertListEqual(expected[key][-2:], outfiles[key][-2:])
         self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
 
-
     def test_expected_cice_concat_means(self):
         ''' Assert correct list of expected cice files - concatenated means'''
         func.logtest('Assert correct return of expected cice concat means:')
-        self.files.naml.meanstreams = ['1d_30']
+        self.files.naml.meanstreams = ['1d_1m']
         self.files.sdate = [1995, 9, 1]
         self.files.finalcycle = True
         outfiles = {
@@ -951,6 +984,46 @@ class DiagnosticFilesTests(unittest.TestCase):
                             'cice_prefixi_1d_19981001-19981101.nc'],
             }
         expected = self.files.expected_diags()
+        for key in outfiles:
+            self.assertListEqual(expected[key][:2], outfiles[key][:2])
+            self.assertListEqual(expected[key][-2:], outfiles[key][-2:])
+        self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
+
+    def test_expected_nemo_concat_6h_1m(self):
+        ''' Assert correct list of expected concatenated files - hours -> 1m'''
+        func.logtest('Assert correct return of expected concatenated files:')
+        self.files.naml.meanstreams = None
+        self.files.naml.streams_6h_1m = 'UK-shelf-T'
+        self.files.sdate = [1995, 8, 21]
+        self.files.finalcycle = True
+        outfiles = {
+            'onh.nc.file': ['nemo_prefixo_6h_19950901-19951001_UK-shelf-T.nc',
+                            'nemo_prefixo_6h_19951001-19951101_UK-shelf-T.nc',
+                            'nemo_prefixo_6h_19980901-19981001_UK-shelf-T.nc',
+                            'nemo_prefixo_6h_19981001-19981101_UK-shelf-T.nc'],
+            }
+        expected = self.files.expected_diags()
+
+        for key in outfiles:
+            self.assertListEqual(expected[key][:2], outfiles[key][:2])
+            self.assertListEqual(expected[key][-2:], outfiles[key][-2:])
+        self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
+
+    def test_expected_nemo_concat_6h_1d(self):
+        ''' Assert correct list of expected concatenated files - hours -> 1d'''
+        func.logtest('Assert correct return of expected concatenated files:')
+        self.files.naml.meanstreams = []
+        self.files.naml.streams_6h_1d = 'UK-shelf-T'
+        self.files.sdate = [1995, 9, 11]
+        self.files.finalcycle = True
+        outfiles = {
+            'onh.nc.file': ['nemo_prefixo_6h_19950911-19950912_UK-shelf-T.nc',
+                            'nemo_prefixo_6h_19950912-19950913_UK-shelf-T.nc',
+                            'nemo_prefixo_6h_19981029-19981030_UK-shelf-T.nc',
+                            'nemo_prefixo_6h_19981030-19981101_UK-shelf-T.nc'],
+            }
+        expected = self.files.expected_diags()
+
         for key in outfiles:
             self.assertListEqual(expected[key][:2], outfiles[key][:2])
             self.assertListEqual(expected[key][-2:], outfiles[key][-2:])

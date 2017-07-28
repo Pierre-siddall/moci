@@ -40,7 +40,7 @@ class AtmosVerify(object):
     verify_model = False
     archive_timestamps = 'Seasonal'
     delay_rst_archive = '0d'
-    fields = None
+    meanfields = None
     mean_reference_date = '10001201'
     meanstreams = ['1m', '1s', '1y', '1x']
     streams_90d = None
@@ -68,9 +68,11 @@ class NemoVerify(object):
     base_mean = '10d'
     nemo_icebergs_rst = False
     nemo_ptracer_rst = False
-    fields = ['grid-U', 'grid-V', 'grid-V', 'grid-T']
+    meanfields = ['grid-U', 'grid-T', 'grid-W', 'grid-V']
     mean_reference_date = '10001201'
     meanstreams = ['1m', '1s', '1y']
+    streams_1d_1m = None
+    streams_6h_1m = None
     iberg_traj = False
     iberg_traj_tstamp = 'Timestep'
     iberg_traj_freq = '10d'
@@ -89,9 +91,10 @@ class CiceVerify(object):
     buffer_mean = None
     base_mean = '10d'
     cice_age_rst = False
-    fields = None
+    meanfields = None
     mean_reference_date = '10001201'
     meanstreams = ['1m', '1s', '1y']
+    streams_1d_1m = False
 
 
 NAMELISTS = {'commonverify': PeriodicVerify,

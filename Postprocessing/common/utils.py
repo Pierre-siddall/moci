@@ -187,14 +187,18 @@ def check_directory(datadir):
     return datadir
 
 
-def ensure_list(value, listnone=True):
+def ensure_list(value, listnone=False):
     '''
     Return a list for a given input.
       Optional argument: listnone - True=Return [''] or [None]
-                                    False=Return '' or None
+                                    False=Return []
     '''
-    if not isinstance(value, list) and (listnone or value):
-        value = [value]
+    if value or listnone:
+        if not isinstance(value, (list, tuple)):
+            value = [value]
+    else:
+        value = []
+
     return value
 
 
@@ -354,11 +358,11 @@ def _mod_360day_calendar_date(indate, delta):
     try:
         outdate = [int(x) for x in indate]
     except ValueError:
-        log_msg('add_period_to_date: Invalid date representation: ' + 
+        log_msg('add_period_to_date: Invalid date representation: ' +
                 str(indate), level='FAIL')
     diff_hours = 0
     # multiplier to convert the delta list to a total number of hours
-    multiplier = [360*24, 30*24, 24, 1, 1./60, 1./60/60] 
+    multiplier = [360*24, 30*24, 24, 1, 1./60, 1./60/60]
     for i, val in enumerate(delta):
         diff_hours += multiplier[i] * val
         if len(outdate) <= i:
@@ -390,12 +394,12 @@ def _mod_360day_calendar_date(indate, delta):
     while outdate[1] > 12:
         outdate[1] -= 12
         outdate[0] += 1
-        
+
     return [int(x) for x in outdate]
 
 
 def get_frequency(delta, rtn_delta=False):
-    '''
+    r'''
     Extract the frequency and base period from a delta string in
     the form '\d+\w+'.
 
@@ -418,7 +422,7 @@ def get_frequency(delta, rtn_delta=False):
     except IndexError:
         log_msg('get_frequency - Invalid target provided: ' + delta,
                 level='FAIL')
- 
+
     if rtn_delta:
         # Return delta in the form of an integer list
         rval = [0]*5

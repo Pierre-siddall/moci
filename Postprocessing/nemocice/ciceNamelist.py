@@ -31,7 +31,7 @@ class CiceNamelist:
     archive_restarts = False
     archive_timestamps = '06-01', '12-01'
     buffer_archive = 5
-    means_directory = os.environ['CYLC_TASK_WORK_DIR'] + '/../coupled'
+    work_directory = os.environ['CYLC_TASK_WORK_DIR'] + '/../coupled'
     means_cmd = \
         '/projects/ocean/hadgem3/nco/nco-3.9.5_clean/bin/ncra --64bit -O'
     create_means = False
@@ -44,7 +44,7 @@ class CiceNamelist:
     means_to_archive = None
     archive_set = os.environ['CYLC_SUITE_NAME']
     debug = False
-    compress_means = 'nccopy'
+    compress_netcdf = 'nccopy'
     compression_level = 0
     chunking_arguments = 'time/1,nc/1,ni/288,nj/204'
     correct_time_variables = False

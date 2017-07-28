@@ -30,18 +30,33 @@ class NemoPostProc(mt.ModelTemplate):
     '''
     Methods and properties specific to the NEMO post processing application.
     '''
+    def __init__(self, input_nl='nemocicepp.nl'):
+        super(NemoPostProc, self).__init__(input_nl=input_nl)
+        self.region_fields = self._region_fields
+        self.inst_fields += self.region_fields
+
     @property
-    def _fields(self):
-        'Returns the fieldsfile types to be processed'
+    def _mean_fields(self):
+        ''' Return the means fieldsfile types to be processed '''
+        fields = []
         if self.naml.means_fieldsfiles:
-            fields = self.naml.means_fieldsfiles
-            if not isinstance(fields, list):
-                fields = [fields]
+            fields += utils.ensure_list(self.naml.means_fieldsfiles)
         else:
-            fields = []
             for val in self.model_components.values():
-                fields += val
-        return tuple(sorted(fields))
+                fields += [f for f in val if 'shelf' not in f]
+        return sorted(fields)
+
+    @property
+    def _region_fields(self):
+        ''' Return the fieldsfile types to be converted to regional files '''
+        fields = []
+        if self.naml.extract_region:
+            if isinstance(self.naml.region_fieldsfiles, (str, list)):
+                fields += utils.ensure_list(self.naml.region_fieldsfiles)
+            else:
+                for val in self.model_components.values():
+                    fields += [f for f in val if 'shelf' in f]
+        return fields
 
     @property
     def rsttypes(self):
@@ -57,7 +72,8 @@ class NemoPostProc(mt.ModelTemplate):
         '''Name of model component, to be used as a prefix to archived files '''
         return {
             'nemo': ['grid_T', 'grid_U', 'grid_V',
-                     'grid_W', 'diaptr', 'trnd3d', 'scalar'],
+                     'grid_W', 'diaptr', 'trnd3d', 'scalar',
+                     'UK_shelf_T', 'UK_shelf_U', 'UK_shelf_V'],
             'medusa': ['ptrc_T', 'diad_T']
             }
 
@@ -100,13 +116,23 @@ class NemoPostProc(mt.ModelTemplate):
         return self.naml.ncatted_cmd
 
     @property
-    def archive_types(self):
+    def process_types(self):
         '''
-        Additional archiving methods to call for files
-        other than restarts and means.
-        Returns a list of tuples: (method_name, bool)
+        Return a list of tuples controlling the processing (creation/archive)
+        of files other than restarts and means.
+           (<type str> method_name, <type bool>)
         '''
-        return [('iceberg_trajectory', self.naml.archive_iceberg_trajectory)]
+        return [
+            ('iceberg_trajectory', self.naml.archive_iceberg_trajectory),
+            ('regional_extraction', self.naml.extract_region),
+            ]
+
+    @property
+    def iberg_trajectory_pattern(self):
+        '''
+        Return a regular expression matching iceberg trajecoty restart files
+        '''
+        return r'trajectory_icebergs_\d{6,8}(-\d{8})?'
 
     def rst_set_stencil(self, rsttype):
         '''
@@ -142,9 +168,15 @@ class NemoPostProc(mt.ModelTemplate):
         Override move_to_share() to include modifying the means filename format
         '''
         super(NemoPostProc, self).move_to_share(pattern=pattern)
+        # Modify region field names following filename convention re-naming
+        self.region_fields = [f.replace('_', '-') for f in self.region_fields]
+
         if not pattern:
-            # Standard means - rebuild as required
-            self.rebuild_means()
+            # Standard pattern output - rebuild as required
+            rebuildmeans = list(set(self.additional_means +
+                                    [self.naml.base_component]))
+            self.rebuild_diagnostics(self.mean_fields, bases=rebuildmeans)
+            self.rebuild_diagnostics(self.inst_fields)
 
     @timer.run_timer
     def rebuild_restarts(self):
@@ -154,15 +186,14 @@ class NemoPostProc(mt.ModelTemplate):
             self.rebuild_fileset(self.share, pattern)
 
     @timer.run_timer
-    def rebuild_means(self):
-        '''Rebuild partial means files'''
-        rebuildmeans = self.additional_means + [self.naml.base_component]
+    def rebuild_diagnostics(self, fieldtypes, bases=r'\d+[hdmsyx]{1}'):
+        '''Rebuild partial diagnostic fields files'''
         ncfname = netcdf_filenames.NCFilename('[a-z]*', self.suite.prefix,
                                               self.model_realm)
-        for field in self.fields:
+        for field in fieldtypes:
             ncfname.custom = '_' + field
-            for mean in set(rebuildmeans):
-                ncfname.base = mean
+            for base in utils.ensure_list(bases):
+                ncfname.base = base
                 pattern = self.mean_stencil(ncfname).rstrip('.nc')
                 self.rebuild_fileset(self.share, pattern, rebuildall=True)
 
@@ -354,10 +385,10 @@ class NemoPostProc(mt.ModelTemplate):
         return icode
 
     @timer.run_timer
-    def archive_iceberg_trajectory(self):
-        '''Rebuild and archive iceberg trajectory (diagnostic) files'''
-        fn_stub = r'trajectory_icebergs_\d{6,8}(-\d{8})?'
-        # Move to share if necessary
+    def create_iceberg_trajectory(self):
+        ''' Rebuild iceberg trajectory (diagnostic) files '''
+        fn_stub = self.iberg_trajectory_pattern
+         # Move to share if necessary
         if self.work != self.share:
             self.move_to_share(pattern=fn_stub + self.rebuild_suffix['REGEX'])
 
@@ -388,23 +419,85 @@ class NemoPostProc(mt.ModelTemplate):
                 utils.log_msg(msg + corename, level='INFO')
                 utils.remove_files(bldset, path=self.share)
 
-        # Archive and delete from local disk
-        arch_files = self.archive_files(
-            utils.get_subset(self.share,
-                             r'^{}o_{}.nc$'.format(self.prefix, fn_stub))
-            )
-        if arch_files:
-            del_files = [fn for fn in arch_files if arch_files[fn] != 'FAILED']
-            if del_files:
-                msg = 'iceberg_trajectory: Deleting archived files: \n\t'
-                utils.log_msg(msg + '\n\t'.join(del_files))
-                if utils.get_debugmode():
-                    # Append "ARCHIVED" suffix to files, rather than deleting
-                    for fname in del_files:
-                        fname = os.path.join(self.share, fname)
-                        os.rename(fname, fname + '_ARCHIVED')
+    @timer.run_timer
+    def archive_iceberg_trajectory(self):
+        ''' Archive iceberg trajectory (diagnostic) files '''
+        arch_rtn = self.archive_files(utils.get_subset(
+            self.share,
+            r'^{}o_{}\.nc$'.format(self.prefix,
+                                   self.iberg_trajectory_pattern)
+            ))
+
+        self.clean_archived_files(arch_rtn, 'iceberg_trajectory')
+
+    @timer.run_timer
+    def create_regional_extraction(self):
+        ''' Extract a region from global netCDF files '''
+        utils.create_dir(self.diagsdir)
+
+        ncfname = netcdf_filenames.NCFilename('[a-z]*', self.suite.prefix,
+                                              self.model_realm)
+
+        for field in self.region_fields:
+            ncfname.custom = '_' + field
+            pattern = self.mean_stencil(ncfname)
+            for filename in utils.get_subset(self.share, pattern):
+                try:
+                    xdim, xmin, xmax, ydim, ymin, ymax = \
+                        self.naml.region_dimensions
+                    xdim = xdim.replace('%G', field[-1])
+                    ydim = ydim.replace('%G', field[-1])
+                except ValueError:
+                    msg = 'Unable to determine x-y dimensions from &nemo' + \
+                        'postproc/regional_dimensions: '
+                    utils.log_msg(msg + str(self.naml.region_dimensions),
+                                  level='ERROR')
+                    continue
+
+                rcode = 0
+                # Check whether this is already an extracted region
+                full_fn = os.path.join(self.share, filename)
+                output = self.suite.preprocess_file('ncdump', full_fn, h='')
+                output = [l.strip(';').strip() for l in output.split('\n')]
+                if '{} = {}'.format(xdim, (xmax - xmin + 1)) in output:
+                    msg = 'This is a regional file. No extraction necessary'
+                    utils.log_msg(msg, level='INFO')
                 else:
-                    utils.remove_files(del_files, path=self.share)
+                    # Use ncks to extract the required region
+                    utils.log_msg('Extracting region from netCDF file...',
+                                  level='INFO')
+                    rcode, output = self.suite.preprocess_file(
+                        'ncks', full_fn, O='', a='',
+                        d_1=','.join([xdim, str(xmin), str(xmax)]),
+                        d_2=','.join([ydim, str(ymin), str(ymax)])
+                        )
+
+                # Compress file if necessary
+                if rcode == 0 and (self.naml.compression_level > 0):
+                    rcode = self.compress_file(
+                        full_fn, self.naml.compress_netcdf,
+                        compression=self.naml.compression_level,
+                        chunking=self.naml.region_chunking_args
+                        )
+
+                # Move file to archive directory
+                if rcode == 0 and field not in self.mean_fields:
+                    utils.move_files(full_fn, self.diagsdir)
+
+    @timer.run_timer
+    def archive_regional_extraction(self):
+        ''' Archive a regional extraction from global netCDF files '''
+        ncfname = netcdf_filenames.NCFilename('[a-z]*', self.suite.prefix,
+                                              self.model_realm)
+
+        for field in self.region_fields:
+            ncfname.custom = '_' + field
+            pattern = '^{}$'.format(self.mean_stencil(ncfname))
+            a_files = utils.get_subset(self.diagsdir, pattern)
+            a_files = utils.add_path(a_files, self.diagsdir)
+            arch_rtn = self.archive_files(a_files)
+
+            self.clean_archived_files(arch_rtn, 'UK Shelf region')
 
 
 INSTANCE = ('nemocicepp.nl', NemoPostProc)
