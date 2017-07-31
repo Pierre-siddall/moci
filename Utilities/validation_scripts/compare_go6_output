@@ -57,6 +57,8 @@ def get_command_line_arguments():
     parser.add_argument('--cice-file2',
                         dest='cice_path2',
                         help='Path to the second CICE restart file')
+    parser.add_argument('--ptrc-file1', dest='ptrc_path1')
+    parser.add_argument('--ptrc-file2', dest='ptrc_path2')
     parser.add_argument('--list-errors',
                         dest='list_errors',
                         action='store_true',
@@ -136,23 +138,68 @@ def main():
     else:
         print 'NEMO restart files not supplied, skipping comparison.'
 
+    #if NEMO passive tracer pathes are input, compare NEMO tracer
+    #restart files
+    error_list_ptrc = []
+    if cmd_args1.ptrc_path1 and cmd_args1.ptrc_path2:
+
+        msg1 = 'Comparing the contents of the NEMO tracer netcdf output '
+        msg1 += 'files:\nfile 1: {f1}\nfile 2: {f2}'
+        msg1 = msg1.format(f1=cmd_args1.ptrc_path1,
+                           f2=cmd_args1.ptrc_path2)
+        print msg1
+        # For GO6 config, we want to ignore the Halo in NEMO restart files
+        error_list_ptrc = compare_utils.compare_cube_list_files(
+            cmd_args1.ptrc_path1,
+            cmd_args1.ptrc_path2,
+            cmd_args1.stop_on_error,
+            True,
+            1,
+            ignore_variables,
+            True)
+    else:
+        print 'NEMO tracer restart files not supplied, skipping comparison.'
+
     # output details of NEMO and CICE errors if the list-errors flag is
     # present and the there are errors to display
     # NOTE: If stop-on-error flag is present, the script aborts immediately
     # when finding an error, so will never get to this bit of code to
     # output the error list.
-    if cmd_args1.list_errors:
-        if len(error_list_nemo) > 0 or len(error_list_cice) > 0:
-            sys.stderr.write('Mismatches found in NEMO and/or CICE files\n')
-            compare_utils.print_cube_errors('CICE', error_list_cice)
-            compare_utils.print_cube_errors('NEMO', error_list_nemo)
+    if len(error_list_nemo) > 0 or len(error_list_ptrc) > 0 or \
+        len(error_list_cice) > 0:
+        sys.stderr.write('Mismatches found in NEMO, tracer and/or CICE files\n')
+        compare_utils.print_cube_errors('CICE', error_list_cice)
+        compare_utils.print_cube_errors('NEMO', error_list_nemo)
+        compare_utils.print_cube_errors('PTRC', error_list_ptrc)
 
     if ret_val_solver != 0 or \
         len(error_list_nemo) > 0 or \
+        len(error_list_ptrc) > 0 or \
         len(error_list_cice) > 0:
+        print 'Mismatches found, outputs do not match!'
+        print 'Summary of mismatches tests:'
+        if ret_val_solver > 0:
+            print " - NEMO solver.stat: FAIL"
+        else:
+            print " - NEMO solver.stat: PASS"
+        if cmd_args1.nemo_path1 and cmd_args1.nemo_path2:
+            if len(error_list_nemo) > 0:
+                print " - NEMO dump cube errors:", len(error_list_nemo)
+            else:
+                print " - NEMO dump: PASS"
+        if cmd_args1.ptrc_path1 and cmd_args1.ptrc_path2:
+            if len(error_list_ptrc) > 0:
+                print " - NEMO tracer dump cube errors:", len(error_list_ptrc)
+            else:
+                print " - NEMO tracer dump: PASS"
+        if cmd_args1.cice_path1 and cmd_args1.cice_path2:
+            if len(error_list_cice) > 0:
+                print " - CICE dump cube errors:", len(error_list_cice)
+            else:
+                print " - CICE dump: PASS"
         exit(1)
     else:
-        print 'NEMO and CICE outputs match!'
+        print 'NEMO, tracer and CICE outputs match!'
 
 if __name__ == '__main__':
     main()
