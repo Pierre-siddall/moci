@@ -1,0 +1,68 @@
+#!/usr/bin/env python2.7
+"""
+Script to launch MOCI Rose stem using cron job.
+"""
+
+import os
+import sys
+import subprocess
+import datetime
+import shutil
+
+def main():
+    """
+    Main function for launching moci rose stem nightly test suite.
+    """
+    test_dir = os.environ['TESTDIR']
+    suite_url = os.environ['SUITE_URL']
+    suite_rev = os.environ['SUITE_REV']
+    suite_name = os.environ['SUITE_NAME']
+    suite_local_dir = os.path.join(test_dir, suite_name)
+    header_msg = os.environ['HEADER_MSG']
+    add_opts = os.environ['ADD_OPTS']
+    stem_group = os.environ['GROUPS']
+    
+    msg1 = '{msg} test suite script {datetime}'
+    msg1 = msg1.format(msg=header_msg,
+                       datetime=str(datetime.datetime.now()))
+    print msg1
+    sys.stdout.flush()
+
+    # remove anything that exists at this location
+    if os.path.exists(suite_local_dir):
+        print 'removing existing item at {0}'.format(suite_local_dir)
+        sys.stdout.flush()
+        if os.path.isdir(suite_local_dir):
+            shutil.rmtree(suite_local_dir)
+        else:
+            os.remove(suite_local_dir)
+
+    #checkout the suite
+    checkout_cmd = 'fcm co {url}@{rev} {local_dir} -q'
+    checkout_cmd = checkout_cmd.format(url=suite_url,
+                                       rev=suite_rev,
+                                       local_dir=suite_local_dir)
+    msg1 = 'Extracting {msg} stem test suite with cmd: {cmd}'
+    msg1 = msg1.format(msg=header_msg,
+                       cmd=checkout_cmd)
+    print msg1
+    sys.stdout.flush()
+    subprocess.call(checkout_cmd,
+                    shell=True)
+
+    os.chdir(suite_local_dir)
+
+    name_str = '--name={0}'.format(suite_name)
+    group_str = '--group={group}'.format(group=stem_group)
+    opts_str = '--new   --no-gcontrol {0}'.format(add_opts)
+    suite_run_cmd = 'rose stem {name} {group} {opts}'
+    suite_run_cmd = suite_run_cmd.format(name=name_str,
+                                         group=group_str,
+                                         opts=opts_str)
+    print 'Launching moci test suite'
+    print 'command: {0}'.format(suite_run_cmd)
+    sys.stdout.flush()
+    subprocess.call(suite_run_cmd, shell=True)
+
+if __name__ == '__main__':
+    main()

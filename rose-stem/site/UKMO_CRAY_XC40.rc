@@ -1,3 +1,18 @@
+    [[LINUX_DESKTOP]]
+        [[[job]]]
+            batch system = background
+        [[[remote]]]
+            host = $(rose host-select {{EXTRACT_HOST}})
+    
+    [[LINUX_SERVER]]
+        [[[job]]]
+            batch system = slurm
+            execution time limit = PT5M
+        [[[directives]]]
+            --ntasks=1
+            --mem=1G
+            --qos=normal            
+    
     [[XC40]]
         [[[job]]]
             batch system = pbs

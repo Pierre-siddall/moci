@@ -105,10 +105,11 @@ export FCM_VERSION={{FCM_VERSION}}
             SOURCE_MOCI_BASE = {{ SOURCE_MOCI_BASE }}
             SOURCE_MOCI_REV = {{ SOURCE_MOCI_REV }}
     [[LINUX]]
-        [[[job]]]
-            batch system = background
-        [[[remote]]]
-            host = $(rose host-select {{EXTRACT_HOST}})
+{% if USE_LINUX_SERVER %}
+        inherit=LINUX_SERVER
+{% else %}
+        inherit=LINUX_DESKTOP
+{% endif %}
 
     [[NEMO_16x32]]
         [[[environment]]]
@@ -452,6 +453,13 @@ rm -rf {{dir1}}
             PP_TESTING_LOG = "python2.7 $CYLC_SUITE_RUN_DIR/app/postproc/bin/process_log.py"
             DATE1 = 19811001
             DATE2 = $(rose date ${CYLC_TASK_NAME:9} --calendar 360day -s P1M -f '%Y%m%d')
+
+{% if USE_LINUX_SERVER %}
+        [[[directives]]]
+            --mem=10G
+            --ntasks=1
+{% endif %}
+
 
     [[PP_COUPLED_DUMMY]]
         inherit = None, POSTPROC
