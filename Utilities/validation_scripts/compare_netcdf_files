@@ -1,0 +1,94 @@
+#!/usr/bin/env python2.7
+#
+#*****************************COPYRIGHT******************************
+#(C) Crown copyright Met Office. All rights reserved.
+# For further details please refer to the file COPYRIGHT.txt
+# which you should have received as part of this distribution.
+#*****************************COPYRIGHT******************************
+
+"""
+Executable script for comparing netcdf files. These can be files for a single 
+time, or for multiple timestamps containing a time coordinate.
+"""
+import argparse
+
+import validate_common
+import compare_utils
+
+def get_cmd_line_arguments():
+	"""
+	Get user input command line arguments.
+	
+	Return values:
+	An object containing the command line arguments
+	"""
+    desc_msg = 'Compare 2 netcdf files.'
+    parser = argparse.ArgumentParser(description=desc_msg)
+    parser.add_argument('--netcdf-file1', dest='netcdf_file1')
+    parser.add_argument('--netcdf-file2', dest='netcdf_file2')
+    parser.add_argument('--diag',
+                        dest='diagnostic',
+                        action='store_true',
+                        help=validate_common.HELP_DIAGNOSTIC_FILE)
+    parser.add_argument('--list-errors',
+                        dest='list_errors',
+                        action='store_true',
+                        help=validate_common.HELP_LIST_ERRORS)
+    parser.add_argument('--stop-on-error',
+                        dest='stop_on_error',
+                        action='store_true',
+                        help=validate_common.HELP_STOP_ON_ERROR)
+    parser.add_argument('--ignore-variables',
+                        dest='ignore_variables',
+                        help=validate_common.HELP_IGNORE_VARIABLES)
+
+
+    return parser.parse_args()
+
+def main():
+	"""
+	Main function for comparing netcdf files
+	"""
+    cmd_args1 = get_cmd_line_arguments()
+    io_manager = validate_common.ValidateIO()
+    save_memory = True
+    ignore_halos=False
+    halo_size=0
+
+    msg1 = 'Comparing the contents of 2 netcdf files:\n'
+    msg1 += 'file 1: {f1}\nfile 2: {f2}'
+    msg1 = msg1.format(f1=cmd_args1.netcdf_file1,
+                       f2=cmd_args1.netcdf_file2)
+    io_manager.write_out(msg1)
+
+    error_list1 = []
+    if cmd_args1.diagnostic:
+        error_list1 = \
+        	compare_utils.compare_netcdf_diagnostic_files(
+        		cmd_args1.netcdf_file1,
+                cmd_args1.netcdf_file2,
+                cmd_args1.stop_on_error,
+                io_manager)
+    else:
+        error_list1 = \
+        	compare_utils.compare_cube_list_files(cmd_args1.netcdf_file1,
+            	                                  cmd_args1.netcdf_file2,
+                	                              cmd_args1.stop_on_error,
+                    	                          ignore_halos,
+                        	                      halo_size,
+                            	                  cmd_args1.ignore_variables,
+                                	              save_memory,
+                                    	          io_manager)
+
+    if error_list1:
+        msg1 = 'Mismatches between netcdf files'
+        io_manager.write_both(msg1, '[ERROR]')
+        if cmd_args1.list_errors:
+            compare_utils.print_cube_errors('', error_list1, io_manager)
+    else:
+        msg1 = 'Netcdf files match!'
+        io_manager.write_both(msg1, '[INFO]')
+
+
+if __name__ == '__main__':
+    main()

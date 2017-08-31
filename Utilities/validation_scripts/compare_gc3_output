@@ -118,29 +118,33 @@ def main():
 
     input_args1 = get_command_line_arguments()
 
+    io_manager = validate_common.ValidateIO()
+
     msg1 = 'comparing contents of atmosphere (UM) norm files:\n'
     msg1 += 'file 1: {0}\nfile 2: {1}\n'
     msg1 = msg1.format(input_args1.atmos_norm1, input_args1.atmos_norm2)
-    print msg1
+    io_manager.write_out(msg1)
 
     atmos_retval = \
         compare_atmos_norms.compare_norm_files(input_args1.atmos_norm1,
                                                input_args1.atmos_norm2,
                                                input_args1.stop_on_error,
-                                               input_args1.list_errors)
+                                               input_args1.list_errors,
+                                               io_manager)
 
     msg1 = 'Comparing the contents of the NEMO solver.stat files:\n'
     msg1 += 'file 1: {f1}\nfile 2: {f2}'
     msg1 = msg1.format(f1=input_args1.nemo_solver_file1,
                        f2=input_args1.nemo_solver_file2)
-    print msg1
+    io_manager.write_out(msg1)
     ret_val_nemo_solver = \
         compare_nemo_solver_stat.compare_solver_stat_files(
             input_args1.nemo_solver_file1,
             input_args1.nemo_solver_file2,
             input_args1.list_errors,
             input_args1.stop_on_error,
-            input_args1.solver_offset2)
+            input_args1.solver_offset2,
+            io_manager)
 
     atmos_dump_code = 0
     if input_args1.atmos_dump1 and input_args1.atmos_dump2:
@@ -148,7 +152,7 @@ def main():
         msg1 += 'file 1: {0}\nfile 2: {1}\n'
         msg1 = msg1.format(input_args1.atmos_dump1,
                            input_args1.atmos_dump2)
-        print msg1
+        io_manager.write_out(msg1)
 
         atmos_dump_code = compare_atmos_dump_files.compare_files(
             input_args1.atmos_dump1,
@@ -163,7 +167,7 @@ def main():
         msg1 += 'file 1: {f1}\nfile 2: {f2}'
         msg1 = msg1.format(f1=input_args1.cice_file1,
                            f2=input_args1.cice_file2)
-        print msg1
+        io_manager.write_out(msg1)
 
         error_list_cice = \
             compare_utils.compare_cube_list_files(input_args1.cice_file1,
@@ -172,14 +176,17 @@ def main():
                                                   False,
                                                   0,
                                                   input_args1.ignore_variables,
-                                                  True)
+                                                  True,
+                                                  io_manager)
 
         # NOTE: If stop-on-error flag is present, the script aborts immediately
         # when finding an error, so will never get to this bit of code to
         # output the error list.
         if input_args1.list_errors and len(error_list_cice) > 0:
             sys.stderr.write('Mismatches found in CICE files\n')
-            compare_utils.print_cube_errors('CICE', error_list_cice)
+            compare_utils.print_cube_errors('CICE',
+                                            error_list_cice,
+                                            io_manager)
 
     error_list_nemo = []
     if input_args1.nemo_file1 and input_args1.nemo_file2:
@@ -187,7 +194,7 @@ def main():
         msg1 += 'file 1: {f1}\nfile 2: {f2}'
         msg1 = msg1.format(f1=input_args1.nemo_file1,
                            f2=input_args1.nemo_file2)
-        print msg1
+        io_manager.write_out(msg1)
         # For GO6 config, we want to ignore the Halo in NEMO restart files
         error_list_nemo = \
             compare_utils.compare_cube_list_files(input_args1.nemo_file1,
@@ -196,13 +203,16 @@ def main():
                                                   True,
                                                   1,
                                                   input_args1.ignore_variables,
-                                                  True)
+                                                  True,
+                                                  io_manager)
         # NOTE: If stop-on-error flag is present, the script aborts immediately
         # when finding an error, so will never get to this bit of code to
         # output the error list.
         if input_args1.list_errors and len(error_list_nemo) > 0:
             sys.stderr.write('Mismatches found in NEMO files\n')
-            compare_utils.print_cube_errors('NEMO', error_list_nemo)
+            compare_utils.print_cube_errors('NEMO',
+                                            error_list_nemo,
+                                            io_manager)
 
     error_list_ptrc = []
     if input_args1.ptrc_file1 and input_args1.ptrc_file2:
@@ -222,7 +232,9 @@ def main():
                                                   True)
         if input_args1.list_errors and len(error_list_ptrc) > 0:
             sys.stderr.write('Mismatches found in NEMO tracer files\n')
-            compare_utils.print_cube_errors('NEMO trc', error_list_ptrc)
+            compare_utils.print_cube_errors('NEMO trc', 
+                                            error_list_ptrc,
+                                            io_manager)
 
     if ret_val_nemo_solver > 0 or \
         atmos_retval != 0 or \
@@ -230,7 +242,7 @@ def main():
         len(error_list_nemo) > 0 or \
         len(error_list_ptrc) > 0 or \
         len(error_list_cice) > 0:
-        print 'Mismatches found, outputs do not match!'
+        io_manager.write_out('Mismatches found, outputs do not match!')
         print 'Summary of mismatches tests:'
         if ret_val_nemo_solver > 0:
             print " - NEMO solver.stat: FAIL"
@@ -262,7 +274,7 @@ def main():
                 print " - CICE dump: PASS"
         exit(1)
     else:
-        print 'All outputs match!'
+        io_manager.write_out('All outputs match!')
 
 if __name__ == '__main__':
     main()

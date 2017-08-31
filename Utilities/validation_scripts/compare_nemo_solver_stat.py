@@ -17,7 +17,6 @@ Compare 2 NEMO solver.stat files
 
 import argparse
 import re
-import sys
 import validate_common
 
 def get_command_line_arguments():
@@ -193,7 +192,8 @@ def compare_solver_stat_files(nemo_solver_file1,
                               nemo_solver_file2,
                               list_errors,
                               stop_on_error,
-                              nemo_solver_file2_offset):
+                              nemo_solver_file2_offset,
+                              io_manager):
     """
     Compare to NEMO solver.stat files, as given by nemo_solver_file1
     and nemo_solver_file2.
@@ -215,6 +215,9 @@ def compare_solver_stat_files(nemo_solver_file1,
     Return value:
     ret_val - 0 if no errors, non-zero if errors found
     """
+    if not io_manager:
+        io_manager = validate_common.ValidateIO()
+
     timestep_list1 = parse_solver_stat_file(nemo_solver_file1, 0)
     timestep_list2 = parse_solver_stat_file(nemo_solver_file2,
                                             nemo_solver_file2_offset)
@@ -229,11 +232,11 @@ def compare_solver_stat_files(nemo_solver_file1,
         error1.file_name2 = nemo_solver_file2
         raise error1
 
-    print '{0:d} matching timesteps found'.format(num_comps)
+    io_manager.write_out('{0:d} matching timesteps found'.format(num_comps))
     intro_msg1 = \
         'comparing norm values in solver.stat files with tolerance {0:g}'
     intro_msg1 = intro_msg1.format(NemoTimestep.COMP_TOLERANCE)
-    print intro_msg1
+    io_manager.write_out(intro_msg1)
 
     ret_val = 0
     if len(mismatches) == 0:
@@ -244,12 +247,12 @@ def compare_solver_stat_files(nemo_solver_file1,
         msg1 += '\n max error b = {0:g}\nmax error r = {1:g}'.format(max_err_b,
                                                                      max_err_r)
         if list_errors:
-            print 'List of timesteps with different solver values:'
+            io_manager.write_out('List of timesteps with different '
+                                 'solver values:')
             for mm1 in mismatches:
-                print 'Timestep {0:d}'.format(mm1)
+                io_manager.write_out('Timestep {0:d}'.format(mm1))
         ret_val = 1
-    print msg1
-    sys.stderr.write(msg1 +'\n')
+    io_manager.write_both(msg1)
 
     return ret_val
 
@@ -259,11 +262,13 @@ def main():
     """
     path1, path2, list_errors, timestep_num_offset = \
         get_command_line_arguments()
+    io_manager = validate_common.ValidateIO()
     exit_code = compare_solver_stat_files(path1,
                                           path2,
                                           list_errors,
                                           False,
-                                          timestep_num_offset)
+                                          timestep_num_offset,
+                                          io_manager)
     exit(exit_code)
 
 if __name__ == '__main__':

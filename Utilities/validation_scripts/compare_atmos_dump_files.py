@@ -15,7 +15,6 @@
 Compare 2 UM dump files using the MULE API and the CUMF UM util based on MULE.
 """
 import sys
-import textwrap
 import argparse
 
 import mule
@@ -28,31 +27,12 @@ import validate_common
 # more info
 NRUN_NRUN_IGNORE_INDICES = range(1, 13) + [29]
 
-def select_valid_lbrel(input_path, output_path):
-    """
-    Preprocessing step to remove any invalid fields that MULE cannot cope
-    with.
-    """
-    raw_file = mule.UMFile.from_file(input_path)
-    original_number_of_fields = len(raw_file.fields)
-    valid_fields = [field1 for field1 in raw_file.fields if field1.lbrel > 0]
-    number_of_valid_fields = len(valid_fields)
-    raw_file.fields = valid_fields
-
-    raw_file.to_file(output_path)
-
-    message1 = 'select {0} valid fields from {1} fields in {2} '\
-               'and wrote to new file {3}'.format(number_of_valid_fields,
-                                                  original_number_of_fields,
-                                                  input_path,
-                                                  output_path)
-    print '\n'.join(textwrap.wrap(message1))
-
 def compare_files(fields_file_path_1,
                   fields_file_path_2,
                   stop_on_error,
                   list_errors,
-                  instant_fields_only):
+                  instant_fields_only,
+                  io_manager=None):
     """
     Main function to compare 2 UM dump files.
 
@@ -68,14 +48,19 @@ def compare_files(fields_file_path_1,
                   and not output a list of errors.
     instant_fields_only - If true any non-instantaneous fields are ignored
                           when comparing fields in dump files.
-
-
-
+    io_manager - an IO wrapper, which ensures output is sent to the correct
+                 output destination. This is usually stdout/stderr, but
+                 but for rose_ana tasks, goes through the rose_ana reporter
+                 mechanism.
+    
     Return values:
     status code - 0 if the 2 files match.
     """
     fields_file_1 = mule.load_umfile(fields_file_path_1)
     fields_file_2 = mule.load_umfile(fields_file_path_2)
+
+    if not io_manager:
+        io_manager = validate_common.ValidateIO()
 
     if instant_fields_only:
         #filter contents of the dump to only include instantaeous fields
@@ -91,7 +76,8 @@ def compare_files(fields_file_path_1,
     um_utils.cumf.COMPARISON_SETTINGS['ignore_missing'] = True
 
 
-    print 'Comparing UM restart files using default mule / CUMF comparison'
+    io_manager.write_out('Comparing UM restart files using default '
+                         'mule / CUMF comparison')
     comparison12 = um_utils.cumf.UMFileComparison(fields_file_1,
                                                   fields_file_2)
 
@@ -118,8 +104,7 @@ def compare_files(fields_file_path_1,
     else:
         msg = 'All {0} fields match!\n'.format(number_of_fields)
 
-    sys.stderr.write(msg + '\n')
-    print msg
+    io_manager.write_both(msg)
 
     return status_code
 
@@ -137,7 +122,8 @@ def get_command_line_arguments():
 
 def main():
     """Main function for compare_atmos_dump_files.py."""
-    print 'comparing data in dump files\n'
+    io_manager = validate_common.ValidateIO()
+    io_manager.write_out('comparing data in dump files\n')
     input_path1, input_path2 = get_command_line_arguments()
     status_code = compare_files(fields_file_path_1=input_path1,
                                 fields_file_path_2=input_path2,

@@ -12,7 +12,6 @@
  NAME
    compare_ga7_output
 """
-import sys
 import argparse
 
 import compare_atmos_norms
@@ -56,22 +55,29 @@ def main():
     """Main function for comapre_ga7_output script"""
     cmd_args1 = get_command_line_arguments()
 
-    print 'comparing norm files {0} and {1}'.format(cmd_args1.norm_path1,
-                                                    cmd_args1.norm_path2)
+    io_manager = validate_common.ValidateIO()
+
+    msg1 = 'comparing norm files {0} and {1}'.format(cmd_args1.norm_path1,
+                                                     cmd_args1.norm_path2)
+    io_manager.write_out(msg1)
     norm_ret_code = \
         compare_atmos_norms.compare_norm_files(cmd_args1.norm_path1,
                                                cmd_args1.norm_path2,
                                                cmd_args1.stop_on_error,
-                                               cmd_args1.list_errors)
+                                               cmd_args1.list_errors,
+                                               io_manager)
 
-    print 'comparing dump files {0} and {1}'.format(cmd_args1.dump_path1,
-                                                    cmd_args1.dump_path2)
+    msg1 = 'comparing dump files {0} and {1}'.format(cmd_args1.dump_path1,
+                                                     cmd_args1.dump_path2)
+    io_manager.write_out(msg1)
+
     dump_ret_code = \
         compare_atmos_dump_files.compare_files(cmd_args1.dump_path1,
                                                cmd_args1.dump_path2,
                                                cmd_args1.stop_on_error,
                                                cmd_args1.list_errors,
-                                               cmd_args1.instant_fields_only)
+                                               cmd_args1.instant_fields_only,
+                                               io_manager)
     exit_code = 0
     if norm_ret_code != 0  or dump_ret_code != 0:
         msg1 = 'GA7 outputs do not match!'
@@ -79,8 +85,7 @@ def main():
     else:
         msg1 = 'GA7 outputs match!'
 
-    print msg1
-    sys.stderr.write(msg1 + '\n')
+    io_manager.write_both(msg1)
     exit(exit_code)
 
 

@@ -11,6 +11,8 @@ Created on 3 March 2017
 
 Common validation-related error classes derived from Exception.
 """
+import sys
+
 HELP_STOP_ON_ERROR = '''If present, the script will stop on encounter an error.
 Otherwise, the script will perform all comparisons and output the result at
 the end'''
@@ -31,8 +33,41 @@ This typically happens when comparing NRUN and CRUN outputs. If for example
 P19780902T1200Z is timestep 720 in job 1 and timestep 360 in job 2, then an
 offset of 360 should be specified.'''
 
-HELP_IGNORE_VARIABLES = '''A list of variables to be ignored when comparing NEMO
+HELP_IGNORE_VARIABLES = \
+'''A list of variables to be ignored when comparing NEMO
 and CICE restart files.'''
+
+HELP_DIAGNOSTIC_FILE = '''If present, then the command line arguments should be
+treated as diagnostic files.'''
+
+class ValidateIO(object):
+    """
+    Wrapper class for output functionality. The main reason for wrapping this
+    basic functionality is so that comparison functions don't need to know
+    how they're called (command line or rose_ana) and thus how they need to
+    write logging information. The wrapper class provides a consistent
+    interface, and different IO methods are handled by passing different
+    objects to the comparison functions.
+    """
+    def write_out(self, msg):
+        """
+        Write message to stdout.
+        """
+        sys.stdout.write(msg + '\n')
+
+    def write_error(self, msg):
+        """
+        Write message to stderr.
+        """
+        sys.stderr.write(msg + '\n')
+
+    def write_both(self, msg):
+        """
+        Write message to both stdout and stderr.
+        """
+        sys.stdout.write(msg + '\n')
+        sys.stderr.write(msg + '\n')
+
 
 class MissingArgumentError(Exception):
     """

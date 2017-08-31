@@ -24,7 +24,6 @@ norms for periods that overlap and ignores timesteps that do not overlap.
 """
 
 import re
-import sys
 import itertools
 import argparse
 import validate_common
@@ -314,8 +313,12 @@ def compare_timestep_norms(ts_list1, ts_list2):
     equal timestamps and unequal norms
 
     misMatches = compare_timestep_norms(ts_list1, ts_list2)
+    
+    Inputs:
     ts_list1: A list of Timestep objects
     tsList2: A list of Timestep objects
+    
+    Return values:
     misMatches: a list of Tuples containing 2 integers, which refer to a
                 Timestep in the first and second input arguments that have
                 equal timestamps and unequal norms
@@ -348,7 +351,8 @@ def compare_timestep_norms(ts_list1, ts_list2):
 def compare_norm_files(filename1,
                        filename2,
                        stop_on_error,
-                       list_errors):
+                       list_errors,
+                       io_manager):
     """
     Main function for comparing the norms for each matching timestep in
     2 UM PE output files"
@@ -358,14 +362,22 @@ def compare_norm_files(filename1,
     Inputs
     filename1: Path to the first output file
     filename2: Path to the first output file
+    stop_on_error: If true, comparison will stop the first time an error is encountered.
+    list_errors:  If true, a detailed list of all errors will be output.
+    io_manager: A wrapper for log output operations, to accomodate rose_ana tasks.
     """
+    if not io_manager:
+        io_manager = validate_common.ValidateIO()
     timestep_list1 = extract_norms(filename1)
     timestep_list2 = extract_norms(filename2)
 
-    print '{0} time steps found in input 1'.format(len(timestep_list1))
-    print '{0} time steps found in input 2'.format(len(timestep_list2))
+    msg1 = '{0} time steps found in input 1'.format(len(timestep_list1))
+    io_manager.write_out(msg1)
+    msg2 = '{0} time steps found in input 2'.format(len(timestep_list2))
+    io_manager.write_out(msg2)
 
-    print 'comparing UM norms with tolerance {0:g}'.format(Norm.TOLERANCE)
+    io_manager.write_out('comparing UM norms with tolerance '
+                         '{0:g}'.format(Norm.TOLERANCE))
     (mismatches,
      num_comps,
      max_error,
@@ -402,8 +414,8 @@ def compare_norm_files(filename1,
     else:
         msg1 = 'All {0} matching timesteps have equal norms.'.format(num_comps)
 
-    print msg1
-    sys.stderr.write(msg1)
+    io_manager.write_both(msg1)
+
     # if we reach here, all matching timesteps  have equal norms
     # so the match is a success
     return return_value
@@ -413,12 +425,13 @@ def main():
     Main function for com_norms.py script.
     """
     input_args = get_command_line_arguments()
+    input_args.io_manager = validate_common.ValidateIO()
 
     msg1 = 'comparing contents of atmosphere (UM) norm files:\n'
     msg1 += 'file 1: {0}\nfile 2: {1}\n'
     msg1 = msg1.format(input_args.filename1,
                        input_args.filename2)
-    print msg1
+    input_args.io_manager.write_out(msg1)
 
     exit_code = compare_norm_files(**input_args.__dict__)
     if exit_code != 0:

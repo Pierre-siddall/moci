@@ -20,7 +20,6 @@
    * CICE restart files
 """
 import argparse
-import sys
 
 import compare_nemo_solver_stat
 import compare_utils
@@ -80,6 +79,8 @@ def main():
     """
     cmd_args1 = get_command_line_arguments()
 
+    io_manager = validate_common.ValidateIO()
+
     ignore_variables = [iv1 for iv1 in cmd_args1.ignore_variables.split(',')
                         if len(iv1) > 0]
 
@@ -88,14 +89,15 @@ def main():
     msg1 += 'file 1: {f1}\nfile 2: {f2}'
     msg1 = msg1.format(f1=cmd_args1.solver_path1,
                        f2=cmd_args1.solver_path2)
-    print msg1
+    io_manager.write_out(msg1)
     ret_val_solver = \
         compare_nemo_solver_stat.compare_solver_stat_files(
             cmd_args1.solver_path1,
             cmd_args1.solver_path2,
             cmd_args1.list_errors,
             cmd_args1.stop_on_error,
-            cmd_args1.solver_offset2)
+            cmd_args1.solver_offset2,
+            io_manager)
 
     #if CICE pathes are input, compare CICE restart files
     error_list_cice = []
@@ -104,7 +106,7 @@ def main():
         msg1 += 'file 1: {f1}\nfile 2: {f2}'
         msg1 = msg1.format(f1=cmd_args1.cice_path1,
                            f2=cmd_args1.cice_path2)
-        print msg1
+        io_manager.write_out(msg1)
 
         error_list_cice = compare_utils.compare_cube_list_files(
             cmd_args1.cice_path1,
@@ -113,9 +115,11 @@ def main():
             False,
             0,
             ignore_variables,
-            True)
+            True,
+            io_manager)
     else:
-        print 'CICE restart files not supplied, skipping comparison.'
+        io_manager.write_out('CICE restart files not supplied, '
+                             'skipping comparison.')
 
     #if NEMO pathes are input, compare NEMO restart files
     error_list_nemo = []
@@ -125,7 +129,7 @@ def main():
         msg1 += 'file 1: {f1}\nfile 2: {f2}'
         msg1 = msg1.format(f1=cmd_args1.nemo_path1,
                            f2=cmd_args1.nemo_path2)
-        print msg1
+        io_manager.write_out(msg1)
         # For GO6 config, we want to ignore the Halo in NEMO restart files
         error_list_nemo = compare_utils.compare_cube_list_files(
             cmd_args1.nemo_path1,
@@ -134,9 +138,11 @@ def main():
             True,
             1,
             ignore_variables,
-            True)
+            True,
+            io_manager)
     else:
-        print 'NEMO restart files not supplied, skipping comparison.'
+        io_manager.write_out('NEMO restart files not supplied, '
+                             'skipping comparison.')
 
     #if NEMO passive tracer pathes are input, compare NEMO tracer
     #restart files
@@ -147,7 +153,8 @@ def main():
         msg1 += 'files:\nfile 1: {f1}\nfile 2: {f2}'
         msg1 = msg1.format(f1=cmd_args1.ptrc_path1,
                            f2=cmd_args1.ptrc_path2)
-        print msg1
+        io_manager.write_out(msg1)
+
         # For GO6 config, we want to ignore the Halo in NEMO restart files
         error_list_ptrc = compare_utils.compare_cube_list_files(
             cmd_args1.ptrc_path1,
@@ -158,7 +165,8 @@ def main():
             ignore_variables,
             True)
     else:
-        print 'NEMO tracer restart files not supplied, skipping comparison.'
+        io_manager.write_out('NEMO tracer restart files not supplied, '
+                             'skipping comparison.')
 
     # output details of NEMO and CICE errors if the list-errors flag is
     # present and the there are errors to display
@@ -167,39 +175,46 @@ def main():
     # output the error list.
     if len(error_list_nemo) > 0 or len(error_list_ptrc) > 0 or \
         len(error_list_cice) > 0:
-        sys.stderr.write('Mismatches found in NEMO, tracer and/or CICE files\n')
-        compare_utils.print_cube_errors('CICE', error_list_cice)
-        compare_utils.print_cube_errors('NEMO', error_list_nemo)
-        compare_utils.print_cube_errors('PTRC', error_list_ptrc)
+        io_manager.write_error('Mismatches found in NEMO, tracer and/or '
+                               'CICE files\n')
+        compare_utils.print_cube_errors('CICE', error_list_cice, io_manager)
+        compare_utils.print_cube_errors('NEMO', error_list_nemo, io_manager)
+        compare_utils.print_cube_errors('PTRC', error_list_ptrc, io_manager)
 
     if ret_val_solver != 0 or \
         len(error_list_nemo) > 0 or \
         len(error_list_ptrc) > 0 or \
         len(error_list_cice) > 0:
-        print 'Mismatches found, outputs do not match!'
-        print 'Summary of mismatches tests:'
+        io_manager.write_out('Mismatches found, outputs do not match!')
+        io_manager.write_error('Summary of mismatches tests:')
         if ret_val_solver > 0:
-            print " - NEMO solver.stat: FAIL"
+            io_manager.write_out(' - NEMO solver.stat: FAIL')
         else:
-            print " - NEMO solver.stat: PASS"
+            io_manager.write_out(' - NEMO solver.stat: PASS')
         if cmd_args1.nemo_path1 and cmd_args1.nemo_path2:
             if len(error_list_nemo) > 0:
-                print " - NEMO dump cube errors:", len(error_list_nemo)
+                msg1 = ' - NEMO dump cube errors: {0}'
+                msg1 = msg1.format(len(error_list_nemo))
+                io_manager.write_out(msg1)
             else:
-                print " - NEMO dump: PASS"
+                io_manager.write_error(' - NEMO dump: PASS')
         if cmd_args1.ptrc_path1 and cmd_args1.ptrc_path2:
             if len(error_list_ptrc) > 0:
-                print " - NEMO tracer dump cube errors:", len(error_list_ptrc)
+                msg1 = ' - NEMO tracer dump cube errors: {0}'
+                msg1 = msg1.format(len(error_list_ptrc))
+                io_manager.write_out(msg1)
             else:
-                print " - NEMO tracer dump: PASS"
+                io_manager.write_out(' - NEMO tracer dump: PASS')
         if cmd_args1.cice_path1 and cmd_args1.cice_path2:
             if len(error_list_cice) > 0:
-                print " - CICE dump cube errors:", len(error_list_cice)
+                msg1 = ' - CICE dump cube errors: {0}'
+                msg1 = msg1.format(len(error_list_cice))
+                io_manager.write_out(msg1)
             else:
-                print " - CICE dump: PASS"
+                io_manager.write_out(' - CICE dump: PASS')
         exit(1)
     else:
-        print 'NEMO, tracer and CICE outputs match!'
+        io_manager.write_out('NEMO, tracer and CICE outputs match!')
 
 if __name__ == '__main__':
     main()
