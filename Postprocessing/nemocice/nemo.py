@@ -74,7 +74,7 @@ class NemoPostProc(mt.ModelTemplate):
             'nemo': ['grid_T', 'grid_U', 'grid_V',
                      'grid_W', 'diaptr', 'trnd3d', 'scalar',
                      'UK_shelf_T', 'UK_shelf_U', 'UK_shelf_V'],
-            'medusa': ['ptrc_T', 'diad_T']
+            'medusa': ['ptrc_T', 'diad_T', 'ptrd_T']
             }
 
     @property

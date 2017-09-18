@@ -27,7 +27,7 @@ MODEL_COMPONENTS = {
     'nemo': ('o', {'nemo': ['grid-U', 'grid-V', 'grid-W', 'grid-T',
                             'diaptr', 'trnd3d', 'scalar',
                             'UK-shelf-T', 'UK-shelf-U', 'UK-shelf-V'],
-                   'medusa': ['ptrc-T', 'diad-T']}),
+                   'medusa': ['ptrc-T', 'diad-T', 'ptrd-T']}),
     'cice': ('i', {'cice': ''}),
     }
 

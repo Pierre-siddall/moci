@@ -115,7 +115,7 @@ class Propertytests(unittest.TestCase):
         self.assertListEqual(self.nemo.mean_fields,
                              ['diad_T', 'diaptr', 'grid_T',
                               'grid_U', 'grid_V', 'grid_W',
-                              'ptrc_T', 'scalar', 'trnd3d'])
+                              'ptrc_T', 'ptrd_T', 'scalar', 'trnd3d'])
         self.assertEqual(self.nemo.naml.region_fieldsfiles, None)
         self.assertListEqual(self.nemo.inst_fields, [])
 
