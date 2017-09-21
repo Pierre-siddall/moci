@@ -12,59 +12,53 @@
  Met Office, FitzRoy Road, Exeter, Devon, EX1 3PB, United Kingdom
 *****************************COPYRIGHT******************************
 NAME
-    nemoNamelist.py
+    nemo_namelist.py
 
 DESCRIPTION
     Default namelists for NEMO post processing control
 '''
 import os
+import template_namelist
 
 
-class NemoNamelist:
-    '''Default Values for nemopostproc namelist'''
+class TopLevel(template_namelist.TopLevel):
+    ''' Default values for nemo_pp namelist '''
+    process_all_fieldsfiles = True
 
-    def __init__(self):
-        pass
 
-    pp_run = False
-    restart_directory = os.environ['DATAM']
-    msk_rebuild = False
+class Processing(template_namelist.Processing):
+    ''' Default values for nemo_processing namelist '''
+    means_fieldsfiles = None
+
     exec_rebuild = '/projects/ocean/hadgem3/scripts/GC2.0/rebuild_nemo.exe'
     exec_rebuild_icebergs = os.environ['CYLC_SUITE_SHARE_DIR'] + \
         '/fcm_make_pp/build/bin/icb_combrest.py'
     exec_rebuild_iceberg_trajectory = os.environ['CYLC_SUITE_SHARE_DIR'] + \
         '/fcm_make_pp/build/bin/icb_pp.py'
-    rebuild_timestamps = '05-30', '11-30', '06-01', '12-01'
-    buffer_rebuild_rst = 5
-    buffer_rebuild_mean = 1
-    archive_restarts = False
-    archive_timestamps = '05-30', '11-30', '06-01', '12-01'
-    buffer_archive = 0
-    archive_iceberg_trajectory = False
+    msk_rebuild = False
+    rebuild_restart_timestamps = '05-30', '11-30', '06-01', '12-01'
+    rebuild_restart_buffer = None
+    rebuild_mean_buffer = None
+
     means_cmd = '/projects/ocean/hadgem3/scripts/GC2.0/mean_nemo.exe'
-    work_directory = os.environ['CYLC_TASK_WORK_DIR'] + '/../coupled'
-    process_all_fieldsfiles = True
-    means_fieldsfiles = None
     ncatted_cmd = '/projects/ocean/hadgem3/nco/nco-4.4.7/bin/ncatted'
-    create_means = False
-    create_monthly_mean = False
-    create_seasonal_mean = False
-    create_annual_mean = False
-    create_decadal_mean = False
-    base_component = '10d'
-    archive_means = False
-    means_to_archive = None
-    archive_set = os.environ['CYLC_SUITE_NAME']
-    debug = False
-    compress_netcdf = 'nccopy'
-    compression_level = 0
+
     chunking_arguments = 'time_counter/1,y/205,x/289'
-    correct_time_variables = False
-    correct_time_bounds_variables = False
+
     time_vars = 'time_counter', 'time_centered'
+
     extract_region = False
     region_fieldsfiles = None
     region_dimensions = 'x', '1055,1198', 'y', '850,1040'
     region_chunking_args = 'time_counter/1,y/191,x/144'
 
-NAMELISTS = {'nemopostproc': NemoNamelist}
+
+class Archiving(template_namelist.Archiving):
+    ''' Default values for nemo_archiving namelist '''
+
+    archive_iceberg_trajectory = False
+
+
+NAMELISTS = {'nemo_pp': TopLevel,
+             'nemo_processing': Processing,
+             'nemo_archiving': Archiving}

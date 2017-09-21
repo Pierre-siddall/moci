@@ -12,44 +12,31 @@
  Met Office, FitzRoy Road, Exeter, Devon, EX1 3PB, United Kingdom
 *****************************COPYRIGHT******************************
 NAME
-    ciceNamelist.py
+    cice_namelist.py
 
 DESCRIPTION
     Default namelists for CICE post processing control
 '''
-import os
+import template_namelist
 
 
-class CiceNamelist:
-    '''Default Values for cicepostproc namelist'''
+class TopLevel(template_namelist.TopLevel):
+    ''' Default values for cice_pp namelist '''
 
-    def __init__(self):
-        pass
 
-    pp_run = False
-    restart_directory = os.environ['DATAM']
-    archive_restarts = False
-    archive_timestamps = '06-01', '12-01'
-    buffer_archive = 5
-    work_directory = os.environ['CYLC_TASK_WORK_DIR'] + '/../coupled'
+class Processing(template_namelist.Processing):
+    ''' Default values for cice_processing namelist '''
+
     means_cmd = \
         '/projects/ocean/hadgem3/nco/nco-3.9.5_clean/bin/ncra --64bit -O'
-    create_means = False
-    create_monthly_mean = False
-    create_seasonal_mean = False
-    create_annual_mean = False
-    create_decadal_mean = False
-    base_component = '10d'
-    archive_means = False
-    means_to_archive = None
-    archive_set = os.environ['CYLC_SUITE_NAME']
-    debug = False
-    compress_netcdf = 'nccopy'
-    compression_level = 0
     chunking_arguments = 'time/1,nc/1,ni/288,nj/204'
-    correct_time_variables = False
-    correct_time_bounds_variables = False
-    time_vars = 'time'
     cat_daily_means = False
 
-NAMELISTS = {'cicepostproc': CiceNamelist}
+
+class Archiving(template_namelist.Archiving):
+    ''' Default values for cice_archiving namelist '''
+
+
+NAMELISTS = {'cice_pp': TopLevel,
+             'cice_processing': Processing,
+             'cice_archiving': Archiving}

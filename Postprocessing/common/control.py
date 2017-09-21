@@ -69,8 +69,8 @@ class RunPostProc(object):
 
 NL = {}
 
-INPUT_MODS = ['suite', 'atmosNamelist', 'nemoNamelist', 'ciceNamelist', 'moo',
-              'verify_namelist']
+INPUT_MODS = ['suite', 'moo', 'verify_namelist',
+              'atmos_namelist', 'nemo_namelist', 'cice_namelist']
 
 for mod in INPUT_MODS:
     try:

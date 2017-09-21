@@ -25,25 +25,54 @@ import netcdf_filenames
 # Import of modeltemplate requires 'RUNID' from runtime environment
 runtime_environment.setup_env()
 import modeltemplate
+import template_namelist
+
+NLFILE = 'mt_namelist'
+
+def create_namelist():
+    '''
+    Create a namelist file from the template namelist objects.
+    Required because modeltemplate namelists are not called through control
+    so we can't use the ususal nlist.py method create_example_nl().
+    '''
+    namelists = {'modeltemplate_pp' : template_namelist.TopLevel,
+                 'modeltemplate_processing': template_namelist.Processing,
+                 'modeltemplate_archiving': template_namelist.Archiving,
+                 'suitegen': modeltemplate.suite.SuitePostProc,
+                 'moose_arch': modeltemplate.utils.Variables}
+    nl_text = ''
+    for nlist in namelists:
+        nl_text += '\n&' + nlist
+        for attr in [a for a in dir(namelists[nlist])]:
+            if attr.startswith('_'):
+                continue
+            val = getattr(namelists[nlist], attr)
+            if isinstance(val, (tuple, list)):
+                val = ','.join([str(x) for x in val])
+            nl_text += '\n{}={},'.format(attr, str(val))
+        nl_text += '\n/\n'
+
+    with open(NLFILE, 'w') as outfile:
+        outfile.write(nl_text)
 
 
 class StencilTests(unittest.TestCase):
     '''Unit tests relating to the MODEL output filename stencils'''
+
     def setUp(self):
-        with mock.patch('modeltemplate.nlist.loadNamelist') as mock_nl:
-            mock_nl().suitegen.mean_reference_date = [0, 12, 1]
-            mock_nl().modeltemplate.base_component = '10d'
-            mock_nl().modeltemplate.debug = False
-            self.model = modeltemplate.ModelTemplate()
+        with mock.patch('template_namelist.TopLevel.pp_run',
+                        new_callable=mock.PropertyMock, return_value=True):
+            create_namelist()
+            with mock.patch('modeltemplate.ModelTemplate._directory'):
+                self.model = modeltemplate.ModelTemplate(input_nl=NLFILE)
 
         self.ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X')
 
     def tearDown(self):
-        for fname in runtime_environment.RUNTIME_FILES:
-            try:
-                os.remove(fname)
-            except OSError:
-                pass
+        try:
+            os.remove(NLFILE)
+        except OSError:
+            pass
 
     @mock.patch('modeltemplate.netcdf_filenames.period_set')
     def test_set_stencil_monthly(self, mock_set):
@@ -110,12 +139,19 @@ class PeriodTests(unittest.TestCase):
     '''Unit tests relating to the "get period files" methods'''
 
     def setUp(self):
-        with mock.patch('modeltemplate.nlist.loadNamelist') as mock_nl:
-            mock_nl().suitegen.mean_reference_date = [0, 12, 1]
-            mock_nl().modeltemplate.base_component = '10d'
-            mock_nl().modeltemplate.debug = False
-            self.model = modeltemplate.ModelTemplate()
-            self.model.share = 'ShareDir'
+        with mock.patch('template_namelist.TopLevel.pp_run',
+                        new_callable=mock.PropertyMock, return_value=True):
+            create_namelist()
+            with mock.patch('modeltemplate.ModelTemplate._directory',
+                            return_value='ModelDir'):
+                self.model = modeltemplate.ModelTemplate(input_nl=NLFILE)
+
+        self.model.share = 'ShareDir'
+        self.model.naml.processing.create_monthly_mean = True
+        self.model.naml.processing.create_seasonal_mean = True
+        self.model.naml.processing.create_annual_mean = True
+        self.model.meansets = self.model._mean_bases()
+        self.model.requested_means = ['1m', '1s', '1y']
 
         self.ncf = netcdf_filenames.NCFilename(
             'MODEL', 'RUNID', 'X',
@@ -123,7 +159,10 @@ class PeriodTests(unittest.TestCase):
             )
 
     def tearDown(self):
-        pass
+        try:
+            os.remove(NLFILE)
+        except OSError:
+            pass
 
     @mock.patch('modeltemplate.utils.get_subset')
     def test_period_set_monthly(self, mock_subset):
@@ -373,30 +412,35 @@ class MeansTests(unittest.TestCase):
     '''Unit tests relating to creation of means'''
 
     def setUp(self):
-        with mock.patch('modeltemplate.nlist.loadNamelist') as mock_nl:
-            mock_nl().modeltemplate.base_component = '2d'
-            mock_nl().suitegen.mean_reference_date = [0, 1, 1]
-            mock_nl().modeltemplate.debug = False
-            self.model = modeltemplate.ModelTemplate()
+        with mock.patch('template_namelist.TopLevel.pp_run',
+                        new_callable=mock.PropertyMock, return_value=True):
+            create_namelist()
+            with mock.patch('modeltemplate.ModelTemplate._directory',
+                            return_value='ModelDir'):
+                self.model = modeltemplate.ModelTemplate(input_nl=NLFILE)
 
         self.model.share = 'ShareDir'
+        self.model.naml.processing.create_monthly_mean = True
+        self.model.naml.processing.create_seasonal_mean = True
+        self.model.naml.processing.create_annual_mean = True
+        self.model.meansets = self.model._mean_bases()
+        self.model.requested_means = ['1m', '1s', '1y']
 
         self.model.loop_inputs = mock.Mock()
         self.model.get_date = mock.Mock(return_value=('1996', '09', '01'))
         self.model.periodfiles = mock.Mock()
         self.model.describe_mean = mock.Mock()
-        self.model.fix_mean_time = mock.Mock()
 
         self.model.suite = mock.Mock()
         self.model.suite.envars = {}
         self.model.suite.initpoint = [0]*5
 
     def tearDown(self):
-        for fname in runtime_environment.RUNTIME_FILES:
-            try:
-                os.remove(fname)
-            except OSError:
-                pass
+        try:
+            os.remove(NLFILE)
+        except OSError:
+            pass
+
         for dirname in [self.model.diagsdir, 'ModelDir']:
             try:
                 os.rmdir(dirname)
@@ -664,31 +708,28 @@ class ArchiveTests(unittest.TestCase):
     '''Unit tests relating to archiving of files'''
 
     def setUp(self):
-        modeltemplate.ModelTemplate._directory = mock.\
-            Mock(return_value='ModelDir')
-        with mock.patch('modeltemplate.nlist.loadNamelist') as mock_nl:
-            mock_nl().modeltemplate.base_component = '10d'
-            mock_nl().modeltemplate.debug = False
-            self.model = modeltemplate.ModelTemplate()
-            self.model.share = os.getcwd()
-            self.model._debug_mode(False)
+        with mock.patch('template_namelist.TopLevel.pp_run',
+                        new_callable=mock.PropertyMock, return_value=True):
+            create_namelist()
+            with mock.patch('modeltemplate.ModelTemplate._directory',
+                            return_value='ModelDir'):
+                self.model = modeltemplate.ModelTemplate(input_nl=NLFILE)
 
-        self.model.naml.buffer_archive = None
-        self.model.naml.compression_level = 0
-        self.model.naml.means_to_archive = []
-
-        ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X')
-        self.model.loop_inputs = mock.Mock(return_value=[ncf])
-        self.model.get_date = mock.Mock(return_value=('1996', '05', '01'))
-        self.model.timestamps = mock.Mock()
-        self.model.component = mock.Mock(return_value='component')
+        self.model.share = os.getcwd()
+        self.model.diagsdir = os.path.join('ModelDir', 'archive_ready')
+        self.model.requested_means = ['1m', '1s', '1y']
 
         self.model.suite = mock.Mock()
         self.model.suite.finalcycle = False
         self.model.suite.archive_file.return_value = 0
 
+        ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X')
+        self.model.loop_inputs = mock.Mock(return_value=[ncf])
+        self.model.get_date = mock.Mock(return_value=('1996', '05', '01'))
+        self.model.component = mock.Mock(return_value='component')
+
     def tearDown(self):
-        for fname in ['12h_field1', '10d_field1', 'xd_field2',
+        for fname in [NLFILE, '12h_field1', '10d_field1', 'xd_field2',
                       os.path.join(self.model.diagsdir, 'runid_xd_field1.nc'),
                       os.path.join(self.model.diagsdir, 'runid_xd_field2.nc'),
                       '1m_field1', '1s_field1', '1y_field2', '1x_field2']:
@@ -696,6 +737,7 @@ class ArchiveTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
+
         for dirname in [self.model.diagsdir, 'ModelDir']:
             try:
                 os.rmdir(dirname)
@@ -706,221 +748,323 @@ class ArchiveTests(unittest.TestCase):
         '''Test return of archive buffer property'''
         func.logtest('Assert return of archive buffer property:')
         self.assertEqual(self.model.buffer_archive, 0)
-        self.model.naml.buffer_archive = 5
+        self.model.naml.archiving.archive_restart_buffer = 5
         self.assertEqual(self.model.buffer_archive, 5)
 
     def test_buffer_archive_finalcycle(self):
         '''Test return of archive buffer property - final cycle'''
         func.logtest('Assert return of archive buffer - final cycle:')
-        self.model.naml.buffer_archive = 5
+        self.model.naml.archiving.archive_restart_buffer = 5
         self.model.suite.finalcycle = True
         self.assertEqual(self.model.buffer_archive, 0)
 
-    @mock.patch('modeltemplate.utils.remove_files')
-    def test_archive_means(self, mock_rm):
-        '''Test archive means function'''
-        func.logtest('Assert list of means to archive:')
-        self.model.periodfiles = mock.Mock()
-        self.model.periodfiles.side_effect = [['setend'], ['mean1', 'mean2']]
-        self.model.archive_files = mock.Mock()
-        self.model.archive_files.side_effect = [{'mean1': 'SUCCESS'},
-                                                {'mean2': 'SUCCESS'}]
-        with mock.patch('modeltemplate.ModelTemplate.model_realm',
-                        new_callable=mock.PropertyMock, return_value='x'):
-            self.model.archive_means()
+    def test_prepare_archive_restarts(self):
+        ''' Test call to rebuild_restarts '''
+        self.model.rebuild_restarts = mock.Mock()
+        self.model.naml.archiving.archive_restarts = False
+        self.model.prepare_archive()
+        self.assertListEqual(self.model.rebuild_restarts.mock_calls, [])
 
-        self.assertListEqual(mock_rm.mock_calls,
-                             [mock.call(['mean1'], path=os.getcwd()),
-                              mock.call(['mean2'], path=os.getcwd())])
-        self.assertListEqual(self.model.archive_files.mock_calls,
-                             [mock.call(os.path.join(os.getcwd(), 'mean1')),
-                              mock.call(os.path.join(os.getcwd(), 'mean2'))])
+        self.model.naml.archiving.archive_restarts = True
+        self.model.prepare_archive()
+        self.model.rebuild_restarts.assert_called_once_with()
 
-    @mock.patch('modeltemplate.os.rename')
-    def test_archive_means_debug(self, mock_rm):
-        '''Test archive means function'''
-        func.logtest('Assert list of means to archive:')
-        self.model._debug_mode(True)
-        self.model.periodfiles = mock.Mock()
-        self.model.periodfiles.side_effect = [['setend'], ['mean1', 'mean2']]
-        self.model.archive_files = mock.Mock()
-        self.model.archive_files.side_effect = [{'mean1': 'SUCCESS'},
-                                                {'mean2': 'SUCCESS'}]
+    @mock.patch('modeltemplate.utils.move_files')
+    def test_prepare_archive_means(self, mock_mv):
+        '''Test prepare_archive'''
+        func.logtest('Assert correct prepare_archive functionality:')
+        self.model.diagsdir = 'DiagDir'
+        self.model.periodfiles = mock.Mock(side_effect=[['setend'],
+                                                        ['mean1', 'mean2']])
+        self.model.compress_netcdf_files = mock.Mock()
+        self.model.naml.archiving.archive_means = True
 
         with mock.patch('modeltemplate.ModelTemplate.model_realm',
                         new_callable=mock.PropertyMock, return_value='x'):
-            self.model.archive_means()
+            with mock.patch('modeltemplate.ModelTemplate.prefix',
+                            new_callable=mock.PropertyMock,
+                            return_value='RUNID'):
+                self.model.prepare_archive()
 
-        infiles = [os.path.join(os.getcwd(), fn) for fn in ['mean1', 'mean2']]
-        outfiles = [fn + '_ARCHIVED' for fn in infiles]
-        call_rename = []
-        for i, fname in enumerate(infiles):
-            call_rename.append(mock.call(os.path.join(os.getcwd(), fname),
-                                         outfiles[i]))
-        self.assertListEqual(mock_rm.mock_calls, call_rename)
-        self.assertListEqual(self.model.archive_files.mock_calls,
-                             [mock.call(os.path.join(os.getcwd(), 'mean1')),
-                              mock.call(os.path.join(os.getcwd(), 'mean2'))])
+        self.assertListEqual(mock_mv.mock_calls,
+                             [mock.call(['mean1', 'mean2'], 'DiagDir',
+                                        originpath=os.getcwd())])
+        self.assertListEqual(self.model.compress_netcdf_files.mock_calls, [])
 
-    def test_archive_means_readyset(self):
-        '''Test archive means function - files in "ready" directory'''
-        func.logtest('Assert list of means files to archive - ready:')
-        self.model.suite.prefix = 'RUNID'
-        os.makedirs(self.model.diagsdir)
+    @mock.patch('modeltemplate.utils.move_files')
+    @mock.patch('modeltemplate.utils.get_subset')
+    def test_prep_archive_means_add(self, mock_set, mock_mv):
+        '''Test prepare_archive - additional files'''
+        func.logtest('Assert prepare_archive - additional files:')
+        mock_set.side_effect = [['add1', 'add2']]
+        self.model.diagsdir = 'DiagDir'
         self.model.periodfiles = mock.Mock(side_effect=[[]])
-        self.model.archive_files = mock.Mock()
-        self.model.archive_files.side_effect = [
-            {'ModelDir/archive_ready/runid_xd_field{}.nc'.format(i):
-                 'SUCCESS'} for i in range(1, 4)
-            ]
-        files = ['ModelDir/archive_ready/runid_xd_field{}.nc'.format(i)
-                 for i in range(1, 3)]
-        for fname in files:
-            open(fname, 'w').close()
-        self.model.mean_fields = ('field1', 'field2')
-        self.model.naml.means_to_archive = []
+        self.model.naml.archiving.archive_means = True
         with mock.patch('modeltemplate.ModelTemplate.model_realm',
                         new_callable=mock.PropertyMock, return_value='x'):
-            self.model.archive_means()
-        self.assertListEqual(self.model.archive_files.mock_calls,
-                             [mock.call(files[0]), mock.call(files[1])])
+            with mock.patch('modeltemplate.ModelTemplate.prefix',
+                            new_callable=mock.PropertyMock,
+                            return_value='RUNID'):
+                with mock.patch('modeltemplate.ModelTemplate.additional_means',
+                                new_callable=mock.PropertyMock,
+                                return_value=['10x']):
+                    self.model.prepare_archive()
 
-    @mock.patch('modeltemplate.ModelTemplate.mean_stencil')
-    def test_archive_additional_means(self, mock_stencil):
-        '''Test archive additional means for archive'''
-        func.logtest('Assert list of additional means to archive:')
+        pattern = r'.*_runidx_(10x)_\d{4}\d{2}\d{2}-\d{4}\d{2}\d{2}.nc'
+        self.assertListEqual(mock_set.mock_calls,
+                             [mock.call(os.getcwd(), pattern)])
+        self.assertListEqual(mock_mv.mock_calls,
+                             [mock.call(['add1', 'add2'], 'DiagDir',
+                                        originpath=os.getcwd())])
+
+    @mock.patch('modeltemplate.utils.move_files')
+    @mock.patch('modeltemplate.utils.get_subset')
+    def test_prep_archive_means_addmore(self, mock_set, mock_mv):
+        '''Test prepare_archive - additional files, multi field'''
+        func.logtest('Assert prepare_archive - additional files, multi field:')
+        mock_set.side_effect = [['addF1a', 'addF1b', 'addF2']]
+        self.model.diagsdir = 'DiagDir'
         self.model.periodfiles = mock.Mock(side_effect=[[]])
-        self.model.archive_files = mock.Mock()
-        self.model.archive_files.side_effect = [{'12h_field1': 'SUCCESS'},
-                                                {'xd_field2': 'SUCCESS'}]
-        self.model.naml.means_to_archive = ['12h', '1d', '10d']
-        self.model.component = mock.Mock(return_value='component')
-        self.model.mean_fields = ('field1', 'field2')
-        arch_add = [p for p in self.model.naml.means_to_archive
-                    if p != self.model.base_component]
-        mock_stencil.return_value = r'({})_field\d'.format('|'.join(arch_add))
-
-        files = ['12h_field1', '10d_field1', 'xd_field2']
-        for fname in files:
-            open(fname, 'w').close()
-
+        self.model.mean_fields = ['F1', 'F2']
+        self.model.naml.archiving.archive_means = True
         with mock.patch('modeltemplate.ModelTemplate.model_realm',
-                        new_callable=mock.PropertyMock,
-                        return_value='x'):
-            self.model.archive_means()
+                        new_callable=mock.PropertyMock, return_value='x'):
+            with mock.patch('modeltemplate.ModelTemplate.prefix',
+                            new_callable=mock.PropertyMock,
+                            return_value='RUNID'):
+                with mock.patch('modeltemplate.ModelTemplate.additional_means',
+                                new_callable=mock.PropertyMock,
+                                return_value=['10x']):
+                    self.model.prepare_archive()
 
-        self.model.archive_files.assert_called_once_with(
-            os.path.join(os.getcwd(), '12h_field1')
-            )
-        self.assertFalse(os.path.exists('12h_field1'))
-        self.assertTrue(os.path.exists('10d_field1'))
-        self.assertTrue(os.path.exists('xd_field2'))
+        pattern = r'.*_runidx_(10x)_\d{4}\d{2}\d{2}-\d{4}\d{2}\d{2}_(F1|F2).nc'
+        self.assertListEqual(mock_set.mock_calls,
+                             [mock.call(os.getcwd(), pattern)])
+        self.assertListEqual(mock_mv.mock_calls,
+                             [mock.call(['addF1a', 'addF1b', 'addF2'],
+                                        'DiagDir', originpath=os.getcwd())])
 
-    @mock.patch('modeltemplate.ModelTemplate.mean_stencil')
-    def test_archive_means_finalcycle(self, mock_stencil):
-        '''Test archive additional means for archive - final cycle'''
-        func.logtest('Assert list of means to archive - final cycle:')
+    @mock.patch('modeltemplate.shutil.copy2')
+    @mock.patch('modeltemplate.utils.get_subset')
+    def test_prep_archive_means_fcycle(self, mock_set, mock_cp):
+        '''Test prepare_archive - final cycle'''
+        func.logtest('Assert correct prepare_archive functionality - final:')
+        mock_set.side_effect = [['1m_file1', '1m_file2',
+                                 '1s_file1', '1s_file2']]
+        self.model.diagsdir = 'DiagDir'
+        self.model.periodfiles = mock.Mock(side_effect=[[]])
+        self.model.naml.archiving.archive_means = True
         self.model.suite.finalcycle = True
+
+        with mock.patch('modeltemplate.ModelTemplate.model_realm',
+                        new_callable=mock.PropertyMock, return_value='x'):
+            with mock.patch('modeltemplate.ModelTemplate.prefix',
+                            new_callable=mock.PropertyMock,
+                            return_value='RUNID'):
+                self.model.prepare_archive()
+
+        pattern = r'.*_runidx_(1m|1s|1y)_\d{4}\d{2}\d{2}-\d{4}\d{2}\d{2}.nc'
+        self.assertListEqual(mock_set.mock_calls,
+                             [mock.call(os.getcwd(), pattern)])
+
+        fname = os.path.join(os.getcwd(), '{}_file{}')
+        self.assertListEqual(
+            mock_cp.mock_calls,
+            [mock.call(fname.format('1m', 1), 'DiagDir'),
+             mock.call(fname.format('1m', 2), 'DiagDir'),
+             mock.call(fname.format('1s', 1), 'DiagDir'),
+             mock.call(fname.format('1s', 2), 'DiagDir')])
+
+    @mock.patch('modeltemplate.utils.get_subset')
+    def test_prep_archive_means_cpfail(self, mock_set):
+        '''Test prepare_archive - final cycle with copy failure'''
+        func.logtest('Assert prepare_archive functionality - final cp fail:')
+        mock_set.side_effect = [['file_1m', 'file_1s',]]
+        self.model.diagsdir = 'DiagDir'
         self.model.periodfiles = mock.Mock(side_effect=[[]])
-        self.model.archive_files = mock.Mock()
-        files = ['1m_field1', '1s_field1', '1y_field2', '1x_field2']
-        mock_stencil.return_value = r'1[ms]_field\d'
-        self.model.archive_files.side_effect = [{files[0]: 'SUCCESS'},
-                                                {files[1]: 'SUCCESS'},
-                                                {files[2]: 'SUCCESS'}]
-        for fname in files:
-            open(fname, 'w').close()
-        print 'LIST:', os.listdir(os.getcwd())
-        self.model.mean_fields = ('field1', 'field2')
+        self.model.naml.archiving.archive_means = True
+        self.model.suite.finalcycle = True
 
         with mock.patch('modeltemplate.ModelTemplate.model_realm',
                         new_callable=mock.PropertyMock, return_value='x'):
-            self.model.archive_means()
+            with mock.patch('modeltemplate.ModelTemplate.prefix',
+                            new_callable=mock.PropertyMock,
+                            return_value='RUNID'):
+                with self.assertRaises(SystemExit):
+                    self.model.prepare_archive()
 
-        self.assertListEqual(self.model.archive_files.mock_calls,
-                             [mock.call(os.path.join(os.getcwd(), files[0])),
-                              mock.call(os.path.join(os.getcwd(), files[1]))])
-        # Calls to mean_stencil - '1m' & '1s' for 'field1' and 'field2'
-        self.assertEqual(len(mock_stencil.mock_calls), 4)
-        for fname in files:
-            func.logtest('Asserting existence of {}...'.format(fname))
-            self.assertTrue(os.path.exists(fname))
+        pattern = r'.*_runidx_(1m|1s|1y)_\d{4}\d{2}\d{2}-\d{4}\d{2}\d{2}.nc'
+        print mock_set.mock_calls
+        self.assertListEqual(mock_set.mock_calls,
+                             [mock.call(os.getcwd(), pattern)])
+        self.assertIn('Failed to copy', func.capture('err'))
 
-    @mock.patch('modeltemplate.utils.remove_files')
-    def test_archive_means_compress(self, mock_rm):
-        '''Test archive means with compression'''
-        func.logtest('Assert compression of archived means:')
+    def test_prep_arch_means_compress(self):
+        '''Test prepare_archive with compression'''
+        func.logtest('Assert compression of prepared means:')
         self.model.periodfiles = mock.Mock()
-        self.model.periodfiles.side_effect = [['setend'],
-                                              ['file1', 'DDIR/file2']]
-        self.model.archive_files = mock.Mock()
-        self.model.archive_files.side_effect = [{'file1': 'SUCCESS'},
-                                                {'DDIR/file2': 'SUCCESS'}]
-        self.model.naml.compress_netcdf = 'comp_util'
-        self.model.naml.compression_level = 5
-        self.model.naml.chunking_arguments = 'chunks'
-        self.model.compress_file = mock.Mock(return_value=0)
+        self.model.periodfiles.side_effect = [[]]
+        self.model.mean_fields = ['grid-1', 'scalar']
+        self.model.compress_netcdf_files = mock.Mock()
+        self.model.naml.archiving.archive_means = True
+        self.model.naml.processing.compression_level = 5
+
         with mock.patch('modeltemplate.ModelTemplate.model_realm',
                         new_callable=mock.PropertyMock, return_value='x'):
-            self.model.archive_means()
+            self.model.prepare_archive()
 
-        self.assertListEqual(mock_rm.mock_calls,
-                             [mock.call(['file1'], path=os.getcwd()),
-                              mock.call(['DDIR/file2'], path='DDIR')])
-        self.assertListEqual(self.model.archive_files.mock_calls,
-                             [mock.call('DDIR/file2'),
-                              mock.call(os.path.join(os.getcwd(), 'file1'))])
+        self.model.compress_netcdf_files.\
+            assert_called_once_with('(1m|1s|1y)', 'grid-1')
+
+    @mock.patch('modeltemplate.utils')
+    @mock.patch('modeltemplate.os.rename')
+    def test_compress_netcdf(self, mock_rename, mock_utils):
+        '''Test compress_netcdf_files'''
+        func.logtest('Assert behaviour of compress_netcdf_files:')
+
+        self.model.naml.processing.compress_netcdf = 'comp_util'
+        self.model.naml.processing.compression_level = 5
+        self.model.naml.processing.chunking_arguments = 'chunks'
+
+        self.model.compress_file = mock.Mock(return_value=0)
+
+        mock_utils.add_path.return_value = ['f1', 'f2_COMPRESS_FAILED']
+
+        with mock.patch('modeltemplate.ModelTemplate.model_realm',
+                        new_callable=mock.PropertyMock, return_value='x'):
+            with mock.patch('modeltemplate.ModelTemplate.prefix',
+                            new_callable=mock.PropertyMock,
+                            return_value='RUNID'):
+                self.model.compress_netcdf_files('1x', 'grid')
+
+        mock_rename.assert_called_once_with('f2_COMPRESS_FAILED', 'f2')
+
+        pattern = r'component_runidx_1x_\d{4}\d{2}\d{2}-' + \
+            r'\d{4}\d{2}\d{2}_grid.nc(_COMPRESS_FAILED)?$'
+        mock_utils.get_subset.assert_called_once_with('ModelDir/archive_ready',
+                                                      pattern)
+
         call_compress = []
-        for fname in ['DDIR/file2', os.path.join(os.getcwd(), 'file1')]:
+        for fname in ['f1', 'f2']:
             call_compress.append(mock.call(fname, 'comp_util',
                                            compression=5, chunking='chunks'))
         self.assertListEqual(self.model.compress_file.mock_calls, call_compress)
 
-    def test_archive_means_comp_fail(self):
-        '''Test archive means with compression - fail to compress'''
-        func.logtest('Assert compression of archived means - fail to compress:')
-        self.model.periodfiles = mock.Mock()
-        self.model.periodfiles.side_effect = [['setend'], ['mean1', 'mean2']]
-        self.model.archive_files = mock.Mock()
-        self.model.naml.compress_netcdf = 'comp_util'
-        self.model.naml.compression_level = 5
-        self.model.naml.chunking_arguments = 'chunks'
-        self.model.compress_file = mock.Mock(return_value=99)
-        with mock.patch('modeltemplate.ModelTemplate.model_realm',
-                        new_callable=mock.PropertyMock, return_value='x'):
-            self.model.archive_means()
-        self.assertListEqual(self.model.archive_files.mock_calls, [])
-        call_compress = []
-        for fname in ['mean1', 'mean2']:
-            call_compress.append(mock.call(os.path.join(os.getcwd(), fname),
-                                           'comp_util',
-                                           compression=5,
-                                           chunking='chunks'))
-        self.assertListEqual(self.model.compress_file.mock_calls, call_compress)
+    @mock.patch('modeltemplate.utils')
+    @mock.patch('modeltemplate.os.rename')
+    def test_compress_netcdf_fail(self, mock_rename, mock_utils):
+        '''Test compress_netcdf_files - fail'''
+        func.logtest('Assert failure of compress_netcdf_files:')
 
-    @mock.patch('modeltemplate.utils.remove_files')
-    def test_archive_means_partial_fail(self, mock_rm):
-        '''Test archive means function with partial failure'''
-        func.logtest('Assert partially successful archive of file list:')
-        self.model.periodfiles = mock.Mock()
-        self.model.periodfiles.side_effect = [['setend'], ['mean1', 'mean2']]
-        self.model.archive_files = mock.Mock()
-        self.model.archive_files.side_effect = [{'mean1': 'SUCCESS'},
-                                                {'mean2': 'FAILED'}]
-        with mock.patch('modeltemplate.ModelTemplate.model_realm',
-                        new_callable=mock.PropertyMock, return_value='x'):
-            self.model.archive_means()
-        mock_rm.assert_called_once_with(['mean1'], path=os.getcwd())
+        self.model.naml.processing.compress_netcdf = 'comp_util'
+        self.model.naml.processing.compression_level = 5
+        self.model.naml.processing.chunking_arguments = 'chunks'
 
-    @mock.patch('modeltemplate.ModelTemplate.periodfiles')
-    def test_no_means_to_archive(self, mock_pf):
-        '''Test report with no means to archive'''
-        func.logtest('Assert report with no means to archive:')
-        mock_pf.return_value = []
+        self.model.compress_file = mock.Mock(return_value=1)
+
+        mock_utils.add_path.return_value = ['f1']
+
         with mock.patch('modeltemplate.ModelTemplate.model_realm',
                         new_callable=mock.PropertyMock, return_value='x'):
-            self.model.archive_means()
-        self.assertIn('Nothing to archive', func.capture())
+            with mock.patch('modeltemplate.ModelTemplate.prefix',
+                            new_callable=mock.PropertyMock,
+                            return_value='RUNID'):
+                self.model.compress_netcdf_files('[6h|1d]', 'grid')
+
+        mock_rename.assert_called_once_with('f1', 'f1_COMPRESS_FAILED')
+
+        pattern = r'component_runidx_[6h|1d]_\d{4}\d{2}\d{2}-' + \
+            r'\d{4}\d{2}\d{2}_grid.nc(_COMPRESS_FAILED)?$'
+        mock_utils.get_subset.assert_called_once_with('ModelDir/archive_ready',
+                                                      pattern)
+
+        self.assertListEqual(self.model.compress_file.mock_calls,
+                             [mock.call('f1', 'comp_util',
+                                        compression=5, chunking='chunks')])
+
+    @mock.patch('modeltemplate.utils.get_subset')
+    @mock.patch('modeltemplate.utils.add_path')
+    @mock.patch('modeltemplate.ModelTemplate.archive_files')
+    @mock.patch('modeltemplate.ModelTemplate.clean_archived_files')
+    def test_archive_means(self, mock_clean, mock_arch,
+                           mock_fullname, mock_set):
+        '''Test archive_means'''
+        func.logtest('Assert correct archive_means functionality:')
+
+        mock_fullname.side_effect = [['file/one', 'file/two']]
+        with mock.patch('modeltemplate.ModelTemplate.prefix',
+                        new_callable=mock.PropertyMock,
+                        return_value='RUNID'):
+            with mock.patch('modeltemplate.os.path.exists',
+                            return_value=True):
+                self.model.archive_means()
+
+        mock_set.assert_called_once_with('ModelDir/archive_ready',
+                                         r'runid.*\.nc$')
+        mock_fullname.assert_called_once_with(mock_set.return_value,
+                                              'ModelDir/archive_ready')
+        self.assertListEqual(mock_arch.mock_calls,
+                             [mock.call('file/one'), mock.call('file/two')])
+        mock_clean.assert_called_with(mock_arch.return_value, 'means files')
+
+    @mock.patch('modeltemplate.utils.get_subset')
+    @mock.patch('modeltemplate.utils.add_path')
+    @mock.patch('modeltemplate.ModelTemplate.archive_files')
+    @mock.patch('modeltemplate.ModelTemplate.clean_archived_files')
+    def test_archive_means_multifield(self, mock_clean, mock_arch,
+                                      mock_fullname, mock_set):
+        '''Test archive_means with multiple fields'''
+        func.logtest('Assert correct archive_means functionality:')
+
+        self.model.mean_fields = ['F1', 'F2']
+        mock_fullname.side_effect = [['file/one', 'file/two'],
+                                     ['file/three', 'file/four']]
+        with mock.patch('modeltemplate.ModelTemplate.prefix',
+                        new_callable=mock.PropertyMock,
+                        return_value='RUNID'):
+            with mock.patch('modeltemplate.os.path.exists',
+                            return_value=True):
+                self.model.archive_means()
+
+        self.assertListEqual(
+            mock_set.mock_calls,
+            [mock.call('ModelDir/archive_ready', r'runid.*F1\.nc$'),
+             mock.call('ModelDir/archive_ready', r'runid.*F2\.nc$')]
+            )
+
+        self.assertEqual(len(mock_fullname.mock_calls), 2)
+        mock_fullname.assert_called_with(mock_set.return_value,
+                                         'ModelDir/archive_ready')
+        self.assertListEqual(mock_arch.mock_calls,
+                             [mock.call('file/one'), mock.call('file/two'),
+                              mock.call('file/three'), mock.call('file/four')])
+        mock_clean.assert_called_with(mock_arch.return_value, 'means files')
+
+    @mock.patch('modeltemplate.utils.get_subset')
+    @mock.patch('modeltemplate.utils.add_path')
+    @mock.patch('modeltemplate.ModelTemplate.archive_files')
+    @mock.patch('modeltemplate.ModelTemplate.clean_archived_files')
+    def test_archive_nothing(self, mock_clean, mock_arch,
+                             mock_fullname, mock_set):
+        '''Test archive_means - nothing to archive'''
+        func.logtest('Assert correct archive_means functionality:')
+
+        mock_fullname.side_effect = [['file/one', 'file/two']]
+        with mock.patch('modeltemplate.ModelTemplate.prefix',
+                        new_callable=mock.PropertyMock,
+                        return_value='RUNID'):
+            with mock.patch('modeltemplate.os.path.exists',
+                            return_value=True):
+                self.model.archive_means()
+
+        mock_set.assert_called_once_with('ModelDir/archive_ready',
+                                         r'runid.*\.nc$')
+        mock_fullname.assert_called_once_with(mock_set.return_value,
+                                              'ModelDir/archive_ready')
+        self.assertListEqual(mock_arch.mock_calls,
+                             [mock.call('file/one'), mock.call('file/two')])
+        mock_clean.assert_called_with(mock_arch.return_value, 'means files')
+
 
     @mock.patch('modeltemplate.ModelTemplate.periodfiles',
                 return_value=['rst1', 'rst2'])
@@ -928,8 +1072,9 @@ class ArchiveTests(unittest.TestCase):
     def test_archive_restarts(self, mock_rm, mock_set):
         '''Test archive restarts function'''
         func.logtest('Assert list of restart files to archive:')
-        self.model.timestamps.return_value = True
-        self.model.archive_restarts()
+        with mock.patch('modeltemplate.ModelTemplate.timestamps',
+                        return_value=True):
+            self.model.archive_restarts()
         mock_rm.assert_called_once_with(['rst1', 'rst2'], path=os.getcwd())
         self.assertNotIn('Only archiving periodic', func.capture())
         mock_set.assert_called_once_with('', 'set')
@@ -940,28 +1085,12 @@ class ArchiveTests(unittest.TestCase):
     def test_archive_restarts_final(self, mock_rm, mock_set):
         '''Test archive restarts function - finalcycle'''
         func.logtest('Assert restart files to archive - final cycle:')
-        self.model.timestamps.return_value = False
         self.model.suite.finalcycle = True
-        self.model.archive_restarts()
+        with mock.patch('modeltemplate.ModelTemplate.timestamps',
+                        return_value=False):
+            self.model.archive_restarts()
         self.assertListEqual(mock_rm.mock_calls,
                              [mock.call('rst1', path=os.getcwd())])
-        mock_set.assert_called_once_with('', 'set')
-
-    @mock.patch('modeltemplate.ModelTemplate.periodfiles',
-                return_value=['rst1', 'rst2'])
-    def test_archive_restarts_debug(self, mock_set):
-        '''Test archive restarts function - debug mode'''
-        func.logtest('Assert list of restart files to archive - debug:')
-        self.model.timestamps.return_value = True
-        self.model._debug_mode(True)
-        infiles = [os.path.join(os.getcwd(), fn) for fn in ['rst2', 'rst1']]
-        outfiles = [fn + '_ARCHIVED' for fn in infiles]
-        with mock.patch('modeltemplate.os.rename') as mock_rm:
-            self.model.archive_restarts()
-            self.assertEqual(sorted(mock_rm.mock_calls),
-                             sorted([mock.call(infiles[0], outfiles[0]),
-                                     mock.call(infiles[1], outfiles[1])]))
-            self.assertNotIn('Only archiving periodic', func.capture())
         mock_set.assert_called_once_with('', 'set')
 
     @mock.patch('modeltemplate.ModelTemplate.periodfiles',
@@ -969,13 +1098,14 @@ class ArchiveTests(unittest.TestCase):
     def test_archive_restarts_periodic(self, mock_set):
         '''Test archive restarts function'''
         func.logtest('Assert list of restart files to archive:')
-        self.model.timestamps.return_value = False
-        with mock.patch('modeltemplate.utils.remove_files'):
-            self.model.archive_restarts()
+        with mock.patch('modeltemplate.ModelTemplate.timestamps',
+                        return_value=False):
+            with mock.patch('modeltemplate.utils.remove_files'):
+                self.model.archive_restarts()
         self.assertIn('Only archiving periodic', func.capture())
         mock_set.assert_called_once_with('', 'set')
 
-    def test_archive_nothing(self):
+    def test_archive_restarts_nothing(self):
         '''Test archive restarts function - nothing to archive'''
         func.logtest('Assert function with nothing to archive:')
         with mock.patch('modeltemplate.ModelTemplate.periodfiles',
@@ -993,9 +1123,11 @@ class ArchiveTests(unittest.TestCase):
         mock_pf.return_value = ['file1', 'file2']
         mock_arch.return_value = {'file1': 'SUCCESS',
                                   'file2': 'FAILED'}
-        with mock.patch('modeltemplate.utils.remove_files') as mock_rm:
-            self.model.archive_restarts()
-            mock_rm.assert_called_with(['file1'], path=os.getcwd())
+        with mock.patch('modeltemplate.ModelTemplate.timestamps',
+                        return_value=True):
+            with mock.patch('modeltemplate.utils.remove_files') as mock_rm:
+                self.model.archive_restarts()
+                mock_rm.assert_called_with(['file1'], path=os.getcwd())
         mock_pf.assert_called_once_with('', 'set')
         mock_arch.assert_called_once_with(['file1', 'file2'])
 
@@ -1021,24 +1153,75 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(returnfiles, {'file1': 'FAILED'})
         self.assertIn('Failed to archive file: file1', func.capture('err'))
 
+    @mock.patch('modeltemplate.utils.remove_files')
+    def test_clean_archived_files(self, mock_rm):
+        '''Test ability to clean successfully archived files'''
+        func.logtest('Assert removal of successfully archived files:')
+        arch_files = {'file1': 'SUCCESS', 'file2': 'FAILED',
+                      'file3': 'MAYBE', 'file4': 'SUCCESS'}
+        self.model.share = 'ShareDir'
+        self.model.clean_archived_files(arch_files, 'my file')
+        mock_rm.assert_called_once_with(['file1', 'file4'], path='ShareDir')
+        self.assertIn('my file: deleting archived file(s): ', func.capture())
+
+    @mock.patch('modeltemplate.utils.remove_files')
+    def test_clean_archived_files_path(self, mock_rm):
+        '''Test ability to clean successfully archived files - with PATH'''
+        func.logtest('Assert removal of successfully archived files - PATH:')
+        arch_files = {'file1': 'SUCCESS', 'file2': 'FAILED',
+                      'file3': 'MAYBE', 'file4': 'SUCCESS'}
+        self.model.clean_archived_files(arch_files, 'my file', path='PATH')
+        mock_rm.assert_called_once_with(['file1', 'file4'], path='PATH')
+        self.assertIn('my file: deleting archived file(s): ', func.capture())
+
+    @mock.patch('modeltemplate.utils.remove_files')
+    @mock.patch('modeltemplate.os.rename')
+    def test_clean_archived_files_none(self, mock_remove, mock_rm):
+        '''Test ability to clean archived files - nothing to do'''
+        func.logtest('Assert removal of archived files - nothing to do:')
+        arch_files = {'file2': 'FAILED', 'file3': 'MAYBE'}
+        self.model.clean_archived_files(arch_files, 'my file')
+        self.assertListEqual(mock_rm.mock_calls, [])
+        self.assertListEqual(mock_remove.mock_calls, [])
+
+    @mock.patch('modeltemplate.os.rename')
+    def test_clean_archived_files_debug(self, mock_rename):
+        '''Test ability to clean successfully archived files - debugmode'''
+        func.logtest('Assert removal of successfully archived files - debug:')
+        arch_files = {'file1': 'SUCCESS', 'file2': 'FAILED',
+                      'file3': 'MAYBE', 'file4': 'SUCCESS'}
+        self.model.share = 'ShareDir'
+        with mock.patch('modeltemplate.utils.get_debugmode', return_value=True):
+            self.model.clean_archived_files(arch_files, 'my file')
+            self.assertListEqual(
+                mock_rename.mock_calls,
+                [mock.call('ShareDir/file1', 'ShareDir/file1_ARCHIVED'),
+                 mock.call('ShareDir/file4', 'ShareDir/file4_ARCHIVED')]
+                )
 
 class PreprocessTests(unittest.TestCase):
     '''Unit tests relating to pre-processing of files prior to archive'''
 
     def setUp(self):
-        modeltemplate.ModelTemplate._directory = mock.\
-            Mock(return_value='ModelDir')
-        with mock.patch('modeltemplate.nlist.loadNamelist') as mock_nl:
-            mock_nl().modeltemplate.base_component = '10d'
-            mock_nl().modeltemplate.debug = False
+        with mock.patch('template_namelist.TopLevel.pp_run',
+                        new_callable=mock.PropertyMock,
+                        return_value=True):
+            create_namelist()
             with mock.patch('modeltemplate.suite.SuiteEnvironment'):
-                with mock.patch('modeltemplate.utils.CylcCycle'):
-                    self.model = modeltemplate.ModelTemplate()
-                    self.model.share = 'ShareDir'
-                    self.model._debug_mode(False)
+                with mock.patch('modeltemplate.ModelTemplate._directory',
+                                return_value='ModelDir'):
+                    with mock.patch('modeltemplate.utils.CylcCycle'):
+                        self.model = modeltemplate.ModelTemplate(
+                            input_nl=NLFILE
+                            )
+
+        self.model.share = 'ShareDir'
 
     def tearDown(self):
-        pass
+        try:
+            os.remove(NLFILE)
+        except OSError:
+            pass
 
     def test_compress_file_nccopy(self):
         '''Test call to file compression method - nccopy'''
@@ -1046,25 +1229,42 @@ class PreprocessTests(unittest.TestCase):
         _ = self.model.compress_file('meanfile', 'nccopy',
                                      compression=5,
                                      chunking=['a/1', 'b/2', 'c/3'])
-        self.model.suite.preprocess_file.assert_called_with(
-            'nccopy', 'meanfile',
-            compression=5, chunking=['a/1', 'b/2', 'c/3']
+
+        self.assertListEqual(
+            self.model.suite.preprocess_file.mock_calls,
+            [mock.call('ncdump', 'meanfile', hs='', printout=False),
+             mock.ANY,      # Mock call to __contains__
+             mock.call('nccopy', 'meanfile', compression=5,
+                       chunking=['a/1', 'b/2', 'c/3'])]
+        )
+
+    def test_compress_file_nccopy_done(self):
+        '''Test call to file compression method - nccopy - already compressed'''
+        func.logtest('Assert call to file compression method nccopy - no need:')
+        self.model.suite.preprocess_file.side_effect = [
+            'ncdump_rtn: time_instant:_DeflateLevel = 5 ;',
+            'nccopy_rtnval'
+            ]
+        _ = self.model.compress_file('meanfile', 'nccopy',
+                                     compression=5,
+                                     chunking=['a/1', 'b/2', 'c/3'])
+        self.model.suite.preprocess_file.assert_called_once_with(
+            'ncdump', 'meanfile', hs='', printout=False
             )
+        self.assertIn('already compressed', func.capture())
 
     def test_compress_file_nccopy_noarg(self):
         '''Test call to file compression method - nccopy - no arguments'''
         func.logtest('Assert call to file compression method nccopy - no args:')
         _ = self.model.compress_file('meanfile', 'nccopy')
-        self.model.suite.preprocess_file.assert_called_with(
-            'nccopy', 'meanfile',
-            compression=0, chunking=None
-            )
+        self.assertListEqual(self.model.suite.preprocess_file.mock_calls, [])
+        self.assertIn('Deflation = 0 requested', func.capture())
 
     def test_compress_file_badcmd(self):
         '''Test call to file compression method - failure'''
         func.logtest('Assert call to file compression method - fail:')
-        self.model.naml.compression_level = 5
-        self.model.naml.chunking_arguments = ['a/1', 'b/2', 'c/3']
+        self.model.naml.processing.compression_level = 5
+        self.model.naml.processing.chunking_arguments = ['a/1', 'b/2', 'c/3']
         with self.assertRaises(SystemExit):
             _ = self.model.compress_file('meanfile', 'utility')
         self.assertIn('command not yet implemented', func.capture('err'))
@@ -1073,8 +1273,8 @@ class PreprocessTests(unittest.TestCase):
         '''Test call to file compression method - debug failure'''
         func.logtest('Assert call to file compression method - debug fail:')
         self.model._debug_mode(True)
-        self.model.naml.compression_level = 5
-        self.model.naml.chunking_arguments = ['a/1', 'b/2', 'c/3']
+        self.model.naml.processing.compression_level = 5
+        self.model.naml.processing.chunking_arguments = ['a/1', 'b/2', 'c/3']
         rcode = self.model.compress_file('meanfile', 'utility')
         self.assertIn('command not yet implemented', func.capture('err'))
         self.assertEqual(rcode, 99)
@@ -1082,10 +1282,9 @@ class PreprocessTests(unittest.TestCase):
     def test_fix_mean_time_one_var(self):
         '''Test call to netcdf_utils '''
         func.logtest('Assert call to netcdf_utils - single time var')
-        self.model.naml.time_vars = 'time_counter'
-        self.model.naml.correct_time_variables = True
-        self.model.naml.correct_time_bounds_variables = True
-        self.model.naml.time_bounds_suffix = '_bounds'
+        self.model.naml.processing.time_vars = 'time_counter'
+        self.model.naml.processing.correct_time_variables = True
+        self.model.naml.processing.correct_time_bounds_variables = True
         with mock.patch('modeltemplate.netcdf_utils.fix_times') as mock_fix:
             self.model.fix_mean_time('Filename', 'meanfile')
             mock_fix.assert_called_with('Filename', 'meanfile', 'time_counter',
@@ -1094,9 +1293,9 @@ class PreprocessTests(unittest.TestCase):
     def test_fix_mean_time_multi_var(self):
         '''Test call to netcdf_utils '''
         func.logtest('Assert call to netcdf_utils - single time var')
-        self.model.naml.time_vars = 'time_counter', 'time_centered'
-        self.model.naml.correct_time_variables = True
-        self.model.naml.correct_time_bounds_variables = True
+        self.model.naml.processing.time_vars = 'time_counter', 'time_centered'
+        self.model.naml.processing.correct_time_variables = True
+        self.model.naml.processing.correct_time_bounds_variables = True
         with mock.patch('modeltemplate.netcdf_utils.fix_times') as mock_fix:
             self.model.fix_mean_time('Filename', 'meanfile')
             mock_fix.assert_called_with('Filename', 'meanfile',
@@ -1106,9 +1305,8 @@ class PreprocessTests(unittest.TestCase):
     def test_fix_mean_time_only(self):
         '''Test call to netcdf_utils '''
         func.logtest('Assert call to netcdf_utils - time var only')
-        self.model.naml.time_vars = 'time_counter', 'time_centered'
-        self.model.naml.correct_time_variables = True
-        self.model.naml.correct_time_bounds_variables = False
+        self.model.naml.processing.time_vars = 'time_counter', 'time_centered'
+        self.model.naml.processing.correct_time_variables = True
         with mock.patch('modeltemplate.netcdf_utils.fix_times') as mock_fix:
             self.model.fix_mean_time('Filename', 'meanfile')
             mock_fix.assert_called_with('Filename', 'meanfile',
@@ -1118,9 +1316,7 @@ class PreprocessTests(unittest.TestCase):
     def test_fix_mean_bounds_only(self):
         '''Test call to netcdf_utils '''
         func.logtest('Assert call to netcdf_utils - bounds var only')
-        self.model.naml.time_vars = 'time'
-        self.model.naml.correct_time_variables = False
-        self.model.naml.correct_time_bounds_variables = True
+        self.model.naml.processing.correct_time_bounds_variables = True
         with mock.patch('modeltemplate.netcdf_utils.fix_times') as mock_fix:
             self.model.fix_mean_time('Filename', 'meanfile')
             mock_fix.assert_called_with('Filename', 'meanfile', 'time',
@@ -1131,14 +1327,14 @@ class MethodsTests(unittest.TestCase):
     '''Unit tests relating to ModelTemplate methods'''
 
     def setUp(self):
-        with mock.patch('modeltemplate.nlist.loadNamelist') as mock_nl:
-            mock_nl().suitegen.prefix = 'RUNID'
-            mock_nl().suitegen.mean_reference_date = [0, 12, 1]
-            mock_nl().modeltemplate.base_component = '10d'
-            mock_nl().modeltemplate.debug = False
-            self.model = modeltemplate.ModelTemplate()
-            self.model.share = 'ShareDir'
-            self.model.work = 'WorkDir'
+        with mock.patch('template_namelist.TopLevel.pp_run',
+                        new_callable=mock.PropertyMock, return_value=True):
+            create_namelist()
+            with mock.patch('modeltemplate.ModelTemplate._directory',
+                            return_value='WorkDir'):
+                self.model = modeltemplate.ModelTemplate(input_nl=NLFILE)
+
+        self.model.share = 'ShareDir'
 
         self.ncf = netcdf_filenames.NCFilename(
             'MODEL', 'RUNID', 'X',
@@ -1146,7 +1342,10 @@ class MethodsTests(unittest.TestCase):
             )
 
     def tearDown(self):
-        pass
+        try:
+            os.remove(NLFILE)
+        except OSError:
+            pass
 
     @mock.patch('modeltemplate.ModelTemplate.get_raw_output')
     @mock.patch('modeltemplate.utils.move_files')
@@ -1222,6 +1421,8 @@ class MethodsTests(unittest.TestCase):
     def test_loop_inputs(self):
         '''Test loop_inputs functionality'''
         func.logtest('Assert behaviour of loop_inputs method:')
+        self.model.requested_means = ['1m', '1s', '1y']
+
         yield_prefix = []
         yield_field = []
         yield_period = []
@@ -1235,13 +1436,14 @@ class MethodsTests(unittest.TestCase):
                     yield_prefix.append(loop_yield.prefix)
                     yield_field.append(loop_yield.custom)
                     yield_period.append(loop_yield.base)
-        self.assertEqual(['mod1_runidx']*3 + ['mod2_runidx']*3, yield_prefix)
+        self.assertEqual(['mod1_testpx']*3 + ['mod2_testpx']*3, yield_prefix)
         self.assertEqual(['_f1']*3 + ['_f1']*3, yield_field)
         self.assertEqual(['1m', '1s', '1y']*2, yield_period)
 
     def test_loop_inputs_multifield(self):
         '''Test loop_inputs functionality - multiple fields'''
         func.logtest('Assert behaviour of loop_inputs method - multifield:')
+        self.model.requested_means = ['1m', '1s', '1y']
         yield_prefix = []
         yield_field = []
         yield_period = []
@@ -1255,7 +1457,7 @@ class MethodsTests(unittest.TestCase):
                     yield_prefix.append(loop_yield.prefix)
                     yield_field.append(loop_yield.custom)
                     yield_period.append(loop_yield.base)
-        self.assertEqual(['mod1_runidx']*6 + ['mod2_runidx']*6, yield_prefix)
+        self.assertEqual(['mod1_testpx']*6 + ['mod2_testpx']*6, yield_prefix)
         self.assertEqual(['_f1']*3 + ['_f2']*3 + ['_f1']*3 + ['_f2']*3,
                          yield_field)
         self.assertEqual(['1m', '1s', '1y']*4, yield_period)
@@ -1345,7 +1547,7 @@ class MethodsTests(unittest.TestCase):
                 _ = self.model.filename_components(
                     'RUNIDx.10x.11112233.44445566.nc'
                     )
-        mock_ncf.assert_called_once_with('model', 'RUNID', 'x', base='10x',
+        mock_ncf.assert_called_once_with('model', 'TESTP', 'x', base='10x',
                                          start_date=('1111', '22', '33'),
                                          custom='')
 
@@ -1365,7 +1567,7 @@ class MethodsTests(unittest.TestCase):
                                 return_value={'REGEX': r'_\d{4}\.nc'}):
                     _ = self.model.filename_components(testfile)
 
-        mock_ncf.assert_called_once_with('model', 'RUNID', 'x', base='1x',
+        mock_ncf.assert_called_once_with('model', 'TESTP', 'x', base='1x',
                                          start_date=('3333', '33', '33'),
                                          custom='F-1_9876')
 
@@ -1498,32 +1700,34 @@ class MethodsTests(unittest.TestCase):
                 )
             self.assertEqual(target, '1m')
 
-    def test_archive_timetamps_single(self):
+    def test_archive_timestamps_single(self):
         '''Test return of timestamps method - archive single'''
         func.logtest('Assert return of timestamps method - archive single:')
-        self.model.naml.archive_timestamps = '12-01'
+        self.model.naml.archiving.archive_restart_timestamps = '12-01'
         self.assertTrue(self.model.timestamps('12', '01'))
         self.assertFalse(self.model.timestamps('06', '01'))
 
-    def test_archive_timetamps_list(self):
+    def test_archive_timestamps_list(self):
         '''Test return of timestamps method - archive list'''
         func.logtest('Assert return of timestamps method - archive list:')
-        self.model.naml.archive_timestamps = ['06-01', '12-01']
+        self.model.naml.archiving.archive_restart_timestamps = ['06-01',
+                                                                '12-01']
         self.assertTrue(self.model.timestamps('06', '01'))
         self.assertTrue(self.model.timestamps('12', '01'))
         self.assertFalse(self.model.timestamps('11', '01'))
 
-    def test_rebuild_timetamps_single(self):
+    def test_rebuild_timestamps_single(self):
         '''Test return of timestamps method - rebuild single'''
         func.logtest('Assert return of timestamps method - rebuild single:')
-        self.model.naml.rebuild_timestamps = '12-01'
+        self.model.naml.processing.rebuild_restart_timestamps = '12-01'
         self.assertTrue(self.model.timestamps('12', '01', process='rebuild'))
         self.assertFalse(self.model.timestamps('06', '01', process='rebuild'))
 
-    def test_rebuild_timetamps_list(self):
+    def test_rebuild_timestamps_list(self):
         '''Test return of timestamps method - rebuild list'''
         func.logtest('Assert return of timestamps method - rebuild list:')
-        self.model.naml.rebuild_timestamps = ['06-01', '12-01']
+        self.model.naml.processing.rebuild_restart_timestamps = ['06-01',
+                                                                 '12-01']
         self.assertTrue(self.model.timestamps('06', '01', process='rebuild'))
         self.assertTrue(self.model.timestamps('12', '01', process='rebuild'))
         self.assertFalse(self.model.timestamps('11', '01', process='rebuild'))
@@ -1533,10 +1737,11 @@ class PropertyTests(unittest.TestCase):
     '''Unit tests relating to ModelTemplate properties'''
 
     def setUp(self):
-        with mock.patch('modeltemplate.nlist.loadNamelist') as mock_nl:
-            mock_nl().modeltemplate.base_component = '10d'
-            mock_nl().modeltemplate.debug = False
-            self.model = modeltemplate.ModelTemplate()
+        with mock.patch('template_namelist.TopLevel.pp_run',
+                        new_callable=mock.PropertyMock, return_value=True):
+            create_namelist()
+            with mock.patch('modeltemplate.ModelTemplate._directory'):
+                self.model = modeltemplate.ModelTemplate(input_nl=NLFILE)
 
     def tearDown(self):
         pass
@@ -1544,21 +1749,21 @@ class PropertyTests(unittest.TestCase):
     def test_methods(self):
         '''Test return value of the methods property'''
         func.logtest('Assert correct return from methods property:')
-        all_methods = ['archive_restarts', 'move_to_share',
-                       'create_general', 'create_means',
+        all_methods = ['move_to_share', 'create_general', 'create_means',
+                       'prepare_archive', 'archive_restarts',
                        'archive_general', 'archive_means', 'finalise_debug']
         self.assertListEqual(self.model.methods.keys(), all_methods)
 
     def test_additional_mean_single(self):
         '''Test additional_means property value - single value'''
         func.logtest('Assert return of additional means - single value:')
-        self.model.naml.means_to_archive = None
+        self.model.naml.archiving.means_to_archive = None
         self.assertEqual(self.model.additional_means, [])
-        self.model.naml.means_to_archive = '12h'
+        self.model.naml.archiving.means_to_archive = '12h'
         self.assertEqual(self.model.additional_means, ['12h'])
 
     def test_additional_means_list(self):
         '''Test additional_means property value - list'''
         func.logtest('Assert return of additional means - list:')
-        self.model.naml.means_to_archive = ['12h', '10d']
+        self.model.naml.archiving.means_to_archive = ['12h', '10d']
         self.assertEqual(self.model.additional_means, ['12h', '10d'])

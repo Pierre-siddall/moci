@@ -21,10 +21,10 @@ import testing_functions as func
 import runtime_environment
 
 # Import of nemo requires 'RUNID' from runtime environment
-# Import of nemoNamelist requires 'DATAM' from runtime environment
+# Import of nemo_namelist requires 'DATAM' from runtime environment
 runtime_environment.setup_env()
 import nemo
-import nemoNamelist
+import nemo_namelist
 
 
 class StencilTests(unittest.TestCase):
@@ -100,7 +100,7 @@ class Propertytests(unittest.TestCase):
     def setUp(self):
         self.nemo = nemo.NemoPostProc()
         self.nemo.suite = mock.Mock()
-        self.nemo.naml = nemoNamelist.NemoNamelist()
+        self.nemo.naml.processing = nemo_namelist.Processing()
 
     def tearDown(self):
         try:
@@ -111,37 +111,37 @@ class Propertytests(unittest.TestCase):
     def test_fields_property_default(self):
         '''Test the return value of the fields property - default'''
         func.logtest('Assert return value of fields property:')
-        self.assertEqual(self.nemo.naml.means_fieldsfiles, None)
+        self.assertEqual(self.nemo.naml.processing.means_fieldsfiles, None)
         self.assertListEqual(self.nemo.mean_fields,
                              ['diad_T', 'diaptr', 'grid_T',
                               'grid_U', 'grid_V', 'grid_W',
                               'ptrc_T', 'ptrd_T', 'scalar', 'trnd3d'])
-        self.assertEqual(self.nemo.naml.region_fieldsfiles, None)
+        self.assertEqual(self.nemo.naml.processing.region_fieldsfiles, None)
         self.assertListEqual(self.nemo.inst_fields, [])
 
     def test_fields_property_single(self):
         '''Test the return value of the fields property - single'''
         func.logtest('Assert return of the fields property - single supplied:')
-        self.nemo.naml.means_fieldsfiles = 'grid_W'
+        self.nemo.naml.processing.means_fieldsfiles = 'grid_W'
         self.assertListEqual(self.nemo._mean_fields, ['grid_W'])
 
     def test_fields_property_list(self):
         '''Test the return value of the fields property - list'''
         func.logtest('Assert return of fields property - list supplied:')
-        self.nemo.naml.means_fieldsfiles = ['grid_U', 'grid_T']
+        self.nemo.naml.processing.means_fieldsfiles = ['grid_U', 'grid_T']
         self.assertListEqual(self.nemo._mean_fields, ['grid_T', 'grid_U'])
 
     def test_region_fields_property(self):
         '''Test the return value of the fields property - regional inst'''
         func.logtest('Assert return value of fields property (regional):')
-        self.nemo.naml.extract_region = True
+        self.nemo.naml.processing.extract_region = True
         self.assertListEqual(self.nemo._region_fields,
                              ['UK_shelf_T', 'UK_shelf_U', 'UK_shelf_V'])
-        self.nemo.naml.region_fieldsfiles = ''
+        self.nemo.naml.processing.region_fieldsfiles = ''
         self.assertListEqual(self.nemo._region_fields, [])
-        self.nemo.naml.region_fieldsfiles = 'region_T'
+        self.nemo.naml.processing.region_fieldsfiles = 'region_T'
         self.assertListEqual(self.nemo._region_fields, ['region_T'])
-        self.nemo.naml.region_fieldsfiles = ['reg_T', 'reg_V']
+        self.nemo.naml.processing.region_fieldsfiles = ['reg_T', 'reg_V']
         self.assertListEqual(self.nemo._region_fields, ['reg_T', 'reg_V'])
 
 
@@ -153,9 +153,7 @@ class RebuildTests(unittest.TestCase):
         self.nemo.suite = mock.Mock()
         self.nemo.suite.prefix = 'RUNID'
         self.nemo.suite.finalcycle = False
-        self.defaults = nemoNamelist.NemoNamelist()
-        self.buffer_rst = self.nemo.buffer_rebuild('rst')
-        self.buffer_mean = self.nemo.buffer_rebuild('mean')
+        self.defaults = nemo_namelist.Processing()
 
     def tearDown(self):
         for fname in ['nam_rebuild'] + runtime_environment.RUNTIME_FILES:
@@ -206,8 +204,7 @@ class RebuildTests(unittest.TestCase):
         with mock.patch('nemo.NemoPostProc.rebuild_fileset') as mock_fs:
             self.nemo.rebuild_diagnostics(['FIELD'], bases=['10d'])
             mock_fs.assert_called_with('ShareDir',
-                                       pattern + 'FIELD',
-                                       rebuildall=True)
+                                       pattern + 'FIELD')
 
     def test_namlist_properties(self):
         '''Test definition of NEMO namelist properties'''
@@ -218,36 +215,48 @@ class RebuildTests(unittest.TestCase):
     def test_buffer_rebuild(self):
         '''Test rebuild buffer value extraction'''
         func.logtest('Assert given value for rebuild buffer:')
-        self.assertEqual(self.defaults.buffer_rebuild_rst, self.buffer_rst)
-        self.assertEqual(self.defaults.buffer_rebuild_mean, self.buffer_mean)
+        self.assertEqual(0, self.nemo.buffer_rebuild('restart'))
+        self.assertEqual(0, self.nemo.buffer_rebuild('mean'))
+
+        self.nemo.naml.processing.rebuild_restart_buffer = 2
+        self.nemo.naml.processing.rebuild_mean_buffer = 2
+        self.assertEqual(2, self.nemo.buffer_rebuild('restart'))
+        self.assertEqual(2, self.nemo.buffer_rebuild('mean'))
 
     @mock.patch('nemo.utils.get_subset')
     def test_rbld_restart_not_required(self, mock_subset):
         '''Test rebuild restarts function retaining all files'''
         func.logtest('Assert restart files fewer than buffer are retained:')
         mock_subset.return_value = ['file1']
+        self.nemo.naml.processing.rebuild_restart_buffer = 5
         self.nemo.rebuild_fileset('ShareDir', 'restart')
-        self.assertIn('{} retained'.format(self.buffer_rst), func.capture())
+        self.assertIn('5 retained', func.capture())
 
     @mock.patch('nemo.utils.get_subset')
     def test_rebuild_mean_not_required(self, mock_subset):
         '''Test rebuild means function retaining all files'''
         func.logtest('Assert means files fewer than buffer (1) are retained:')
         mock_subset.return_value = ['file1']
+        self.nemo.naml.processing.rebuild_mean_buffer = 1
         self.nemo.rebuild_fileset('ShareDir', 'field')
-        self.assertIn('{} retained'.format(self.buffer_mean), func.capture())
+        self.assertIn('1 retained', func.capture())
 
     @mock.patch('nemo.utils.remove_files')
     @mock.patch('nemo.utils.get_subset')
     def test_rebuild_periodic_only(self, mock_subset, mock_rm):
         '''Test rebuild function for periodic files not found'''
         func.logtest('Assert only periodic files are rebuilt:')
-        mock_subset.return_value = ['file1_19990101_', 'file2_19990101_']
-        self.nemo.rebuild_fileset('ShareDir', 'field')
+        mock_subset.side_effect = [['file1_19990101_', 'file2_19990101_'],
+                                   ['f1_cmpt1', 'f1_cmpt2'],
+                                   ['f2_cmpt1', 'f2_cmpt2']]
+        self.nemo.rebuild_fileset('ShareDir', 'restartfile')
         self.assertIn('only rebuilding periodic', func.capture().lower())
         self.assertIn('deleting component files', func.capture().lower())
-        mock_rm.assert_called_once_with(['file1_19990101_', 'file2_19990101_'],
-                                        path='ShareDir')
+        self.assertListEqual(
+            mock_rm.mock_calls,
+            [mock.call(['f1_cmpt1', 'f1_cmpt2'], path='ShareDir'),
+             mock.call(['f2_cmpt1', 'f2_cmpt2'], path='ShareDir')]
+            )
 
     @mock.patch('nemo.NemoPostProc.rebuild_namelist')
     @mock.patch('nemo.utils.get_subset')
@@ -255,12 +264,13 @@ class RebuildTests(unittest.TestCase):
     def test_rebuild_all(self, mock_attr, mock_subset, mock_nl):
         '''Test rebuild all function'''
         func.logtest('Assert rebuild all function:')
+        self.nemo.naml.processing.rebuild_mean_buffer = 1
         mock_subset.side_effect = [['file_19980530_yyyymmdd_0000.nc',
                                     'file_19980630_yyyymmdd_0000.nc',
                                     'file_19980730_yyyymmdd_0000.nc'],
                                    ['f1_component1', 'f1_component2'],
                                    ['f2_component1', 'f2_component2']]
-        self.nemo.rebuild_fileset('SourceDir', 'field', rebuildall=True)
+        self.nemo.rebuild_fileset('SourceDir', 'field')
         mock_nl.assert_called_with('SourceDir', 'file_19980630_yyyymmdd',
                                    2, omp=1, msk=False)
         self.assertEqual(mock_attr.mock_calls, [])
@@ -271,12 +281,13 @@ class RebuildTests(unittest.TestCase):
     def test_rebuild_all_shortdate(self, mock_attr, mock_subset, mock_nl):
         '''Test rebuild all function - short date format'''
         func.logtest('Assert rebuild all function:')
+        self.nemo.naml.processing.rebuild_mean_buffer = 1
         mock_subset.side_effect = [['file_199805_yyyymmdd_0000.nc',
                                     'file_199806_yyyymmdd_0000.nc',
                                     'file_199807_yyyymmdd_0000.nc'],
                                    ['f1_component1', 'f1_component2'],
                                    ['f2_component1', 'f2_component2']]
-        self.nemo.rebuild_fileset('SourceDir', 'field', rebuildall=True)
+        self.nemo.rebuild_fileset('SourceDir', 'field')
         mock_nl.assert_called_with('SourceDir', 'file_199806_yyyymmdd',
                                    2, omp=1, msk=False)
         self.assertEqual(mock_attr.mock_calls, [])
@@ -285,6 +296,7 @@ class RebuildTests(unittest.TestCase):
     def test_rebuild_pattern(self, mock_nl):
         '''Test rebuild pattern matching function'''
         func.logtest('Assert rebuild pattern matching function:')
+        self.nemo.naml.processing.rebuild_mean_buffer = 1
         myfiles = ['RUNIDo_19980530_restart_0000.nc',
                    'RUNIDo_19980530_yyyymmdd_field_0000.nc',
                    'RUNIDo_19980530_yyyymmdd_field_0001.nc',
@@ -311,8 +323,6 @@ class RebuildTests(unittest.TestCase):
                    'RUNIDo_19981130_restart_0000.nc',
                    'RUNIDo_icebergs_19980530_restart_0000.nc',
                    'RUNIDo_19980530_restart_trc_0000.nc']
-        self.nemo.buffer_rebuild = mock.Mock()
-        self.nemo.buffer_rebuild.return_value = 0
         for fname in myfiles:
             open(fname, 'w').close()
 
@@ -335,8 +345,6 @@ class RebuildTests(unittest.TestCase):
                    'RUNIDo_icebergs_19980530_restart_0000.nc',
                    'RUNIDo_icebergs_19980530_restart_0001.nc',
                    'RUNIDo_19980530_restart_trc_0000.nc']
-        self.nemo.buffer_rebuild = mock.Mock()
-        self.nemo.buffer_rebuild.return_value = 0
         for fname in myfiles:
             open(fname, 'w').close()
         self.nemo.rebuild_fileset(os.getcwd(),
@@ -356,8 +364,6 @@ class RebuildTests(unittest.TestCase):
                    'RUNIDo_19980530_restart_trc_0000.nc',
                    'RUNIDo_19980530_restart_trc_0001.nc',
                    'RUNIDo_icebergs_19980530_restart_0000.nc']
-        self.nemo.buffer_rebuild = mock.Mock()
-        self.nemo.buffer_rebuild.return_value = 0
         for fname in myfiles:
             open(fname, 'w').close()
         self.nemo.rebuild_fileset(os.getcwd(),
@@ -377,11 +383,8 @@ class RebuildTests(unittest.TestCase):
             [['file_11112233_restart_0000.nc'],
              ['file_restart_11112233_0000.nc', 'file_11112233_restart_0001.nc']]
         mock_nl.return_value = 0
-        self.nemo.buffer_rebuild = mock.Mock()
-        self.nemo.buffer_rebuild.return_value = 0
         self.nemo.suite.finalcycle = True
-        self.nemo.rebuild_fileset('SourceDir', 'yyyymmdd_restart',
-                                  rebuildall=True)
+        self.nemo.rebuild_fileset('SourceDir', 'yyyymmdd_restart')
         mock_nl.assert_called_with('SourceDir', 'file_11112233_restart',
                                    2, omp=1, msk=False)
         self.assertNotIn('deleting component files', func.capture().lower())
@@ -398,7 +401,7 @@ class RebuildTests(unittest.TestCase):
                                    ['mean2_c1', 'mean2_c2']]
         mock_nl.return_value = 0
         self.nemo.suite.finalcycle = True
-        self.nemo.rebuild_fileset('SourceDir', 'mean', rebuildall=True)
+        self.nemo.rebuild_fileset('SourceDir', 'mean')
 
         self.assertIn('deleting component files', func.capture().lower())
         nl_calls = [mock.call('SourceDir', 'file_11112233_mean1', 2,
@@ -416,10 +419,11 @@ class RebuildTests(unittest.TestCase):
     def test_rebuild_diaptr_means(self, mock_attr, mock_subset, mock_nl):
         '''Test rebuild all function - diaptr means'''
         func.logtest('Assert rebuild all function - diaptr means:')
+        self.nemo.naml.processing.rebuild_mean_buffer = 1
         mock_subset.side_effect = [['file_19980530_yyyymmdd_diaptr_0000.nc',
                                     'file_19980630_yyyymmdd_diaptr_0000.nc'],
                                    ['component_file1', 'component_file2']]
-        self.nemo.rebuild_fileset('SourceDir', 'f_diaptr', rebuildall=True)
+        self.nemo.rebuild_fileset('SourceDir', 'f_diaptr')
         mock_nl.assert_called_once_with('SourceDir',
                                         'file_19980530_yyyymmdd_diaptr',
                                         2, omp=1, msk=False)
@@ -476,13 +480,14 @@ class RebuildTests(unittest.TestCase):
     def test_rebuild_mask(self, mock_subset, mock_nl):
         '''Test rebuild all function with mask option'''
         func.logtest('Assert rebuild all function with mask option:')
-        # Buffer is 1 buy default - 1st subset side_effect must be list of 2.
+        self.nemo.naml.processing.rebuild_mean_buffer = 1
+        # Buffer is 1 - 1st subset side_effect must be list of 2.
         mock_subset.side_effect = [['file_19980530', 'file_19980630'],
                                    ['file_19980530_0000.nc',
                                     'file_19980530_0001.nc',
                                     'file_19980530_0002.nc']]
-        self.nemo.naml.msk_rebuild = True
-        self.nemo.rebuild_fileset(os.getcwd(), 'field', rebuildall=True)
+        self.nemo.naml.processing.msk_rebuild = True
+        self.nemo.rebuild_fileset(os.getcwd(), 'field')
         mock_nl.assert_called_with(os.getcwd(), 'file_19980530',
                                    3, omp=1, msk=True)
 
@@ -564,7 +569,7 @@ class MeansProcessingTests(unittest.TestCase):
     def setUp(self):
         self.nemo = nemo.NemoPostProc()
         self.nemo.suite = mock.Mock()
-        self.defaults = nemoNamelist.NemoNamelist()
+        self.defaults = nemo_namelist.Processing()
         self.ncdumpout = '''
   :DOMAIN_size_global = x, 1207;
   :dummy arg = some value;
@@ -660,7 +665,7 @@ class AdditionalArchiveTests(unittest.TestCase):
         self.nemo.suite = mock.Mock()
         self.nemo.suite.prefix = 'RUNID'
         self.nemo.archive_files = mock.Mock(return_value={})
-        self.nemo.naml.exec_rebuild_iceberg_trajectory = 'ICB_PP'
+        self.nemo.naml.processing.exec_rebuild_iceberg_trajectory = 'ICB_PP'
         self.nemo.share = 'HERE'
         self.nemo.work = 'HERE'
 
@@ -681,7 +686,7 @@ class AdditionalArchiveTests(unittest.TestCase):
         mock_set.side_effect = [['file1_0000.nc'],
                                 ['file1_0000.nc', 'file1_0001.nc']]
 
-        self.nemo.naml.archive_iceberg_trajectory = True
+        self.nemo.naml.archiving.archive_iceberg_trajectory = True
         self.nemo.create_general()
 
         cmd = 'python2.7 ICB_PP -t HERE/file1_ -n 2 -o HERE/RUNIDo_file1.nc'
@@ -701,7 +706,7 @@ class AdditionalArchiveTests(unittest.TestCase):
                                 ['file1_0000.nc', 'file1_0001.nc'],
                                 ['arch1.nc']]
         mock_exec.return_value = (1, 'ICB_PP failed')
-        self.nemo.naml.archive_iceberg_trajectory = True
+        self.nemo.naml.archiving.archive_iceberg_trajectory = True
         with self.assertRaises(SystemExit):
             self.nemo.create_general()
         with self.assertRaises(AssertionError):
@@ -717,7 +722,7 @@ class AdditionalArchiveTests(unittest.TestCase):
         mock_set.side_effect = [['file1_0000.nc'],
                                 ['file1_0000.nc', 'file1_0001.nc']]
         mock_exec.return_value = (1, 'ICB_PP failed')
-        self.nemo.naml.archive_iceberg_trajectory = True
+        self.nemo.naml.archiving.archive_iceberg_trajectory = True
         with mock.patch('nemo.utils.get_debugmode', return_value=True):
             self.nemo.create_general()
         self.assertIn('Error=1\n\tICB_PP failed', func.capture('err'))
@@ -726,7 +731,7 @@ class AdditionalArchiveTests(unittest.TestCase):
     def test_create_iberg_traj_move(self, mock_mv):
         '''Test call to iceberg_trajectory archive method - move files'''
         func.logtest('Assert call to archive_iceberg_trajectory with move:')
-        self.nemo.naml.archive_iceberg_trajectory = True
+        self.nemo.naml.archiving.archive_iceberg_trajectory = True
         self.nemo.share = 'THERE'
         with mock.patch('nemo.utils.get_subset'):
             self.nemo.create_general()
@@ -745,7 +750,7 @@ class AdditionalArchiveTests(unittest.TestCase):
         '''Test call to archive iceberg trajectory'''
         func.logtest('Assert call to archive iceberg trajectory')
         mock_set.side_effect = [['arch1.nc']]
-        self.nemo.naml.archive_iceberg_trajectory = True
+        self.nemo.naml.archiving.archive_iceberg_trajectory = True
         self.nemo.archive_general()
         self.nemo.archive_files.assert_called_once_with(['arch1.nc'])
         iberg_pattern = r'^RUNIDo_trajectory_icebergs_\d{6,8}(-\d{8})?\.nc$'
@@ -763,7 +768,7 @@ class AdditionalArchiveTests(unittest.TestCase):
                                                 'arch2.nc': 'SUCCESS',
                                                 'arch3.nc': 'SUCCESS'}
 
-        self.nemo.naml.archive_iceberg_trajectory = True
+        self.nemo.naml.archiving.archive_iceberg_trajectory = True
         with mock.patch('nemo.utils.get_debugmode', return_value=True):
             self.nemo.archive_general()
 
@@ -785,7 +790,7 @@ class AdditionalArchiveTests(unittest.TestCase):
     def test_arch_iberg_traj_archpass(self, mock_rm):
         '''Test call to iceberg_trajectory archive method - arch pass'''
         func.logtest('Assert call to archive_iceberg_trajectory - arch pass:')
-        self.nemo.naml.archive_iceberg_trajectory = True
+        self.nemo.naml.archiving.archive_iceberg_trajectory = True
         self.nemo.archive_files.return_value = {'arch1': 'SUCCESS'}
         with mock.patch('nemo.utils.get_subset'):
             self.nemo.archive_general()
@@ -796,7 +801,7 @@ class AdditionalArchiveTests(unittest.TestCase):
     def test_arch_iberg_traj_archfail(self, mock_rm):
         '''Test call to iceberg_trajectory archive method - arch fail'''
         func.logtest('Assert call to archive_iceberg_trajectory - arch fail:')
-        self.nemo.naml.archive_iceberg_trajectory = True
+        self.nemo.naml.archiving.archive_iceberg_trajectory = True
         self.nemo.archive_files.return_value = {'arch1': 'FAILED'}
         with mock.patch('nemo.utils.get_subset'):
             self.nemo.archive_general()
@@ -808,7 +813,7 @@ class AdditionalArchiveTests(unittest.TestCase):
     def test_create_region_extract(self, mock_mv, mock_set):
         '''Test call to create_regional_extraction method'''
         func.logtest('Assert call to create_regional_extraction:')
-        self.nemo.naml.extract_region = True
+        self.nemo.naml.processing.extract_region = True
         self.nemo.region_fields = self.nemo._region_fields
         self.nemo.diagsdir = os.getcwd()
         mock_set.side_effect = [['fileT'], [], ['fileV1', 'fileV2']]
@@ -843,8 +848,8 @@ class AdditionalArchiveTests(unittest.TestCase):
     def test_create_region_fielddim(self, mock_mv, mock_set):
         '''Test call to create_regional_extraction - field specific dims'''
         func.logtest('Assert call to create_regional_extraction - field dims:')
-        self.nemo.naml.extract_region = True
-        self.nemo.naml.region_dimensions = ['xgrid_%G', 1, 2, 'ygrid_%G', 3, 4]
+        self.nemo.naml.processing.extract_region = True
+        self.nemo.naml.processing.region_dimensions = ['xgrid_%G', 1, 2, 'ygrid_%G', 3, 4]
         self.nemo.region_fields = ['shelf-T']
         self.nemo.diagsdir = os.getcwd()
         mock_set.side_effect = [['fileT']]
@@ -871,7 +876,7 @@ class AdditionalArchiveTests(unittest.TestCase):
     def test_create_region_pass(self, mock_mv, mock_set):
         '''Test call to create_regional_extraction - file already regional'''
         func.logtest('Assert call to create_regional_extraction - pass:')
-        self.nemo.naml.extract_region = True
+        self.nemo.naml.processing.extract_region = True
         self.nemo.region_fields = ['shelf-T']
         self.nemo.diagsdir = os.getcwd()
         mock_set.side_effect = [['fileT']]
@@ -891,9 +896,9 @@ class AdditionalArchiveTests(unittest.TestCase):
     def test_create_region_compress(self, mock_mv, mock_cmp, mock_set):
         '''Test call to create_regional_extraction - compress file'''
         func.logtest('Assert call to create_regional_extraction - compress:')
-        self.nemo.naml.extract_region = True
+        self.nemo.naml.processing.extract_region = True
         self.nemo.region_fields = ['shelf-T']
-        self.nemo.naml.compression_level = 2
+        self.nemo.naml.processing.compression_level = 2
         self.nemo.diagsdir = os.getcwd()
         mock_set.side_effect = [['fileT']]
         self.nemo.suite.preprocess_file.side_effect = \
@@ -912,7 +917,7 @@ class AdditionalArchiveTests(unittest.TestCase):
     def test_create_region_meanfield(self, mock_mv, mock_set):
         '''Test call to create_regional_extraction - future mean field'''
         func.logtest('Assert call to create_regional_extraction - mean field:')
-        self.nemo.naml.extract_region = True
+        self.nemo.naml.processing.extract_region = True
         self.nemo.region_fields = ['shelf_T', 'grid_T']
         self.nemo.diagsdir = os.getcwd()
         mock_set.side_effect = [['shelfT'], ['gridT']]
@@ -928,8 +933,8 @@ class AdditionalArchiveTests(unittest.TestCase):
     def test_create_region_nodims(self, mock_mv, mock_set):
         '''Test call to create_regional_extraction - no dims'''
         func.logtest('Assert call to create_regional_extraction - no dims:')
-        self.nemo.naml.extract_region = True
-        self.nemo.naml.region_dimensions = []
+        self.nemo.naml.processing.extract_region = True
+        self.nemo.naml.processing.region_dimensions = []
         self.nemo.region_fields = ['shelf-T']
         self.nemo.diagsdir = os.getcwd()
         mock_set.side_effect = [['fileT']]
@@ -952,8 +957,8 @@ class AdditionalArchiveTests(unittest.TestCase):
     def test_create_region_nodims_debug(self, mock_mv, mock_set):
         '''Test call to create_regional_extraction - no dims in debug mode'''
         func.logtest('Assert debug call to regional extraction - no dims:')
-        self.nemo.naml.extract_region = True
-        self.nemo.naml.region_dimensions = []
+        self.nemo.naml.processing.extract_region = True
+        self.nemo.naml.processing.region_dimensions = []
         self.nemo.region_fields = ['shelf-T']
         self.nemo.diagsdir = os.getcwd()
         mock_set.side_effect = [['fileT']]
@@ -976,7 +981,7 @@ class AdditionalArchiveTests(unittest.TestCase):
         '''Test call to archive_regional_extraction'''
         func.logtest('Assert call to archive_regional_extraction')
         mock_set.side_effect = [['archT1'], [], ['archV1', 'archV2']]
-        self.nemo.naml.extract_region = True
+        self.nemo.naml.processing.extract_region = True
         self.nemo.region_fields = self.nemo._region_fields
         self.nemo.diagsdir = 'DDIR'
         with mock.patch('nemo.utils.check_directory', return_value='DDIR'):
@@ -1008,7 +1013,7 @@ class AdditionalArchiveTests(unittest.TestCase):
         self.nemo.archive_files.return_value = {'DDIR/arch1.nc': 'FAILED',
                                                 'DDIR/arch2.nc': 'SUCCESS',
                                                 'arch3.nc': 'SUCCESS'}
-        self.nemo.naml.extract_region = True
+        self.nemo.naml.processing.extract_region = True
         self.nemo.region_fields = ['shelf-T']
         self.nemo.diagsdir = 'DDIR'
         with mock.patch('nemo.utils.get_debugmode', return_value=True):
@@ -1033,7 +1038,7 @@ class AdditionalArchiveTests(unittest.TestCase):
     def test_arch_region_archpass(self, mock_rm):
         '''Test call to archive_regional_extraction - arch pass'''
         func.logtest('Assert call to archive_regional_extraction - arch pass')
-        self.nemo.naml.extract_region = True
+        self.nemo.naml.processing.extract_region = True
         self.nemo.region_fields = ['shelf-T']
         self.nemo.diagsdir = 'DDIR'
         self.nemo.archive_files.return_value = {'DDIR/arch1': 'SUCCESS'}
@@ -1047,7 +1052,7 @@ class AdditionalArchiveTests(unittest.TestCase):
     def test_arch_region_archfail(self, mock_rm):
         '''Test call to archive_regional_extraction - arch fail'''
         func.logtest('Assert call to archive_regional_extraction - arch fail')
-        self.nemo.naml.extract_region = True
+        self.nemo.naml.processing.extract_region = True
         self.nemo.region_fields = ['shelf-T']
         self.nemo.diagsdir = 'DDIR'
         self.nemo.archive_files.return_value = {'arch1': 'FAILED'}

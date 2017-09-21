@@ -27,3 +27,4 @@ class pp21_tXXX(rose.upgrade.MacroUpgrade):
         # Add changes here...
 
         return config, self.reports
+

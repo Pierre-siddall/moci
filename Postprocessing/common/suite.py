@@ -218,12 +218,13 @@ class SuiteEnvironment(object):
         if not os.path.basename(cmd) == 'ncdump':
             cmd = os.path.join(cmd, 'ncdump')
 
+        print_output = kwargs.pop('printout', True)
         for key, val in kwargs.items():
             cmd = ' '.join([cmd, '-' + key, val])
         cmd = ' '.join([cmd, fname])
 
         utils.log_msg('ncdump: Getting file info: {}'.format(cmd), level='INFO')
-        ret_code, output = utils.exec_subproc(cmd)
+        ret_code, output = utils.exec_subproc(cmd, verbose=print_output)
         level = 'OK'
         if ret_code == 0:
             msg = 'ncdump: Command successful'
@@ -311,7 +312,7 @@ class SuitePostProc(object):
     ncdump_path = ''
     ncrcat_path = ''
     ncks_path = '/projects/ocean/hadgem3/nco/nco-4.4.7/bin'
-    mean_reference_date = [0, 12, 1]
+    mean_reference_date = 0, 12, 1
     process_toplevel = False
     archive_toplevel = False
 

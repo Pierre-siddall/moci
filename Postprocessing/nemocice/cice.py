@@ -61,7 +61,7 @@ class CicePostProc(mt.ModelTemplate):
         of files other than restarts and means.
            (<type str> method_name, <type bool>)
         '''
-        return [('concat_daily_means', self.naml.cat_daily_means)]
+        return [('concat_daily_means', self.naml.processing.cat_daily_means)]
 
     def rst_set_stencil(self, rsttype):
         '''

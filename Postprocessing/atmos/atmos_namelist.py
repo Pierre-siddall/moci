@@ -12,7 +12,7 @@
  Met Office, FitzRoy Road, Exeter, Devon, EX1 3PB, United Kingdom
 *****************************COPYRIGHT******************************
 NAME
-    atmosNamelist.py
+    atmos_namelist.py
 
 DESCRIPTION
     Default namelists for Atmosphere post processing control

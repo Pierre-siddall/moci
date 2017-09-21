@@ -20,7 +20,7 @@ import mock
 import testing_functions as func
 import runtime_environment
 
-import atmosNamelist
+import atmos_namelist
 import validation
 import housekeeping
 
@@ -307,7 +307,7 @@ class HousekeepTests(unittest.TestCase):
 class HeaderTests(unittest.TestCase):
     '''Unit tests relating to file datestamp validity against the UM fixHD'''
     def setUp(self):
-        self.umutils = atmosNamelist.AtmosNamelist().um_utils
+        self.umutils = atmos_namelist.AtmosNamelist().um_utils
         self.atmos = atmos.AtmosPostProc()
         self.fixhd = [('27', 'xx'), ('28', 'YY'), ('29', 'MM'),
                       ('30', 'DD'), ('31', 'xx'), ('32', 'xx'),

@@ -334,7 +334,8 @@ class PreProcessTests(unittest.TestCase):
         with mock.patch('suite.utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (0, 'NCDUMP output')
             rtn = self.mysuite.preproc_ncdump(infile, h='')
-            mock_exec.assert_called_with('ncdump -h  TestDir/myFile')
+            mock_exec.assert_called_with('ncdump -h  TestDir/myFile',
+                                         verbose=True)
         self.assertEqual('NCDUMP output', rtn)
 
     def test_ncdump_path(self):
@@ -346,7 +347,17 @@ class PreProcessTests(unittest.TestCase):
             mock_exec.return_value = (0, '')
             self.mysuite.preproc_ncdump(infile)
             cmdstring = 'path/to/ncutils/ncdump TestDir/myFile'
-            mock_exec.assert_called_with(cmdstring)
+            mock_exec.assert_called_with(cmdstring, verbose=True)
+
+    def test_ncdump_path_noprint(self):
+        '''Test call to ncdump utility with verbose=False'''
+        func.logtest('Assert call to ncdump file utility - verbose=False:')
+        infile = 'TestDir/myFile'
+        with mock.patch('suite.utils.exec_subproc') as mock_exec:
+            mock_exec.return_value = (0, '')
+            _ = self.mysuite.preproc_ncdump(infile, printout=False)
+            cmdstring = 'ncdump TestDir/myFile'
+            mock_exec.assert_called_with(cmdstring, verbose=False)
 
     def test_ncdump_fail(self):
         '''Test call to ncdump utility - failure'''
@@ -356,7 +367,8 @@ class PreProcessTests(unittest.TestCase):
             mock_exec.return_value = (1, 'I failed')
             with self.assertRaises(SystemExit):
                 self.mysuite.preproc_ncdump(infile, h='')
-            mock_exec.assert_called_with('ncdump -h  TestDir/myFile')
+            mock_exec.assert_called_with('ncdump -h  TestDir/myFile',
+                                         verbose=True)
         self.assertIn('I failed', func.capture('err'))
 
     def test_ncrcat(self):

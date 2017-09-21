@@ -141,3 +141,76 @@ class pp21_t236(rose.upgrade.MacroUpgrade):
         self.add_setting(config, ["env", "CYCLEPERIOD"], setvalue)
 
         return config, self.reports
+
+
+class pp21_t221(rose.upgrade.MacroUpgrade):
+
+    """Upgrade macro for ticket #221 by EricaNeininger."""
+    BEFORE_TAG = "pp21_t236"
+    AFTER_TAG = "pp21_t221"
+
+    def upgrade(self, config, meta_config=None):
+        """Upgrade a Postproc app configuration."""
+        self.change_setting_value(config, ["file:nemocicepp.nl", "source"],
+                                  "namelist:nemo_pp namelist:nemo_processing " +
+                                  "namelist:nemo_archiving namelist:cice_pp " +
+                                  "namelist:cice_processing namelist:cice_archiving " +
+                                  "namelist:suitegen namelist:moose_arch")
+        # NEMO/CICE common items
+        for model in 'nemo', 'cice':
+              for item in ["pp_run", "debug", "restart_directory", "work_directory"]:
+                    self.rename_setting(config, ["namelist:%spostproc" % (model), item],
+                                        ["namelist:%s_pp" % (model), item])
+
+              for item in ["means_cmd", "base_component", "create_means",
+                           "create_monthly_mean", "create_seasonal_mean",
+                           "create_annual_mean", "create_decadal_mean",
+                           "compress_netcdf", "compression_level", "chunking_arguments",
+                           "correct_time_variables", "correct_time_bounds_variables",
+                           "time_vars"]:
+                    self.rename_setting(config, ["namelist:%spostproc" % (model), item],
+                                        ["namelist:%s_processing" % (model), item])
+
+              for item in ["archive_restarts", "archive_means", "means_to_archive"]:
+                    self.rename_setting(config, ["namelist:%spostproc" % (model), item],
+                                        ["namelist:%s_archiving" % (model), item])
+
+              self.rename_setting(config, ["namelist:%spostproc" % (model),
+                                           "archive_timestamps"],
+                                           ["namelist:%s_archiving" % (model),
+                                            "archive_restart_timestamps"])
+              self.rename_setting(config, ["namelist:%spostproc" % (model),
+                                           "buffer_archive"],
+                                           ["namelist:%s_archiving" % (model),
+                                            "archive_restart_buffer"])
+
+        # NEMO only items
+        for item in ["process_all_fieldsfiles", "means_fieldsfiles"]:
+              self.rename_setting(config, ["namelist:nemopostproc", item],
+                                  ["namelist:nemo_pp", item])
+ 
+        for item in ["msk_rebuild", "exec_rebuild", "exec_rebuild_icebergs",
+                     "exec_rebuild_iceberg_trajectory", "ncatted_cmd",
+                     "extract_region", "region_fieldsfiles", "region_dimensions",
+                     "region_chunking_args"]:
+              self.rename_setting(config, ["namelist:nemopostproc", item],
+                                  ["namelist:nemo_processing", item])
+
+        self.rename_setting(config, ["namelist:nemopostproc", "rebuild_timestamps"],
+                                     ["namelist:nemo_processing", "rebuild_restart_timestamps"])
+        self.rename_setting(config, ["namelist:nemopostproc", "buffer_rebuild_rst"],
+                                     ["namelist:nemo_processing", "rebuild_restart_buffer"])
+        self.rename_setting(config, ["namelist:nemopostproc", "buffer_rebuild_mean"],
+                                     ["namelist:nemo_processing", "rebuild_mean_buffer"])
+
+        self.rename_setting(config, ["namelist:nemopostproc", "archive_iceberg_trajectory"],
+                                     ["namelist:nemo_archiving", "archive_iceberg_trajectory"])
+
+        # CICE only items
+        self.rename_setting(config, ["namelist:cicepostproc", "cat_daily_means"],
+                            ["namelist:cice_processing", "cat_daily_means"])
+
+        self.remove_setting(config, ["namelist:nemopostproc"])
+        self.remove_setting(config, ["namelist:cicepostproc"])
+
+        return config, self.reports

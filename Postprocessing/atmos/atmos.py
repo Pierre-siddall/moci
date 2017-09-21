@@ -90,16 +90,19 @@ class AtmosPostProc(control.RunPostProc):
         Returns a dictionary of methods available for this model to the
         main program
         '''
-        return OrderedDict([('do_transform', self.naml.atmospp.convert_pp or
-                             self.naml.atmospp.streams_to_netcdf),
-                            ('do_archive', self.naml.archiving.archive_switch),
-                            ('do_delete', self.naml.delete_sc.del_switch),
-                            ('finalcycle_archive',
-                             any([self.naml.archiving.archive_switch,
-                                  self.naml.atmospp.convert_pp,
-                                  self.naml.atmospp.streams_to_netcdf]) and
-                             self.suite.finalcycle),
-                            ('finalise_debug', self.naml.atmospp.debug)])
+        process = self.suite.naml.process_toplevel is True
+        archive = self.suite.naml.archive_toplevel is True
+        return OrderedDict(
+            [('do_transform', process and
+              (self.naml.atmospp.convert_pp or
+               self.naml.atmospp.streams_to_netcdf)),
+             ('do_archive', archive and self.naml.archiving.archive_switch),
+             ('do_delete', archive and self.naml.delete_sc.del_switch),
+             ('finalcycle_archive', self.suite.finalcycle and
+              any([self.naml.archiving.archive_switch,
+                   self.naml.atmospp.convert_pp,
+                   self.naml.atmospp.streams_to_netcdf])),
+             ('finalise_debug', self.naml.atmospp.debug)])
 
     @property
     def _work(self):
@@ -364,11 +367,13 @@ class AtmosPostProc(control.RunPostProc):
         Archive but do not delete potentially incomplete fieldsfiles left
         on disk at the completion of the final cycle.
         '''
-        if self.naml.atmospp.convert_pp or self.netcdf_streams:
-            self.do_transform(finalcycle=True)
+        if self.suite.naml.process_toplevel:
+            if self.naml.atmospp.convert_pp or self.netcdf_streams:
+                self.do_transform(finalcycle=True)
 
-        if self.naml.archiving.archive_switch:
-            self.do_archive(finalcycle=True)
+        if self.suite.naml.archive_toplevel:
+            if self.naml.archiving.archive_switch:
+                self.do_archive(finalcycle=True)
 
     @timer.run_timer
     def do_delete(self):

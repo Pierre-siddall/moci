@@ -23,6 +23,7 @@ import abc
 import os
 import re
 import copy
+import shutil
 
 from collections import OrderedDict
 
@@ -53,20 +54,27 @@ class ModelTemplate(control.RunPostProc):
 
     def __init__(self, input_nl='nemocicepp.nl'):
         name = self.__class__.__name__
-        self.naml = getattr(nlist.loadNamelist(input_nl), name.lower())
+        self.naml = utils.Variables()
+        namelists_in_file = nlist.loadNamelist(input_nl)
+        for nl_name in dir(namelists_in_file):
+            modelprefix = name.lower().replace('postproc', '') + '_'
+            if nl_name.startswith(modelprefix):
+                setattr(self.naml, nl_name[len(modelprefix):],
+                        getattr(namelists_in_file, nl_name))
+
         self.mean_fields = self._mean_fields
         self.inst_fields = self._inst_fields
 
         if self.runpp:
-            self.share = self._directory(self.naml.restart_directory,
+            self.share = self._directory(self.naml.pp.restart_directory,
                                          name.upper()[:-8] + ' SHARE')
-            self.work = self._directory(self.naml.work_directory,
+            self.work = self._directory(self.naml.pp.work_directory,
                                         name.upper()[:-8] + ' WORK')
             self.diagsdir = os.path.join(self.share, 'archive_ready')
             self.suite = suite.SuiteEnvironment(self.share, input_nl)
 
             # Initialise debug mode - calling base class method
-            self._debug_mode(self.naml.debug)
+            self._debug_mode(self.naml.pp.debug)
             self.meansets = self._mean_bases()
             self.requested_means = [m for m in MEANPERIODS
                                     if self.meansets[m][0]]
@@ -79,7 +87,7 @@ class ModelTemplate(control.RunPostProc):
         Logical - Run postprocessing for given model
         Set via the [model]postproc namelist
         '''
-        return self.naml.pp_run
+        return self.naml.pp.pp_run
 
     @property
     def methods(self):
@@ -87,25 +95,40 @@ class ModelTemplate(control.RunPostProc):
         Returns a dictionary of methods available for this model to the
         main program
         '''
+        process = self.suite.naml.process_toplevel is True
+        archive = self.suite.naml.archive_toplevel is True
         return OrderedDict(
-            [('archive_restarts', self.naml.archive_restarts),
-             ('move_to_share', any([self.naml.create_monthly_mean,
-                                    self.naml.create_seasonal_mean,
-                                    self.naml.create_annual_mean,
-                                    self.naml.create_decadal_mean,
-                                    self.naml.archive_means])),
-             ('create_general', self.suite.naml.process_toplevel and
+            [('move_to_share', any([self.naml.processing.create_monthly_mean,
+                                    self.naml.processing.create_seasonal_mean,
+                                    self.naml.processing.create_annual_mean,
+                                    self.naml.processing.create_decadal_mean,
+                                    self.naml.archiving.archive_means])),
+
+             ('create_general', process and
               any(ftype[1] for ftype in self.process_types if
-                  isinstance(ftype[1], bool) and ftype[1])),
-             ('create_means', any([self.naml.create_monthly_mean,
-                                   self.naml.create_seasonal_mean,
-                                   self.naml.create_annual_mean,
-                                   self.naml.create_decadal_mean])),
-             ('archive_general', self.suite.naml.archive_toplevel and
+                  ftype[1] is True)),
+
+             ('create_means', process and
+              any([self.naml.processing.create_monthly_mean,
+                   self.naml.processing.create_seasonal_mean,
+                   self.naml.processing.create_annual_mean,
+                   self.naml.processing.create_decadal_mean])),
+
+             ('prepare_archive', process and
+              (self.naml.archiving.archive_restarts or
+               self.naml.archiving.archive_means)),
+
+             ('archive_restarts', archive and
+              self.naml.archiving.archive_restarts),
+
+             ('archive_general', archive and
               any(ftype[1] for ftype in self.process_types if
-                  isinstance(ftype[1], bool) and ftype[1])),
-             ('archive_means', self.naml.archive_means),
-             ('finalise_debug', self.naml.debug)]
+                  ftype[1] is True)),
+
+             ('archive_means', archive and
+              self.naml.archiving.archive_means),
+
+             ('finalise_debug', self.naml.pp.debug)]
             )
 
     @property
@@ -142,7 +165,7 @@ class ModelTemplate(control.RunPostProc):
            o = ocean
         Overriding method in the calling model is required.
         '''
-        msg = 'Model specific model_realm propetry not implemented.\n\t'
+        msg = 'Model specific model_realm property not implemented.\n\t'
         msg += 'return single lowercase char from permitted list: [a, i, l, o]'
         utils.log_msg(msg, level='WARN')
         raise NotImplementedError
@@ -174,7 +197,7 @@ class ModelTemplate(control.RunPostProc):
     @property
     def base_component(self):
         '''Base component used to create the first mean file'''
-        return self.naml.base_component
+        return self.naml.processing.base_component
 
     def _mean_bases(self):
         '''
@@ -184,7 +207,7 @@ class ModelTemplate(control.RunPostProc):
              <PERIOD BASE> = Base component used to create the mean
              <SET LENGTH>  = Number of base component files to create the mean
         '''
-        basecmpt = self.naml.base_component
+        basecmpt = self.base_component
         multiplier = float(basecmpt[:-1])
 
         if utils.calendar() == '360day':
@@ -239,7 +262,8 @@ class ModelTemplate(control.RunPostProc):
                           '1s': 'seasonal',
                           '1y': 'annual',
                           '1x': 'decadal'}
-            if getattr(self.naml, 'create_{}_mean'.format(meantitles[period])):
+            if getattr(self.naml.processing,
+                       'create_{}_mean'.format(meantitles[period])):
                 # Update the base component for the next mean
                 basecmpt = period
             else:
@@ -350,13 +374,10 @@ class ModelTemplate(control.RunPostProc):
     @property
     def additional_means(self):
         '''
-        Returns a list of means to be archived; additional to the standard
-        monthly, seasonal and annual means files
+        Return a list of means to be processed; additional to the standard
+        monthly, seasonal and annual means files created by the app.
         '''
-        means = self.naml.means_to_archive if self.naml.means_to_archive else []
-        if not isinstance(means, list):
-            means = [means]
-        return means
+        return utils.ensure_list(self.naml.archiving.means_to_archive)
 
     @property
     def rebuild_cmd(self):
@@ -365,7 +386,7 @@ class ModelTemplate(control.RunPostProc):
         the filename(s)
         '''
         try:
-            return self.naml.exec_rebuild
+            return self.naml.processing.exec_rebuild
         except AttributeError:
             # Not all models require rebuilding
             pass
@@ -425,7 +446,9 @@ class ModelTemplate(control.RunPostProc):
         Returns True/False - Match a file to given timestamps to establish
         need for processing (rebuild or archive)
         '''
-        nlvar = getattr(self.naml, process + '_timestamps')
+        namelist = 'archiving' if process == 'archive' else 'processing'
+        nlvar = utils.ensure_list(getattr(getattr(self.naml, namelist),
+                                          process + '_restart_timestamps'))
         if not isinstance(nlvar, list):
             nlvar = [nlvar]
         return bool([ts for ts in nlvar if [month, day] == ts.split('-')] or
@@ -447,7 +470,6 @@ class ModelTemplate(control.RunPostProc):
             if enddate and not self.cfcompliant_output:
                 rtndate[2] = self.suite.monthlength(rtndate[1])
         return tuple(rtndate)
-
 
     def periodfiles(self, inputs, call_method,
                     datadir=None, archive_mean=False):
@@ -586,7 +608,6 @@ class ModelTemplate(control.RunPostProc):
                 # Non-CF will calculate (720h - 1d + frequency) for 1m period
                 data_period = '1m'
 
-
         return data_period
 
     def loop_inputs(self, fields):
@@ -622,7 +643,7 @@ class ModelTemplate(control.RunPostProc):
         the filename(s)
         '''
         try:
-            return self.naml.means_cmd
+            return self.naml.processing.means_cmd
         except AttributeError:
             raise UserWarning('[FAIL] MEANS executable not defined for model.')
 
@@ -716,7 +737,6 @@ class ModelTemplate(control.RunPostProc):
                                                 meanfile)
                         icode, output = utils.exec_subproc(cmd, cwd=self.share)
 
-
                     if icode == 0 and os.path.isfile(fn_full):
                         msg = 'Created {}: {}'.format(describe, meanfile)
                         utils.log_msg(msg, level='OK')
@@ -762,6 +782,115 @@ class ModelTemplate(control.RunPostProc):
                         utils.move_files(meanset, self.diagsdir,
                                          originpath=self.share)
 
+    @timer.run_timer
+    def prepare_archive(self):
+        '''
+        Prepare files for archiving:
+           * Rebuild restart files as required
+           * Compress means files as required
+        '''
+        if self.naml.archiving.archive_restarts:
+            # Rebuild restart files
+            self.rebuild_restarts()
+
+        if self.naml.archiving.archive_means:
+            # Move means files ready for processing or archive
+            # to "archive_ready" directory
+            for inputs in self.loop_inputs(self.mean_fields):
+                # Collect completed sets of mean components
+                for setend in self.periodfiles(inputs, 'end',
+                                               archive_mean=True):
+                    inputs.start_date = self.get_date(setend)
+                    fileset = self.periodfiles(inputs, 'set', archive_mean=True)
+                    utils.move_files(fileset, self.diagsdir,
+                                     originpath=self.share)
+
+            match_fields = '({})'.format('|'.join(self.mean_fields))
+            custom = '' if match_fields == '()' else '_' + match_fields
+            ncf = netcdf_filenames.NCFilename('.*',
+                                              self.prefix,
+                                              self.model_realm,
+                                              custom=custom)
+
+
+            # Select additional means files, not in base_component
+            # or standard means
+            additional = set(self.additional_means).\
+                difference(set(self.requested_means))
+            if len(self.requested_means) > 0:
+                additional = additional.difference(set([self.base_component]))
+
+            if len(additional) > 0:
+                match_bases = '({})'.format('|'.join(list(additional)))
+                ncf.base = match_bases
+                additional_means = utils.get_subset(self.share,
+                                                    self.mean_stencil(ncf))
+                utils.move_files(additional_means, self.diagsdir,
+                                 originpath=self.share)
+
+            if self.suite.finalcycle is True:
+                # Final cycle only - select all required means remaining in
+                # share directory as components of future higher means
+                match_bases = '({})'.format('|'.join(list(additional) +
+                                                     self.requested_means))
+                ncf.base = match_bases
+                final_means = utils.get_subset(self.share,
+                                               self.mean_stencil(ncf))
+                for fname in utils.add_path(final_means, self.share):
+                    try:
+                        shutil.copy2(fname, self.diagsdir)
+                    except IOError:
+                        msg = 'prepare_archive - Failed to copy {} to {}'
+                        utils.log_msg(msg.format(fname, self.diagsdir),
+                                      level='ERROR')
+
+            if self.naml.processing.compression_level > 0:
+                # Compress as required
+                match_bases = '({})'.format('|'.join(list(additional) +
+                                                     self.requested_means))
+                for field in self.mean_fields:
+                    if field.lower() in ['diaptr', 'scalar']:
+                        # These NEMO files cannot currently be compressed.
+                        pass
+                    else:
+                        self.compress_netcdf_files(match_bases, field)
+
+    @timer.run_timer
+    def compress_netcdf_files(self, base, fieldtype, sourcedir=None):
+        '''
+        Compress netCDF files matching given base period and custom facets
+        Optional argument:
+          sourcedir - Default=self.diagsdir
+        '''
+
+        source = sourcedir if sourcedir is not None else self.diagsdir
+        fail_tag = '_COMPRESS_FAILED'
+
+        custom = '_' + fieldtype if fieldtype else ''
+        ncf = netcdf_filenames.NCFilename(self.component(fieldtype),
+                                          self.prefix,
+                                          self.model_realm,
+                                          base=base,
+                                          custom=custom)
+        pattern = '{}({})?$'.format(self.mean_stencil(ncf), fail_tag)
+
+        compress_files = utils.get_subset(source, pattern)
+        for fname in utils.add_path(compress_files, source):
+            if fname.endswith(fail_tag):
+                # Previous debug mode error during compression - repeat
+                os.rename(fname, fname[:-len(fail_tag)])
+                fname = fname[:-len(fail_tag)]
+
+            rcode = self.compress_file(
+                fname,
+                self.naml.processing.compress_netcdf,
+                compression=self.naml.processing.compression_level,
+                chunking=self.naml.processing.chunking_arguments
+                )
+            if rcode != 0:
+                # Prevent archive - tag file as failed to compress (debug mode)
+                os.rename(fname, fname + fail_tag)
+
     def means_spinup(self, description, mean_enddate):
         '''
         A mean cannot be created if the date of the mean is too close the the
@@ -793,7 +922,6 @@ class ModelTemplate(control.RunPostProc):
         return (self.suite.initpoint >
                 utils.add_period_to_date(enddate, delta)[:ptlen])
 
-
     # *** ARCHIVING *** #######################################################
     @property
     def buffer_archive(self):
@@ -801,10 +929,11 @@ class ModelTemplate(control.RunPostProc):
         Number of unprocessed files to retain after archiving
         task is complete
         '''
-        if self.suite.finalcycle is True or not self.naml.buffer_archive:
+        if self.suite.finalcycle is True or \
+                not self.naml.archiving.archive_restart_buffer:
             buffer_arch = 0
         else:
-            buffer_arch = self.naml.buffer_archive
+            buffer_arch = self.naml.archiving.archive_restart_buffer
 
         return buffer_arch
 
@@ -836,79 +965,23 @@ class ModelTemplate(control.RunPostProc):
     @timer.run_timer
     def archive_means(self):
         '''
-        Compile list of means files to archive.
-        Only delete if all files are successfully archived.
+        Archive files contained in the "archive ready" directory.
+        Only delete if files are successfully archived.
         '''
         to_archive = []
-        do_not_delete = []
-        for inputs in self.loop_inputs(self.mean_fields):
-            for setend in self.periodfiles(inputs, 'end', archive_mean=True):
-                inputs.start_date = self.get_date(setend)
-                to_archive += self.periodfiles(inputs, 'set', archive_mean=True)
 
-        for field in self.mean_fields:
-            custom = '_' + field if field else ''
-            ncf = netcdf_filenames.NCFilename(self.component(field),
-                                              self.suite.prefix,
-                                              self.model_realm,
-                                              custom=custom)
-
-            # Select all files in "archive ready" directory
-            if os.path.exists(self.diagsdir):
+        if os.path.exists(self.diagsdir):
+            for field in self.mean_fields:
+                # Pattern ends with ".nc" to prevent processing of tagged files
                 pattern = r'{}.*{}\.nc$'.format(self.prefix.lower(), field)
+
                 files = utils.get_subset(self.diagsdir, pattern)
-                to_archive += [os.path.join(self.diagsdir, fn) for fn in files]
-
-            # Select additional means files, not in base_component
-            # or standard means
-            for other_mean in self.additional_means:
-                if other_mean not in [self.base_component] + \
-                        self.requested_means:
-                    ncf.base = other_mean
-                    pattern = self.mean_stencil(ncf)
-                    to_archive += utils.get_subset(self.share, pattern)
-
-            # Final cycle only - select all required means remaining in share
-            # as components of future higher means
-            if self.suite.finalcycle is True:
-                # Archive, but do not delete means except the top standard mean
-                # which is already accounted for and should be deleted
-                arch_cmpts = self.requested_means[:-1] + self.additional_means
-                for period in arch_cmpts:
-                    ncf.base = period
-                    pattern = self.mean_stencil(ncf)
-                    do_not_delete += utils.get_subset(self.share, pattern)
-
-        to_archive += do_not_delete
-        # Remove duplicates and sort list so period end files are dealt with
-        # after the rest of the set.
-        to_archive = sorted(list(set(to_archive)))
+                to_archive += utils.add_path(files, self.diagsdir)
 
         if to_archive:
             for fname in to_archive:
-                if not os.path.dirname(fname):
-                    fname = os.path.join(self.share, fname)
-                # Compress means files prior to archive.
-                if (self.naml.compression_level > 0 and
-                        '_diaptr' not in fname and '_scalar' not in fname):
-                    # NEMO diaptr files cannot currently be compressed.
-
-                    rcode = self.compress_file(
-                        fname,
-                        self.naml.compress_netcdf,
-                        compression=self.naml.compression_level,
-                        chunking=self.naml.chunking_arguments
-                        )
-                    if rcode != 0:
-                        # Do not archive - failed to compress (debug_mode only)
-                        continue
-
                 arch_rtn = self.archive_files(fname)
-                if os.path.basename(fname) not in do_not_delete:
-                    # Delete successfully archived files except those to remain
-                    # after the final cycle
-                    self.clean_archived_files(arch_rtn, 'means files')
-
+                self.clean_archived_files(arch_rtn, 'means files')
         else:
             utils.log_msg(' -> Nothing to archive')
 
@@ -918,9 +991,6 @@ class ModelTemplate(control.RunPostProc):
         Compile list of restart files to archive and subsequently deletes them.
         Rebuild files as necessary on a model by model basis.
         '''
-        # Rebuild restart files as required
-        self.rebuild_restarts()
-
         for rsttype in self.rsttypes:
             final_rst = None
             rstfiles = self.periodfiles(rsttype, 'set')
@@ -935,7 +1005,7 @@ class ModelTemplate(control.RunPostProc):
                     to_archive.append(rst)
                 else:
                     msg = 'Only archiving periodic restarts: ' + \
-                        str(self.naml.archive_timestamps)
+                        str(self.naml.archiving.archive_restart_timestamps)
                     msg += '\n -> Deleting file:\n\t' + str(rst)
                     utils.log_msg(msg)
                     utils.remove_files(rst, path=self.share)
@@ -1025,11 +1095,27 @@ class ModelTemplate(control.RunPostProc):
           kwargs - Dictionary containing command line arguments
         '''
         if utility == 'nccopy':
-            rcode = self.suite.preprocess_file(
-                utility, fname,
-                compression=kwargs.pop('compression', 0),
-                chunking=kwargs.pop('chunking', None)
-                )
+            rcode = 0
+            comp_level = kwargs.pop('compression', 0)
+            if comp_level > 0:
+                # Check for previous compression with ncdump - do not repeat
+                header = self.suite.preprocess_file('ncdump', fname,
+                                                    hs='', printout=False)
+                if '_DeflateLevel = {}'.format(comp_level) in header:
+                    utils.log_msg(
+                        'compress_file: {} already compressed '.format(fname) +
+                        'with deflation = {}.'.format(comp_level),
+                        level='INFO')
+                else:
+                    rcode = self.suite.preprocess_file(
+                        utility, fname,
+                        compression=comp_level,
+                        chunking=kwargs.pop('chunking', None)
+                        )
+            else:
+                utils.log_msg('compress_file: Deflation = 0 requested.  ' +
+                              'No compression necessary for {}'.format(fname),
+                              level='INFO')
         else:
             utils.log_msg('Preprocessing command not yet implemented',
                           level='ERROR')
@@ -1041,9 +1127,9 @@ class ModelTemplate(control.RunPostProc):
         Call fix_times to ensure that time and time_bounds in meanfile
         are correct
         '''
-        if self.naml.correct_time_variables or \
-                self.naml.correct_time_bounds_variables:
-            time_vars = self.naml.time_vars
+        if self.naml.processing.correct_time_variables or \
+                self.naml.processing.correct_time_bounds_variables:
+            time_vars = self.naml.processing.time_vars
             if not isinstance(time_vars, (list, tuple)):
                 time_vars = [time_vars]
 
@@ -1053,8 +1139,8 @@ class ModelTemplate(control.RunPostProc):
             for var in time_vars:
                 ret_msg = netcdf_utils.fix_times(
                     infiles, meanfile, var,
-                    do_time=self.naml.correct_time_variables,
-                    do_bounds=self.naml.correct_time_bounds_variables)
+                    do_time=self.naml.processing.correct_time_variables,
+                    do_bounds=self.naml.processing.correct_time_bounds_variables)
                 file_log = file_log + ret_msg
             if file_log:
                 utils.log_msg(ret_msg, level='OK')

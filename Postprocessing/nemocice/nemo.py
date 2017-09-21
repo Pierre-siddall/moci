@@ -26,6 +26,7 @@ import utils
 import modeltemplate as mt
 import netcdf_filenames
 
+
 class NemoPostProc(mt.ModelTemplate):
     '''
     Methods and properties specific to the NEMO post processing application.
@@ -39,8 +40,8 @@ class NemoPostProc(mt.ModelTemplate):
     def _mean_fields(self):
         ''' Return the means fieldsfile types to be processed '''
         fields = []
-        if self.naml.means_fieldsfiles:
-            fields += utils.ensure_list(self.naml.means_fieldsfiles)
+        if self.naml.processing.means_fieldsfiles:
+            fields += utils.ensure_list(self.naml.processing.means_fieldsfiles)
         else:
             for val in self.model_components.values():
                 fields += [f for f in val if 'shelf' not in f]
@@ -50,9 +51,11 @@ class NemoPostProc(mt.ModelTemplate):
     def _region_fields(self):
         ''' Return the fieldsfile types to be converted to regional files '''
         fields = []
-        if self.naml.extract_region:
-            if isinstance(self.naml.region_fieldsfiles, (str, list)):
-                fields += utils.ensure_list(self.naml.region_fieldsfiles)
+        if self.naml.processing.extract_region:
+            if isinstance(self.naml.processing.region_fieldsfiles, (str, list)):
+                fields += utils.ensure_list(
+                    self.naml.processing.region_fieldsfiles
+                    )
             else:
                 for val in self.model_components.values():
                     fields += [f for f in val if 'shelf' in f]
@@ -103,17 +106,17 @@ class NemoPostProc(mt.ModelTemplate):
     @property
     def rebuild_iceberg_cmd(self):
         '''Returns the namelist value path for the icb_combrest.py script'''
-        return self.naml.exec_rebuild_icebergs
+        return self.naml.processing.exec_rebuild_icebergs
 
     @property
     def rebuild_iberg_traj_cmd(self):
         '''Returns the namelist value path for the icb_pp.py script'''
-        return self.naml.exec_rebuild_iceberg_trajectory
+        return self.naml.processing.exec_rebuild_iceberg_trajectory
 
     @property
     def ncatted_cmd(self):
         '''Command: Exec + Args upto but not including filename(s)'''
-        return self.naml.ncatted_cmd
+        return self.naml.processing.ncatted_cmd
 
     @property
     def process_types(self):
@@ -123,8 +126,9 @@ class NemoPostProc(mt.ModelTemplate):
            (<type str> method_name, <type bool>)
         '''
         return [
-            ('iceberg_trajectory', self.naml.archive_iceberg_trajectory),
-            ('regional_extraction', self.naml.extract_region),
+            ('iceberg_trajectory',
+             self.naml.archiving.archive_iceberg_trajectory),
+            ('regional_extraction', self.naml.processing.extract_region),
             ]
 
     @property
@@ -159,7 +163,14 @@ class NemoPostProc(mt.ModelTemplate):
         if self.suite.finalcycle is True:
             buffer_rebuild = 0
         else:
-            buffer_rebuild = getattr(self.naml, 'buffer_rebuild_' + filetype)
+            try:
+                buffer_rebuild = int(
+                    getattr(self.naml.processing,
+                            'rebuild_{}_buffer'.format(filetype))
+                    )
+            except TypeError:
+                # Buffer is None
+                buffer_rebuild = 0
         return buffer_rebuild
 
     @timer.run_timer
@@ -174,7 +185,7 @@ class NemoPostProc(mt.ModelTemplate):
         if not pattern:
             # Standard pattern output - rebuild as required
             rebuildmeans = list(set(self.additional_means +
-                                    [self.naml.base_component]))
+                                    [self.naml.processing.base_component]))
             self.rebuild_diagnostics(self.mean_fields, bases=rebuildmeans)
             self.rebuild_diagnostics(self.inst_fields)
 
@@ -195,21 +206,22 @@ class NemoPostProc(mt.ModelTemplate):
             for base in utils.ensure_list(bases):
                 ncfname.base = base
                 pattern = self.mean_stencil(ncfname).rstrip('.nc')
-                self.rebuild_fileset(self.share, pattern, rebuildall=True)
+                self.rebuild_fileset(self.share, pattern)
 
     @timer.run_timer
-    def rebuild_fileset(self, datadir, filetype, rebuildall=False):
+    def rebuild_fileset(self, datadir, filetype):
         '''Rebuild partial files for given filetype'''
+        rebuild = True
         keep_components = False
+
         bldfiles = utils.get_subset(
             datadir,
             r'^.*{}{}$'.format(filetype, self.rebuild_suffix['ZERO'])
             )
         bldfiles = sorted(bldfiles)
 
-        buff = self.buffer_rebuild('rst') if \
+        buff = self.buffer_rebuild('restart') if \
             'restart' in filetype else self.buffer_rebuild('mean')
-        rebuild_required = len(bldfiles) > buff
         while len(bldfiles) > buff:
             bldfile = bldfiles.pop(0)
             corename = bldfile.split(self.rebuild_suffix['ZERO'])[0]
@@ -217,27 +229,32 @@ class NemoPostProc(mt.ModelTemplate):
                 datadir,
                 r'^{}{}$'.format(corename, self.rebuild_suffix['REGEX'])
                 )
-
             if 'diaptr' in filetype:
                 self.global_attr_to_zonal(datadir, bldset)
 
-            if self.suite.finalcycle is True and len(bldfiles) == 0 and \
-                    'restart' in filetype:
-                # Final restart file - Rebuild regardless of timestamp
-                #                    - Do not delete components
-                rebuildall = keep_components = True
+            elif 'restart' in filetype:
+                if self.suite.finalcycle is True and len(bldfiles) == 0:
+                    # Final restart file - Rebuild regardless of timestamp
+                    #                    - Do not delete components
+                    keep_components = True
+                else:
+                    # Rebuild requested timestamps
+                    coredate = self.get_date(corename)
+                    rebuild = self.timestamps(
+                        coredate[1],
+                        '01' if len(coredate) < 3 else coredate[2],
+                        process='rebuild'
+                        )
 
-            coredate = self.get_date(corename)
-            if self.timestamps(coredate[1],
-                               '01' if len(coredate) < 3 else coredate[2],
-                               process='rebuild') or rebuildall:
+            if rebuild:
                 utils.log_msg('Rebuilding: ' + corename, level='INFO')
-                icode = self.rebuild_namelist(datadir, corename,
-                                              len(bldset), omp=1,
-                                              msk=self.naml.msk_rebuild)
+                icode = self.rebuild_namelist(
+                    datadir, corename, len(bldset),
+                    omp=1, msk=self.naml.processing.msk_rebuild
+                    )
             else:
                 msg = 'Only rebuilding periodic files: ' + \
-                    str(self.naml.rebuild_timestamps)
+                    str(self.naml.processing.rebuild_restart_timestamps)
                 utils.log_msg(msg, level='INFO')
                 icode = 0
 
@@ -247,7 +264,7 @@ class NemoPostProc(mt.ModelTemplate):
                                   level='INFO')
                     utils.remove_files(bldset, path=datadir)
 
-        if bldfiles and not rebuild_required:
+        if len(bldfiles) > 0:
             msg = 'Nothing to rebuild - {} {} files available ' \
                 '({} retained).'.format(len(bldfiles), filetype, buff)
             utils.log_msg(msg, level='INFO')
@@ -388,7 +405,7 @@ class NemoPostProc(mt.ModelTemplate):
     def create_iceberg_trajectory(self):
         ''' Rebuild iceberg trajectory (diagnostic) files '''
         fn_stub = self.iberg_trajectory_pattern
-         # Move to share if necessary
+        # Move to share if necessary
         if self.work != self.share:
             self.move_to_share(pattern=fn_stub + self.rebuild_suffix['REGEX'])
 
@@ -444,14 +461,16 @@ class NemoPostProc(mt.ModelTemplate):
             for filename in utils.get_subset(self.share, pattern):
                 try:
                     xdim, xmin, xmax, ydim, ymin, ymax = \
-                        self.naml.region_dimensions
+                        self.naml.processing.region_dimensions
                     xdim = xdim.replace('%G', field[-1])
                     ydim = ydim.replace('%G', field[-1])
                 except ValueError:
                     msg = 'Unable to determine x-y dimensions from &nemo' + \
                         'postproc/regional_dimensions: '
-                    utils.log_msg(msg + str(self.naml.region_dimensions),
-                                  level='ERROR')
+                    utils.log_msg(
+                        msg + str(self.naml.processing.region_dimensions),
+                        level='ERROR'
+                        )
                     continue
 
                 rcode = 0
@@ -473,11 +492,11 @@ class NemoPostProc(mt.ModelTemplate):
                         )
 
                 # Compress file if necessary
-                if rcode == 0 and (self.naml.compression_level > 0):
+                if rcode == 0 and (self.naml.processing.compression_level > 0):
                     rcode = self.compress_file(
-                        full_fn, self.naml.compress_netcdf,
-                        compression=self.naml.compression_level,
-                        chunking=self.naml.region_chunking_args
+                        full_fn, self.naml.processing.compress_netcdf,
+                        compression=self.naml.processing.compression_level,
+                        chunking=self.naml.processing.region_chunking_args
                         )
 
                 # Move file to archive directory
