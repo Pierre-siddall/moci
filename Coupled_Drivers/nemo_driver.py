@@ -229,7 +229,7 @@ def _setup_executable(common_envar):
     # <arbitrary suite name> may itself contain underscores, hence we
     # do not parse details based on counting the number of underscores.
     nemo_restart_files = [f for f in os.listdir(nemo_rst) if
-                          re.findall(r'.+_\d{8}_restart_\d+.nc', f)]
+                          re.findall(r'.+_\d{8}_restart(_\d+)?\.nc', f)]
     nemo_restart_files.sort()
     if len(nemo_restart_files) > 0:
         latest_nemo_dump = nemo_rst + '/' + nemo_restart_files[-1]
@@ -253,12 +253,12 @@ def _setup_executable(common_envar):
                 if os.path.isfile(file_path):
                     os.remove(file_path)
     elif os.path.isfile(latest_nemo_dump):
-        sys.stdout.write('[INFO] Restart data avaliable in NEMO restart '
+        sys.stdout.write('[INFO] Restart data available in NEMO restart '
                          'directory %s. Restarting from previous task output\n'
                          % nemo_rst)
         nemo_init_dir = nemo_rst
     else:
-        sys.stderr.write('[FAIL] No restart data avaliable in NEMO restart '
+        sys.stderr.write('[FAIL] No restart data available in NEMO restart '
                          'directory:\n  %s\n' % nemo_rst)
         sys.exit(error.MISSING_MODEL_FILE_ERROR)
 
