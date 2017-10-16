@@ -52,14 +52,28 @@ class ReadNamelist(object):
 
         for line in line_array:
             # Remove whitespace, newlines, and preceding/trailing comma
-            key, val = line.split('=')
+            try:
+                key, val = line.split('=')
+                key = key.upper() if self._uppercase_vars else key
+                concat_key = False
+            except ValueError:
+                # Multiline item
+                val = line
+                concat_key = True
+
             val = val.strip(',')
             if ',' in val:
                 val = map(self._test_val, val.split(','))
             else:
                 val = self._test_val(val)
 
-            key = key.upper() if self._uppercase_vars else key
+            if concat_key:
+                # Concatenate with any existing value(s).
+                # Return value MUST be a list.
+                previous = getattr(self, key)
+                val = (utils.ensure_list(previous) if previous else []) + \
+                    (utils.ensure_list(val) if val else [])
+
             setattr(self, key, val)
 
     @staticmethod

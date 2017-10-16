@@ -34,6 +34,9 @@ class NamelistFileTests(unittest.TestCase):
         self.testnl = '''
 &testnl
 test_variable="Blue",
+multiline_var=1,
+2,3,4,5,
+6
 /
 '''
         if not hasattr(sys.stdout, 'getvalue'):
@@ -52,6 +55,7 @@ test_variable="Blue",
             handle.write(self.testnl)
         namelists = nlist.loadNamelist(self.nlfile)
         self.assertEqual(namelists.testnl.test_variable, 'Blue')
+        self.assertEqual(namelists.testnl.multiline_var, [1, 2, 3, 4, 5, 6])
 
     def test_load_two_files(self):
         '''Test load two namelists - one blank, one non-existent'''
