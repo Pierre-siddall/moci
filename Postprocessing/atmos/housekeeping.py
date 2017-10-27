@@ -26,7 +26,9 @@ from collections import OrderedDict
 
 import timer
 import utils
+
 from netcdf_filenames import NCF_TEMPLATE
+from validation import MULE_AVAIL
 
 try:
     import iris_transform
@@ -63,7 +65,8 @@ def read_arch_logfile(logfile, prefix, inst, mean, ncfile):
             elif ftype == 'pp_mean_names':
                 stream = mean
             elif ftype == 'nc_names':
-                stream = ncfile
+                # ncfile could potentially be of NoneType - cast to string
+                stream = str(ncfile)
             else:
                 stream = '*'
             if stream and FILETYPE[ftype][REGEX](prefix, stream).\
@@ -270,6 +273,63 @@ def extract_to_netcdf(fieldsfile, fields, ncftype, complevel):
                                                 'netcdf',
                                                 kwargs={'complevel': complevel,
                                                         'ncftype': ncftype})
+
+    return icode
+
+
+@timer.run_timer
+def cutout_subdomain(full_fname, mule_utils, coord_type, coords):
+    '''
+    Use Mule to cut out a fieldsfile sub-domain - suitable for input to createbc
+
+    Arguments:
+      full_fname - <type str> Filename including full path
+      mule_utils - Path to mule-cutout.
+                   If <type NoneType> then use default: $UMDIR/mule_utils
+      coord_type - Coordinate system argument for mule-cutout.  One of:
+                     ['indices', 'coords', 'coords --native-grid']
+      coords     - Integer coordinates to cut out:
+                     indices: zx,zy,nz,ny
+                     coords : SW_lon,SW_lat,NE_lon,NE_lat
+    '''
+    if mule_utils is None:
+        mule_utils = os.path.join('$UMDIR', 'mule_utils')
+
+    outfile = full_fname + '.cut'
+    cutout = os.path.expandvars(os.path.join(mule_utils, 'mule-cutout'))
+
+    mlevel = 'ERROR'
+    if os.path.exists(full_fname + '.cut'):
+        # Cut out file already exists - skip to rename
+        icode = 0
+
+    elif os.path.exists(cutout) and MULE_AVAIL:
+        # mule-cutout requires the mule Python module to be available
+        cmd = ' '.join([cutout, coord_type, full_fname, outfile] +
+                       [str(x) for x in coords])
+        icode, msg = utils.exec_subproc(cmd)
+        if icode != 0 and coord_type == 'indices':
+            if 'Source grid is {}x{}'.format(coords[2], coords[3]) in msg:
+                # This file has already been cut out with this gridbox
+                msg = 'File already contains the required gridbox.'
+                mlevel = 'INFO'
+
+    else:
+        msg = 'Unable to cut out subdomain - ' + \
+            '{} utility does not exist'.format(cutout)
+        icode = -99
+
+    if icode == 0:
+        try:
+            os.rename(full_fname + '.cut', full_fname)
+            msg = 'Successfully extracted sub-domain from {}'.\
+                format(full_fname)
+            mlevel = 'OK'
+        except OSError:
+            msg = 'Failed to rename sub-domain fieldsfile'
+            icode = -59
+
+    utils.log_msg(msg, level=mlevel)
 
     return icode
 

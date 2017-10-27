@@ -424,30 +424,36 @@ class HeaderTests(unittest.TestCase):
         self.logfile.close()
         self.assertIn('ARCHIVE FAILED', open('logfile', 'r').read())
 
+    @unittest.skipUnless(validation.MULE_AVAIL,
+                         'Python module "Mule" is not available')
     @mock.patch('validation.mule')
     def test_mule_headers(self, mock_mule):
         ''' Test mule_headers '''
         func.logtest('Assert extraction of headers using Mule:')
-        mock_mule.FieldsFile.from_file().fixed_length_header.raw = range(50)
-        mock_mule.FieldsFile.from_file().fields = ['f1', 'f2', 'f3']
+        mock_mule.UMFile.from_file().fixed_length_header.raw = range(50)
+        mock_mule.UMFile.from_file().fields = ['f1', 'f2', 'f3']
         headers, empty_file = validation.mule_headers('Filename')
         self.assertListEqual(headers.keys(), range(1, 40))
         self.assertListEqual(headers.values(),
                              [str(x).zfill(2) for x in range(1, 40)])
         self.assertFalse(empty_file)
 
+    @unittest.skipUnless(validation.MULE_AVAIL,
+                         'Python module "Mule" is not available')
     @mock.patch('validation.mule')
     def test_mule_headers_empty_file(self, mock_mule):
         ''' Test mule_headers - return an empty file'''
         func.logtest('Assert extraction of headers using Mule - empty file:')
-        mock_mule.FieldsFile.from_file().fixed_length_header.raw = range(50)
-        mock_mule.FieldsFile.from_file().fields = []
+        mock_mule.UMFile.from_file().fixed_length_header.raw = range(50)
+        mock_mule.UMFile.from_file().fields = []
         headers, empty_file = validation.mule_headers('Filename')
         self.assertListEqual(headers.keys(), range(1, 40))
         self.assertListEqual(headers.values(),
                              [str(x).zfill(2) for x in range(1, 40)])
         self.assertTrue(empty_file)
 
+    @unittest.skipUnless(validation.MULE_AVAIL,
+                         'Python module "Mule" is not available')
     @mock.patch('validation.mule')
     def test_mule_headers_not_avail(self, mock_mule):
         ''' Test mule_headers - Mule not available'''
@@ -691,9 +697,16 @@ class TransformTests(unittest.TestCase):
                 housekeeping.iris_transform.iris.sample_data_path('air_temp.pp')
         else:
             self.ppfile = None
+        self.mule_avail = housekeeping.MULE_AVAIL
+
 
     def tearDown(self):
-        pass
+        for fname in ['FNAME', 'FNAME.cut']:
+            try:
+                os.remove(fname)
+            except OSError:
+                pass
+        housekeeping.MULE_AVAIL = self.mule_avail
 
     def test_convert_convpp(self):
         '''Test convert_to_pp functionality with um-convpp'''
@@ -825,3 +838,154 @@ class TransformTests(unittest.TestCase):
                                                     {}, 'TYPE', None)
             self.assertEqual(rtnval, -1)
         self.assertIn('Iris module is not available', func.capture('err'))
+
+    @mock.patch('housekeeping.utils.exec_subproc', return_value=(0, 'OUTPUT'))
+    @mock.patch('housekeeping.os.rename')
+    def test_cutout_subdomain(self, mock_rename, mock_exec):
+        '''Test call to cutout_subdomain'''
+        func.logtest('Assert call to cutout_subdomain:')
+        housekeeping.MULE_AVAIL = True
+        with mock.patch('housekeeping.os.path.exists',
+                        side_effect=[False, True]):
+            icode = housekeeping.cutout_subdomain('path/to/file/FNAME',
+                                                  'MULEDIR',
+                                                  '-CTYPE',
+                                                  [1, 2, 3, 4])
+            self.assertEqual(icode, 0)
+
+        mock_exec.assert_called_once_with(
+            'MULEDIR/mule-cutout -CTYPE path/to/file/FNAME ' +
+            'path/to/file/FNAME.cut 1 2 3 4'
+            )
+        mock_rename.assert_called_once_with('path/to/file/FNAME.cut',
+                                            'path/to/file/FNAME')
+        self.assertNotIn('OUTPUT', func.capture())
+        self.assertNotIn('OUTPUT', func.capture('err'))
+
+    @mock.patch('housekeeping.utils.exec_subproc', return_value=(0, 'OUTPUT'))
+    @mock.patch('housekeeping.os.rename')
+    def test_cutout_subdomain_preexist(self, mock_rename, mock_exec):
+        '''Test call to cutout_subdomain - prexisting .cut file'''
+        func.logtest('Assert call to cutout_subdomain - pre-existing cutout:')
+        housekeeping.MULE_AVAIL = True
+        with mock.patch('housekeeping.os.path.exists',
+                        side_effect=[True]):
+            icode = housekeeping.cutout_subdomain('FNAME',
+                                                  'MULEDIR',
+                                                  '-CTYPE',
+                                                  [1, 2, 3, 4])
+            self.assertEqual(icode, 0)
+
+        self.assertListEqual(mock_exec.mock_calls, [])
+        mock_rename.assert_called_once_with('FNAME.cut', 'FNAME')
+        self.assertIn('Successfully extracted', func.capture())
+        self.assertNotIn('OUTPUT', func.capture('err'))
+
+    @mock.patch('housekeeping.utils.exec_subproc', return_value=(10, 'OUTPUT'))
+    @mock.patch('housekeeping.os.rename')
+    def test_cutout_subdomain_fail(self, mock_rename, mock_exec):
+        '''Test call to cutout_subdomain - failure'''
+        func.logtest('Assert call to cutout_subdomain - failure:')
+        housekeeping.MULE_AVAIL = True
+        with mock.patch('housekeeping.os.path.exists',
+                        side_effect=[False, True]):
+            with self.assertRaises(SystemExit):
+                icode = housekeeping.cutout_subdomain('path/to/file/FNAME',
+                                                      'MULEDIR',
+                                                      '-CTYPE',
+                                                      [1, 2, 3, 4])
+                self.assertEqual(icode, 10)
+
+        mock_exec.assert_called_once_with(
+            'MULEDIR/mule-cutout -CTYPE path/to/file/FNAME ' +
+            'path/to/file/FNAME.cut 1 2 3 4'
+            )
+        self.assertListEqual(mock_rename.mock_calls, [])
+        self.assertIn('OUTPUT', func.capture('err'))
+
+    @mock.patch('housekeeping.utils.exec_subproc',
+                return_value=(1, 'Source grid is NXxNY points'))
+    def test_cutout_same_gridbox(self, mock_exec):
+        '''Test call to cutout_subdomain - source file already cutout'''
+        func.logtest('Assert call to cutout_subdomain - same gridbox:')
+        housekeeping.MULE_AVAIL = True
+        open('FNAME', 'w').close()
+        open('FNAME.cut', 'w').close()
+        with mock.patch('housekeeping.os.path.exists',
+                        side_effect=[False, True]):
+            icode = housekeeping.cutout_subdomain('FNAME', 'UMDIR', 'indices',
+                                                  ['ZX', 'ZY', 'NX', 'NY'])
+            self.assertEqual(icode, 1)
+        self.assertIn('contains the required gridbox', func.capture())
+        self.assertNotIn('Source grid is NXxNY', func.capture())
+        mock_exec.assert_called_once_with(
+            'UMDIR/mule-cutout indices FNAME FNAME.cut ZX ZY NX NY'
+            )
+
+    @mock.patch('housekeeping.utils.exec_subproc', return_value=(0, 'OUTPUT'))
+    def test_cutout_rename(self, mock_exec):
+        '''Test call to cutout_subdomain - rename file'''
+        func.logtest('Assert call to cutout_subdomain - rename file:')
+        housekeeping.MULE_AVAIL = True
+        open('FNAME', 'w').close()
+        open('FNAME.cut', 'w').close()
+        with mock.patch('housekeeping.os.path.exists',
+                        side_effect=[False, True]):
+            icode = housekeeping.cutout_subdomain('FNAME', None, '-CTYPE',
+                                                  [1, 2, 3, 4])
+            self.assertEqual(icode, 0)
+
+        mock_exec.assert_called_once_with(
+            os.environ['UMDIR'] +
+            '/mule_utils/mule-cutout -CTYPE FNAME FNAME.cut 1 2 3 4'
+            )
+        self.assertTrue(os.path.exists('FNAME'))
+        self.assertFalse(os.path.exists('FNAME.cut'))
+        self.assertIn('Successfully extracted sub-domain', func.capture())
+
+    @mock.patch('housekeeping.utils.exec_subproc', return_value=(0, 'OUTPUT'))
+    def test_cutout_rename_fail(self, mock_exec):
+        '''Test call to cutout_subdomain - failure'''
+        func.logtest('Assert call to cutout_subdomain - failure:')
+        housekeeping.MULE_AVAIL = True
+        with mock.patch('housekeeping.os.path.exists',
+                        side_effect=[False, True]):
+            with self.assertRaises(SystemExit):
+                icode = housekeeping.cutout_subdomain('FNAME',
+                                                      'MULEDIR',
+                                                      '-CTYPE',
+                                                      [1, 2, 3, 4])
+                self.assertEqual(icode, -59)
+
+        mock_exec.assert_called_once_with(
+            'MULEDIR/mule-cutout -CTYPE FNAME FNAME.cut 1 2 3 4'
+            )
+        self.assertIn('Failed to rename', func.capture('err'))
+
+    @mock.patch('housekeeping.utils.exec_subproc', return_value=(0, 'OUTPUT'))
+    def test_cutout_util_non_exist(self, mock_exec):
+        '''Test call to cutout_subdomain - utility does not exist'''
+        func.logtest('Assert call to cutout_subdomain - non-existent utility:')
+        with self.assertRaises(SystemExit):
+            _ = housekeeping.cutout_subdomain('path/to/file/FILENAME',
+                                              'MULEDIR',
+                                              '-CTYPE',
+                                              [1, 2, 3, 4])
+
+        self.assertListEqual(mock_exec.mock_calls, [])
+        self.assertIn('Unable to cut out subdomain', func.capture('err'))
+        self.assertIn('mule-cutout utility does not exist', func.capture('err'))
+
+    @mock.patch('housekeeping.utils.exec_subproc', return_value=(0, 'OUTPUT'))
+    def test_cutout_util_nonexist_debug(self, mock_exec):
+        '''Test call to cutout_subdomain - utility does not exist, debug mode'''
+        func.logtest('Assert call to cutout_subdomain - no utility, debug:')
+        with mock.patch('housekeeping.utils.get_debugmode', return_value=True):
+            icode = housekeeping.cutout_subdomain('path/to/file/FILENAME',
+                                                  'MULEDIR',
+                                                  '-CTYPE',
+                                                  [1, 2, 3, 4])
+            self.assertEqual(icode, -99)
+
+        self.assertListEqual(mock_exec.mock_calls, [])
+        self.assertIn('Unable to cut out subdomain', func.capture('err'))

@@ -21,11 +21,8 @@ DESCRIPTION
 import os
 
 
-class AtmosNamelist:
+class AtmosNamelist(object):
     '''Default Values for atmospostproc namelist'''
-
-    def __init__(self):
-        pass
 
     pp_run = False
     share_directory = os.getcwd()
@@ -33,7 +30,8 @@ class AtmosNamelist:
     try:
         um_utils = '/projects/um1/vn{}/xc40/utilities'.format(os.environ['VN'])
     except KeyError:
-        um_utils = '/projects/um1/vn10.5/xc40/utilities'
+        um_utils = '/projects/um1/vn10.8/xc40/utilities'
+    mule_utils = None
     convert_pp = True
     process_all_streams = True
     process_streams = None
@@ -44,13 +42,13 @@ class AtmosNamelist:
     fields_to_netcdf = None
     netcdf_filetype = 'NETCDF4'
     netcdf_compression = None
+    streams_to_cutout = None
+    cutout_coords = None
+    cutout_coords_type = 'coords'
 
 
-class Archiving:
+class Archiving(object):
     '''UM Atmosphere archiving namelist'''
-
-    def __init__(self):
-        pass
 
     archive_switch = False
     arch_dump_freq = 'Monthly'
@@ -61,11 +59,8 @@ class Archiving:
     arch_year_month = None
 
 
-class Deletion:
+class Deletion(object):
     '''UM Atmosphere file deletion namelist'''
-
-    def __init__(self):
-        pass
 
     del_switch = False
     gcmdel = False

@@ -54,8 +54,13 @@ class AtmosPostProc(control.RunPostProc):
             Determine dumpname for final cycle: archived but not deleted
         '''
         self.naml = nlist.loadNamelist(input_nl)
-        self.convpp_streams = self._convpp_streams
-        self.netcdf_streams = self._netcdf_streams
+        self.convpp_streams = \
+            self._stream_expr(self.naml.atmospp.archive_as_fieldsfiles,
+                              inverse=True, default='a-z1-9')
+        self.netcdf_streams = \
+            self._stream_expr(self.naml.atmospp.streams_to_netcdf)
+        self.cutout_streams = \
+            self._stream_expr(self.naml.atmospp.streams_to_cutout)
 
         if self.runpp:
             self.share = self._directory(self.naml.atmospp.share_directory,
@@ -117,35 +122,14 @@ class AtmosPostProc(control.RunPostProc):
         '''
         Returns a regular expression for the fieldsfile
         instantaneous streams to process'''
-        if isinstance(self.naml.atmospp.process_streams, str):
-            streams = self.naml.atmospp.process_streams
-        else:
-            streams = '1-9a-ln-rt-xz'
-        return streams
+        return self._stream_expr(self.naml.atmospp.process_streams,
+                                 nullstring=True, default='1-9a-ln-rt-xz')
 
     @property
     def means(self):
         'Returns a regular expression for the fieldsfile means to process'
-        if isinstance(self.naml.atmospp.process_means, str):
-            means = self.naml.atmospp.process_means
-        else:
-            means = 'msy'
-        return means
-
-    @property
-    def _convpp_streams(self):
-        '''
-        Calculate the regular expression required to find files
-        which should be converted to pp format
-        '''
-        fstreams = self.naml.atmospp.archive_as_fieldsfiles
-        if fstreams:
-            if isinstance(fstreams, list):
-                fstreams = '^'.join([str(x) for x in fstreams])
-            convpp = '^' + str(fstreams)
-        else:
-            convpp = 'a-z1-9'
-        return convpp
+        return self._stream_expr(self.naml.atmospp.process_means,
+                                 nullstring=True, default='msy')
 
     @property
     def archive_tstamps(self):
@@ -157,17 +141,6 @@ class AtmosPostProc(control.RunPostProc):
         if not isinstance(tstamps, list):
             tstamps = [tstamps]
         return [ts for ts in tstamps if ts]
-
-    @property
-    def _netcdf_streams(self):
-        '''
-        Calculate the regular expression required to find files
-        which should be have fields extracted to netCDF format
-        '''
-        ncf_streams = self.naml.atmospp.streams_to_netcdf
-        if isinstance(ncf_streams, list):
-            ncf_streams = ''.join([str(x) for x in ncf_streams])
-        return ncf_streams
 
     @property
     def netcdf_fields(self):
@@ -195,6 +168,32 @@ class AtmosPostProc(control.RunPostProc):
 
         return {key: fields[i+1] for i, key in enumerate(fields)
                 if fields.index(key) % 2 == 0}
+
+    def _stream_expr(self, streams,
+                     inverse=False, nullstring=False, default=None):
+        '''
+        Return the regular expression required to find files
+        which should be processed.
+        Arguments:
+           streams - <type list> or <type str> or <type NoneType>
+        Optional Arguments:
+           inverse    - <type bool>
+                        Construct a regular expression for the inverse of
+                        the incoming list of streams
+           nullstring - <type bool>
+                        Allow a return value of ''.  Otherwise, use default
+           default    - Value to return if streams is None or an empty string
+        '''
+        if streams is None or (streams == '' and not nullstring):
+            streams = default
+
+        else:
+            join_char = '^' if inverse else ''
+            if isinstance(streams, list):
+                streams = join_char.join([str(x) for x in streams])
+            streams = join_char + str(streams)
+
+        return streams
 
     def dumpname(self, dumpdate=None):
         '''
@@ -291,6 +290,16 @@ class AtmosPostProc(control.RunPostProc):
         for fname in self.diags_to_process(finalcycle):
             # fname returned by diags_to_process always includes the full path
             basename = os.path.basename(fname)
+            if self.cutout_streams and re.match(
+                    self.ff_pattern.format(self.cutout_streams), basename
+                ):
+                _ = housekeeping.cutout_subdomain(
+                    fname,
+                    self.naml.atmospp.mule_utils,
+                    self.naml.atmospp.cutout_coords_type,
+                    self.naml.atmospp.cutout_coords
+                    )
+
             if self.naml.atmospp.convert_pp and not fname.endswith('.pp'):
                 if re.match(self.ff_pattern.format(self.convpp_streams),
                             basename):

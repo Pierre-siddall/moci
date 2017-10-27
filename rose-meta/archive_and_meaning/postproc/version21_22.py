@@ -77,6 +77,7 @@ class pp21_t194(rose.upgrade.MacroUpgrade):
 
         return config, self.reports
 
+
 class pp21_t236(rose.upgrade.MacroUpgrade):
 
     """Upgrade macro for ticket #236 by Erica Neininger."""
@@ -212,5 +213,23 @@ class pp21_t221(rose.upgrade.MacroUpgrade):
 
         self.remove_setting(config, ["namelist:nemopostproc"])
         self.remove_setting(config, ["namelist:cicepostproc"])
+
+        return config, self.reports
+
+
+class pp21_t238(rose.upgrade.MacroUpgrade):
+
+    """Upgrade macro for ticket #238 by EricaNeininger."""
+    BEFORE_TAG = "pp21_t221"
+    AFTER_TAG = "pp21_t238"
+
+    def upgrade(self, config, meta_config=None):
+        """Add options for fieldsfile cut-out (mule_utils)"""
+        self.add_setting(config,
+                         ["namelist:atmospp", "streams_to_cutout",], "")        
+        self.add_setting(config,
+                         ["namelist:atmospp", "cutout_coords_type",], "indices")
+        self.add_setting(config,
+                         ["namelist:atmospp", "cutout_coords",], "1,1,192,145")
 
         return config, self.reports

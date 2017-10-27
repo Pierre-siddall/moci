@@ -27,7 +27,11 @@
          buildXios_noOasis => testXios_noOasis => validate_xios_noOasis => housekeeping_XBS
          buildXios_noOasis => buildNemo_noOasis => testNemo_noOasis => validate_nemo_noOasis => housekeeping_XBS",
     "test_postproc" :
-        "fcm_make_pp => coupled_dummy_19811001 => postproc_19811001 & coupled_dummy_19811101
+        "
+         test_mule:succeed => !remove_cutout_from_postproc
+         test_mule:fail => remove_cutout_from_postproc
+         test_mule | remove_cutout_from_postproc => fcm_make_pp
+         fcm_make_pp => coupled_dummy_19811001 => postproc_19811001 & coupled_dummy_19811101
          coupled_dummy_19811101 => postproc_19811101 & coupled_dummy_19811201
          coupled_dummy_19811201 => postproc_19811201 & coupled_dummy_19820101
          coupled_dummy_19820101 => postproc_19820101 & coupled_dummy_19820201
@@ -466,11 +470,15 @@ rm -rf {{dir1}}
             ROSE_TASK_APP = pp_coupled_dummy
             DATE2 = ''
 
+    [[PP_TASKS]]
+        inherit = None, POSTPROC
+
+
 {%- for cycle in PP_CYCLES %}
 {%- set CYCLEPOINT = '198%s01T0000Z' % (cycle) %}
 {%- set cyclestring = '%s' % (cycle) %}
     [[{{'postproc_198%s01' % (cycle)}}]]
-        inherit=None, POSTPROC
+        inherit=None, PP_TASKS
         [[[environment]]]
             CYCLEPOINT_OVERRIDE = {{ CYCLEPOINT }}
     {%- if cyclestring[1:3] in ['03', '06', '09', '12'] %}
@@ -498,7 +506,15 @@ rm -rf {{dir1}}
 	# Run each of the main groups (common, atmos, nemocice) first - helps to spot any leaking tests.
         # Finally run 'all' - sweeps up any tests not covered in the main groups
 	script = '$CYLC_SUITE_SHARE_DIR/fcm_make_pp/build/bin/test_postproc -g common -g atmos -g nemocice -g all'
-    
+
+    [[test_mule]]
+        inherit = None, LINUX
+	script = test_mulepath.py
+
+    [[remove_cutout_from_postproc]]
+       inherit = None, LINUX
+       script = cylc broadcast $CYLC_SUITE_NAME -n PP_TASKS -s [environment]"ROSE_APP_OPT_CONF_KEYS=disable_mule"
+
     [[housekeeping_pp]]
         inherit=None, LINUX, HOUSEKEEPING 
         [[[environment]]]

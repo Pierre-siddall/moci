@@ -137,6 +137,7 @@ class ArchiveDeleteTests(unittest.TestCase):
         mock_pp.assert_called_once_with(True, log_file=mock.ANY)
         mock_mv.assert_called_once_with('path/a.pb2000.pp',
                                         'path/a.pb2000.pp_ARCHIVED')
+
     def test_do_archive_pp_off(self):
         '''Test nothing to archive (pp archive off and finalcycle)'''
         func.logtest('Assert no archive necessary with pp archive off:')
@@ -197,7 +198,6 @@ class ArchiveDeleteTests(unittest.TestCase):
         self.assertListEqual(ppfiles, [os.path.join(os.getcwd(), fn) for
                                        fn in self.ffiles[1:]])
         mock_getfiles.assert_called_once_with('WorkDir', mock.ANY, '.arch')
-
 
     @mock.patch('atmos.housekeeping.get_marked_files')
     def test_select_diags_tidy_pp(self, mock_getfiles):
@@ -387,6 +387,33 @@ class ArchiveDeleteTests(unittest.TestCase):
         mock_ncf.assert_called_once_with(self.ffiles[1], {'field1': 'F1'},
                                          'NETCDF4', None)
 
+    @mock.patch('atmos.AtmosPostProc.diags_to_process')
+    @mock.patch('atmos.housekeeping.cutout_subdomain')
+    def test_transform_cutout(self, mock_cut, mock_getfiles):
+        '''Test do_transform - collect cutout files'''
+        func.logtest('Assert cutout files list for do_tranform:')
+        self.atmos.naml.atmospp.convert_pp = False
+        self.atmos.naml.atmospp.cutout_coords_type = 'CTYPE'
+        self.atmos.naml.atmospp.cutout_coords = [1, 2]
+        self.atmos.cutout_streams = 'd'
+        mock_getfiles.return_value = self.ffiles
+
+        self.atmos.do_transform()
+        mock_getfiles.assert_called_once_with(False)
+        mock_cut.assert_called_once_with(self.ffiles[-1], None, 'CTYPE', [1, 2])
+
+    @mock.patch('atmos.AtmosPostProc.diags_to_process')
+    @mock.patch('atmos.housekeeping.cutout_subdomain')
+    def test_transform_cutout_none(self, mock_cut, mock_getfiles):
+        '''Test do_transform - collect cutout files - no streams'''
+        func.logtest('Assert cutout files list for do_tranform - no streams:')
+        self.atmos.naml.atmospp.convert_pp = False
+        mock_getfiles.return_value = self.ffiles
+
+        self.atmos.do_transform()
+        mock_getfiles.assert_called_once_with(False)
+        self.assertListEqual(mock_cut.mock_calls, [])
+
 
 class PropertyTests(unittest.TestCase):
     '''Unit tests relating to the atmosphere property methods'''
@@ -417,31 +444,32 @@ class PropertyTests(unittest.TestCase):
                                                        44, 55, 66]),
                          'PREFIXa.da11112233_44')
 
-    def test_convpp_single(self):
-        '''Test _convpp_streams calculation of regular expression - single'''
-        func.logtest('Assert _convpp_streams calculation of regex - single:')
-        self.atmos.naml.atmospp.archive_as_fieldsfiles = 'a'
-        self.assertEqual(self.atmos._convpp_streams, '^a')
+    def test_stream_expr_single(self):
+        '''Test stream_expr calculation of regular expression - single'''
+        func.logtest('Assert stream_expr calculation of regex - single:')
+        self.assertEqual(self.atmos._stream_expr('a'), 'a')
+        self.assertEqual(self.atmos._stream_expr('a', inverse=True), '^a')
 
-    def test_convpp_list(self):
-        '''Test _convpp_streams calculation of regular expression - single'''
-        func.logtest('Assert _convpp_streams calculation of regex - single:')
-        self.atmos.naml.atmospp.archive_as_fieldsfiles = ['a', '1-2', 4]
-        self.assertEqual(self.atmos._convpp_streams, '^a^1-2^4')
+    def test_stream_expr_list(self):
+        '''Test stream_expr calculation of regular expression - list'''
+        func.logtest('Assert netcdf_streams calculation of regex - list:')
+        self.assertEqual(self.atmos._stream_expr(['a', 'b', 3]), 'ab3')
+        self.assertEqual(self.atmos._stream_expr(['a', '1-2', 4], inverse=True),
+                         '^a^1-2^4')
 
-    def test_convpp_all(self):
-        '''Test convpp_streams calculation of regular expression - single'''
-        func.logtest('Assert convpp_streams calculation of regex - single:')
-        for value in [None, '']:
-            self.atmos.naml.atmospp.archive_as_fieldsfiles = value
-            self.assertEqual(self.atmos.convpp_streams, 'a-z1-9')
+    def test_stream_expr_empty(self):
+        '''Test stream_expr calculation of regular expression - Empty list'''
+        func.logtest('Assert stream_expr calculation of regex - Empty list:')
+        self.assertEqual(self.atmos._stream_expr('', nullstring=True), '')
+        self.assertEqual(self.atmos._stream_expr(''), None)
+        self.assertEqual(self.atmos._stream_expr(None, nullstring=True), None)
 
-    def test_convpp_none(self):
-        '''Test convpp_streams calculation of regular expression - none'''
-        func.logtest('Assert convpp_streams calculation of regex - none:')
-        self.atmos.naml.atmospp.convert_pp = False
-        self.atmos.naml.atmospp.archive_as_fieldsfiles = 'a'
+    def test_transform_streams_default(self):
+        '''Test transform streams calculation of regular expression - default'''
+        func.logtest('Assert streams calculation of regex - default:')
         self.assertEqual(self.atmos.convpp_streams, 'a-z1-9')
+        self.assertEqual(self.atmos.netcdf_streams, None)
+        self.assertEqual(self.atmos.cutout_streams, None)
 
     def test_streams_property(self):
         '''Test the return value of the streams property'''
@@ -487,27 +515,6 @@ class PropertyTests(unittest.TestCase):
         badfiles = ['RUNIDa.pz11112233.pp', 'GARBAGE']
         for fname in badfiles:
             self.assertIsNone(re.match(ff_pattern.format('a-e'), fname))
-
-    def test_netcdf_streams_single(self):
-        '''Test netcdf_streams calculation of regular expression - single'''
-        func.logtest('Assert netcdf_streams calculation of regex - single:')
-        self.atmos.naml.atmospp.streams_to_netcdf = 'a'
-        self.assertEqual(self.atmos._netcdf_streams, 'a')
-
-    def test_netcdf_streams_list(self):
-        '''Test netcdf_streams calculation of regular expression - single'''
-        func.logtest('Assert netcdf_streams calculation of regex - single:')
-        self.atmos.naml.atmospp.streams_to_netcdf = ['a', 'b', 3]
-        self.assertEqual(self.atmos._netcdf_streams, 'ab3')
-
-    def test_netcdf_streams_none(self):
-        '''Test netcdf_streams calculation of regular expression - single'''
-        func.logtest('Assert netcdf_streams calculation of regex - single:')
-        self.atmos.naml.atmospp.streams_to_netcdf = ''
-        self.assertEqual(self.atmos._netcdf_streams, '')
-
-        self.atmos.naml.atmospp.streams_to_netcdf = None
-        self.assertEqual(self.atmos._netcdf_streams, None)
 
     def test_netcdf_fields_single(self):
         '''Test netcdf_fields dctionary construction - single field'''

@@ -170,12 +170,12 @@ def mule_headers(filename):
     header of a given UM fieldsfile using Mule
     '''
     if MULE_AVAIL:
-        ffile = mule.FieldsFile.from_file(filename, remove_empty_lookups=True)
+        umfile = mule.UMFile.from_file(filename, remove_empty_lookups=True)
 
         # Extract first 40 values only
-        headers = {h: str(ffile.fixed_length_header.raw[h]).zfill(2)
+        headers = {h: str(umfile.fixed_length_header.raw[h]).zfill(2)
                    for h in range(1, 40)}
-        empty_file = len(ffile.fields) == 0
+        empty_file = len(umfile.fields) == 0
 
     else:
         headers = None
