@@ -89,6 +89,8 @@ def first_and_last_dates(dates, target_units, calendar):
 def correct_bounds(meanset, time_var, units, calendar):
     '''Return correct time bounds for meanfile'''
     dates_in = [time_bounds_var_to_date(fname, time_var) for fname in meanset]
+    # Flatten list of lists
+    dates_in = sum(dates_in, [])
     return first_and_last_dates(dates_in, units, calendar)
 
 
