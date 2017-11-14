@@ -46,7 +46,7 @@ class DateTests(unittest.TestCase):
         func.logtest('Assert exit on failure of date conversion:')
         with self.assertRaises(SystemExit):
             _ = expected_content.nlist_date('YY1111', 'my date')
-        self.assertIn('my date should consist of 8 digits: "00YY1111"',
+        self.assertIn('my date should consist of 8-10 digits: "00YY1111"',
                       func.capture('err'))
 
 
@@ -827,7 +827,6 @@ class DiagnosticFilesTests(unittest.TestCase):
         expected = self.files.expected_diags()
         print expected.keys()
         for key in outfiles:
-            print 'Checking', key
             self.assertListEqual(expected[key][:2], outfiles[key][:2])
             self.assertListEqual(expected[key][-2:], outfiles[key][-2:])
         self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
@@ -952,6 +951,22 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.files.finalcycle = True
         expected = self.files.expected_diags()
         self.assertListEqual(expected['onm.nc.file'], outfiles['onm.nc.file'])
+
+    def test_expected_cice_hourly(self):
+        '''Assert correct return of expected cice hourly files'''
+        func.logtest('Assert correct return of expected cice hourly files:')
+        self.files.naml.meanstreams = []
+        self.files.naml.streams_12h = True
+        print 'start:', self.files.sdate
+        self.files.edate = [1995, 10, 1]
+
+        hr_files = ['cice_prefixi_12h_1995081100-1995081112.nc',
+                    'cice_prefixi_12h_1995081112-1995081200.nc',
+                    'cice_prefixi_12h_1995093000-1995093012.nc',
+                    'cice_prefixi_12h_1995093012-1995100100.nc',]
+        expected = self.files.expected_diags()
+        self.assertListEqual(expected['inh.nc.file'][:2], hr_files[:2])
+        self.assertListEqual(expected['inh.nc.file'][-2:], hr_files[-2:])
 
     def test_expected_cice_final(self):
         ''' Assert correct list of expected cice files'''

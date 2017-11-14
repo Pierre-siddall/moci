@@ -44,7 +44,7 @@ FNAMES = {
     'nemo_ptracer_rst': r'{P}o_{Y1:04d}{M1:02d}{D1:02d}_restart_trc.nc',
     'nemo_ibergs_traj': r'{P}o_trajectory_icebergs_{TS}.nc',
 
-    'ncf_mean': r'{CM}_{P}{R}_{F}_{Y1}{M1}{D1}-{Y2}{M2}{D2}{CF}.nc',
+    'ncf_mean': r'{CM}_{P}{R}_{F}_{Y1}{M1}{D1}{H1}-{Y2}{M2}{D2}{H2}{CF}.nc',
     }
 
 COLLECTIONS = {

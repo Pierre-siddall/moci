@@ -37,7 +37,7 @@ def nlist_date(date, description):
         datelist = re.match(r'(\d{4})(\d{2})(\d{2})(\d{2})?',
                             str(date)).groups()
     except AttributeError:
-        utils.log_msg('Namelist read error.  {} should consist of 8'
+        utils.log_msg('Namelist read error.  {} should consist of 8-10'
                       ' digits: "{}"'.format(description, date), level='FAIL')
 
     datelist = [int(x) for x in datelist if x]
@@ -701,8 +701,13 @@ class DiagnosticFiles(ArchivedFiles):
                     if int(start[1]) in range(mth, mth + 3):
                         start[1] = ssn
                         break
-        elif self.model == 'atmos':
-            stream = filenames.FIELD_REGEX
+        else:
+            if start[3] == end[3]:
+                # Hour not required
+                start[3] = end[3] = ''
+            
+            if self.model == 'atmos':
+                stream = filenames.FIELD_REGEX
 
         key, realm, component = self.get_fn_components(stream)
         if key.startswith('ncf'):
