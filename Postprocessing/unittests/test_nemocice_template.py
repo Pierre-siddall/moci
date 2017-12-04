@@ -451,8 +451,9 @@ class MeansTests(unittest.TestCase):
     @mock.patch('modeltemplate.utils.exec_subproc', side_effect=[(0, 'None')])
     @mock.patch('modeltemplate.utils.move_files')
     @mock.patch('modeltemplate.ModelTemplate.mean_stencil')
-    def test_create_annual_mean(self, mock_stencil, mock_mv, mock_exec,
-                                mock_path):
+    @mock.patch('modeltemplate.ModelTemplate.preprocess_meanset')
+    def test_create_annual_mean(self, mock_ppset, mock_stencil, mock_mv,
+                                mock_exec, mock_path):
         '''Test successful creation of annual mean'''
         func.logtest('Assert successful creation of annual mean:')
         ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X',
@@ -473,6 +474,7 @@ class MeansTests(unittest.TestCase):
         mock_mv.assert_called_once_with(['ssn1', 'ssn2', 'ssn3', 'ssn4'],
                                         'ModelDir/archive_ready',
                                         originpath='ShareDir')
+        mock_ppset.assert_called_once_with(['ssn1', 'ssn2', 'ssn3', 'ssn4'])
 
     @mock.patch('modeltemplate.utils.remove_files')
     @mock.patch('modeltemplate.os.path')

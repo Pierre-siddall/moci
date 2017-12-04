@@ -1202,6 +1202,10 @@ class UtilityMethodTests(unittest.TestCase):
         self.nemo.suite = mock.Mock()
         self.nemo.suite.prefix = 'RUNID'
 
+        self.ncid = nemo.utils.Variables()
+        self.ncid.variables = {'dummy1': None}
+        self.ncid.close = lambda: None
+
     def tearDown(self):
         try:
             os.remove('nemocicepp.nl')
@@ -1293,3 +1297,42 @@ class UtilityMethodTests(unittest.TestCase):
         mock_ncf.assert_called_once_with('nemo', 'RUNID', 'o', base='12h',
                                          start_date=('2222', '22', '22', '22'),
                                          custom='grid-V')
+
+    @mock.patch('nemo.netcdf_utils.get_dataset')
+    def test_fix_nemo_cell_methods_none(self, mock_ncid):
+        '''Test fix_nemo_cell_methods - no relevant variables'''
+        func.logtest('Assert changes reported by fix_nemo_cell_methods:')
+        mock_ncid.return_value = self.ncid
+        msgs = nemo.fix_nemo_cell_methods(['file1'])
+        self.assertListEqual(msgs, [])
+
+    @mock.patch('nemo.netcdf_utils.get_dataset')
+    def test_fix_nemo_cell_methods_oneeach(self, mock_ncid):
+        '''Test fix_nemo_cell_methods - one variable type each'''
+        func.logtest('Assert changes reported by fix_nemo_cell_methods:')
+        self.ncid.variables['ttrd_iso'] = nemo.utils.Variables()
+        self.ncid.variables['temptot'] = nemo.utils.Variables()
+
+        mock_ncid.return_value = self.ncid
+        msgs = nemo.fix_nemo_cell_methods(['file1'])
+
+        self.assertEqual(len(msgs), 2)
+        self.assertIn('variable ttrd_iso', sorted(msgs)[1])
+        self.assertIn('thickness weighted', sorted(msgs)[1])
+        self.assertEqual(self.ncid.variables['ttrd_iso'].cell_methods,
+                         nemo.THICK_WEIGHT_CELL_METHODS)
+        self.assertIn('variable temptot', sorted(msgs)[0])
+        self.assertIn('volume weighted', sorted(msgs)[0])
+        self.assertEqual(self.ncid.variables['temptot'].cell_methods,
+                         nemo.VOL_WEIGHT_CELL_METHODS)
+
+    @mock.patch('nemo.fix_nemo_cell_methods')
+    def test_preprocess_meanset(self, mock_fix):
+        '''Test call to fix_nemo_cell_methods'''
+        func.logtest('Assert call to fix_nemo_cell_methods:')
+        files_in = ['file1', 'file2', 'file3']
+        mock_fix.return_value = ['Change1', 'Change2']
+        self.nemo.preprocess_meanset(files_in)
+        mock_fix.assert_called_once_with([os.path.join(os.getcwd(), f)
+                                          for f in files_in])
+        self.assertIn('Change1\nChange2', func.capture()) 

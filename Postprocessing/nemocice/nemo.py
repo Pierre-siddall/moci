@@ -26,6 +26,24 @@ import timer
 import utils
 import modeltemplate as mt
 import netcdf_filenames
+import netcdf_utils
+
+THICKNESS_WEIGHTED_VARIABLES = [
+    'votemper', 'vosaline', 'vozocrtx', 'vomecrty',
+    'votemper2', 'vosaline2', 'vozocrtx2', 'vomecrty2',
+    'ut', 'us', 'urhop', 'vt', 'vs', 'vrhop',
+    'ttrd_xad', 'strd_xad', 'ttrd_yad', 'strd_yad', 'ttrd_zad', 'strd_zad',
+    'ttrd_ad', 'strd_ad', 'ttrd_totad', 'strd_totad', 'ttrd_ldf', 'strd_ldf',
+    'ttrd_iso_x', 'strd_iso_x', 'ttrd_iso_y', 'strd_iso_y', 'ttrd_iso_z1',
+    'strd_iso_z1',
+    'ttrd_iso_z', 'strd_iso_z', 'ttrd_iso', 'strd_iso', 'ttrd_zdf', 'strd_zdf',
+    'ttrd_evd', 'strd_evd', 'ttrd_zdfp', 'strd_zdfp', 'ttrd_dmp', 'strd_dmp',
+    'ttrd_bbl', 'strd_bbl', 'ttrd_npc', 'strd_npc', 'ttrd_qsr', 'ttrd_bbc',
+    'ttrd_atf', 'strd_atf', 'ttrd_tot', 'strd_tot',
+    'thetao', 'so', 'uo', 'u2o', 'uto', 'uso', 'vo', 'vto', 'vso', 'v2o']
+VOLUME_WEIGHTED_VARIABLES = ['temptot', 'saltot']
+THICK_WEIGHT_CELL_METHODS = 'time: mean (thickness weighted)'
+VOL_WEIGHT_CELL_METHODS = 'time: mean (volume weighted)'
 
 
 class NemoPostProc(mt.ModelTemplate):
@@ -573,6 +591,44 @@ class NemoPostProc(mt.ModelTemplate):
             arch_rtn = self.archive_files(a_files)
 
             self.clean_archived_files(arch_rtn, 'UK Shelf region')
+
+    @timer.run_timer
+    def preprocess_meanset(self, meanset):
+        ''' Pre-process component files prior to creating a mean '''
+        filenames = utils.add_path(meanset, self.share)
+        changes = fix_nemo_cell_methods(filenames)
+        if changes:
+            utils.log_msg('\n'.join(changes), level='INFO')
+
+
+def fix_nemo_cell_methods(filenames):
+    '''
+    Overwrite the cell_methods of certain variables to allow mean_nemo
+    processes to correctly apply volume and thickness weights when
+    averaging over time. Returns a list of messages describing the
+    changes made.
+    Variables: filenames = iterable of file names to be operated on.
+    '''
+    msgs = []
+    for filename in filenames:
+        ncid = netcdf_utils.get_dataset(filename, action='r+')
+        for var in ncid.variables:
+            msg = None
+            if var in THICKNESS_WEIGHTED_VARIABLES:
+                ncid.variables[var].cell_methods = THICK_WEIGHT_CELL_METHODS
+                msg = ('Overwriting cell_methods for variable {} in file '
+                       '{} with "time: mean (thickness weighted)"'
+                       '').format(var, filename)
+            elif var in VOLUME_WEIGHTED_VARIABLES:
+                ncid.variables[var].cell_methods = VOL_WEIGHT_CELL_METHODS
+                msg = ('Overwriting cell_methods for variable {} in file '
+                       '{} with "time: mean (volume weighted)"'
+                       '').format(var, filename)
+            if msg is not None:
+                msgs.append(msg)
+        ncid.close()
+
+    return msgs
 
 
 INSTANCE = ('nemocicepp.nl', NemoPostProc)

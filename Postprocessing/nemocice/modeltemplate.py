@@ -99,9 +99,9 @@ class ModelTemplate(control.RunPostProc):
         archive = self.suite.naml.archive_toplevel is True
         return OrderedDict(
             [('move_to_share', (any([self.naml.processing.create_monthly_mean,
-                                    self.naml.processing.create_seasonal_mean,
-                                    self.naml.processing.create_annual_mean,
-                                    self.naml.processing.create_decadal_mean])
+                                     self.naml.processing.create_seasonal_mean,
+                                     self.naml.processing.create_annual_mean,
+                                     self.naml.processing.create_decadal_mean])
                                 and self.naml.processing.create_means) or
               self.naml.archiving.archive_means),
 
@@ -716,6 +716,8 @@ class ModelTemplate(control.RunPostProc):
                 describe = self.describe_mean(inputs)
                 meanset = self.periodfiles(inputs, 'set')
 
+                self.preprocess_meanset(meanset)
+
                 # Reset start date to beginning of the meaning period:
                 inputs.start_date = self.get_date(sorted(meanset)[0])
                 meanfile = self.mean_stencil(inputs)
@@ -1155,3 +1157,10 @@ class ModelTemplate(control.RunPostProc):
                 file_log = file_log + ret_msg
             if file_log:
                 utils.log_msg(ret_msg, level='OK')
+
+    def preprocess_meanset(self, meanset):
+        '''
+        Method to preprocess metadata before averaging/archiving.
+        Override if needed for model
+        '''
+        pass
