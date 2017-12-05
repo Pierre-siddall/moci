@@ -111,15 +111,6 @@ class ExecTests(unittest.TestCase):
                                                         '; echo World'))
         self.assertEqual(output.strip(), 'World!')
 
-    def test_change_directory(self):
-        '''Test subprocess with a change of working directory'''
-        func.logtest('Attempt to shell out alternative working directory:')
-        os.mkdir('TestDir')
-        cmd = 'cd TestDir; echo Hello'
-        _, output = utils.exec_subproc(cmd)
-        # Code should catch exception: OSError
-        self.assertEqual(output.strip(), 'Hello')
-
     def test_bad_multi_command(self):
         '''Test subprocess with consecutive commands'''
         func.logtest('Attempt to shell out with consecutive commands:')

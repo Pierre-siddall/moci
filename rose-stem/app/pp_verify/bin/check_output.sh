@@ -4,7 +4,7 @@
 # check_output.sh
 #
 # Purpose:  
-#    To parse the job-archive.jog files ensure all has been archived 
+#    To parse the job-archive.log files ensure all has been archived 
 #    which should have been archived
 #
 # Required Environment:
@@ -1451,11 +1451,12 @@ hg3eso_19830130_restart_0000.nc
 hg3eso_19830130_restart_0001.nc
 hg3eso_19830130_restart_0002.nc"
 
-CYLC_SUITE_LOG_DIR=${CYLC_SUITE_LOG_DIR:-$HOME/cylc-run/test_postproc/log/suite}
-logfile=job/1/p*_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/[0-9][0-9]/job-arch*.log
-search=$(grep -r ARCHIVE $CYLC_SUITE_LOG_DIR/../$logfile)
-fails=$(grep -r FAILED $CYLC_SUITE_LOG_DIR/../$logfile)
-ghost=$(grep -r "does not exist" $CYLC_SUITE_LOG_DIR/../$logfile)
+CYLC_TASK_LOG_ROOT=${CYLC_TASK_LOG_ROOT:-$HOME/cylc-run/test_postproc/log/job/1/pp_verify/NN/job}
+logdir=${CYLC_TASK_LOG_ROOT%/*}
+logfile=p*_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]/[0-9][0-9]/job-arch*.log
+search=$(grep -r ARCHIVE $logdir/../../$logfile)
+fails=$(grep -r FAILED $logdir/../../$logfile)
+ghost=$(grep -r "does not exist" $logdir/../../$logfile)
 
 RC=0
 

@@ -31,6 +31,9 @@ import os
 import timer
 import utils
 
+import moo
+import archer
+
 
 class SuiteEnvironment(object):
     '''Object to hold model independent aspects of the post processing app'''
@@ -52,6 +55,13 @@ class SuiteEnvironment(object):
                     '&moose_arch namelist from namelist file: ' + input_nl
                 utils.log_msg(msg, level='FAIL')
 
+        elif self.naml.archive_command.lower() in ['archer', 'nexcs']:
+            try:
+                self.nl_arch = load_nl.archer_arch
+            except AttributeError:
+                msg = 'SuiteEnvironment: Failed to load ' \
+                    '&archer_arch namelist from namelist file: ' + input_nl
+                utils.log_msg(msg, level='FAIL')
         self.sourcedir = sourcedir
         self.envars = {
             'CYLC_TASK_LOG_ROOT':
@@ -119,9 +129,11 @@ class SuiteEnvironment(object):
 
         if self.naml.archive_command.lower() == 'moose':
             # MOOSE Archiving
-            import moo
             rcode = moo.archive_to_moose(filename, self.prefix, self.sourcedir,
                                          self.nl_arch, preproc)
+        elif self.naml.archive_command.lower() in ['archer', 'nexcs']:
+            # ARCHER/NEXCS Archiving
+            rcode = archer.archive_to_rdf(filename, self.sourcedir, self.nl_arch)
         else:
             utils.log_msg('Archive command not yet implemented', level='ERROR')
 

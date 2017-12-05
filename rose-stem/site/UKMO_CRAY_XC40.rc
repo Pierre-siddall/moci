@@ -11,7 +11,20 @@
         [[[directives]]]
             --ntasks=1
             --mem=1G
-            --qos=normal            
+            --qos=normal
+
+    [[POSTPROC_RESOURCE]]
+        inherit = LINUX
+        pre-script = "ulimit -s unlimited"
+
+    [[VERIFY_RESOURCE]]
+        inherit = LINUX
+
+    [[UNITTESTS_RESOURCE]]
+        inherit = LINUX
+
+    [[HOUSEKEEP_RESOURCE]]
+        inherit = LINUX
     
     [[XC40]]
         [[[job]]]

@@ -252,3 +252,45 @@ class pp21_t265(rose.upgrade.MacroUpgrade):
                                       ffstreams)
 
         return config, self.reports
+
+
+class pp20_t122(rose.upgrade.MacroUpgrade):
+
+    """Upgrade macro for ticket #122 by Rosalyn Hatcher."""
+    BEFORE_TAG = "pp21_t265"
+    AFTER_TAG = "pp21_t122"
+
+    def upgrade(self, config, meta_config=None):
+        """Upgrade a Postproc make app configuration."""
+        # Call transfer.py script if transferring files from archive
+        # and setup transfer namelist
+        self.add_setting(config,
+                         ["command", "pptransfer"], "transfer.py")
+        self.add_setting(config,
+                         ["file:pptransfer.nl", "source"], "namelist:suitegen (namelist:pptransfer) (namelist:archer_arch)")
+
+        for fname in ['atmospp.nl', 'nemocicepp.nl']:
+              source = self.get_setting_value(config,
+                                              ["file:" + fname, "source"])
+              source = source.replace("namelist:moose_arch", "(namelist:moose_arch)")
+              source = ' '.join([source, "(namelist:archer_arch)"])
+              self.change_setting_value(config, 
+                                        ["file:" + fname, "source"], source)
+
+        self.add_setting(config,
+                         ["namelist:archer_arch", "archive_root_path"], "")
+        self.add_setting(config,
+                         ["namelist:archer_arch", "archive_name"], "$CYLC_SUITE_NAME")
+        self.add_setting(config,
+                         ["namelist:pptransfer", "transfer_dir"], "")
+        self.add_setting(config,
+                         ["namelist:pptransfer", "verify_chksums"], "true")
+        self.add_setting(config,
+                         ["namelist:pptransfer", "gridftp"], "false")
+        self.add_setting(config,
+                         ["namelist:pptransfer", "transfer_type"], "Push")
+        self.add_setting(config,
+                         ["namelist:pptransfer", "remote_host"], "")
+
+        return config, self.reports
+

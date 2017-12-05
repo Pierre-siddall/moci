@@ -28,7 +28,6 @@ class pp20_t100(rose.upgrade.MacroUpgrade):
                         ["namelist:nemopostproc", "msk_rebuild",], "false")
         return config, self.reports
 
-
 class pp20_t189(rose.upgrade.MacroUpgrade):
 
     """Upgrade macro for ticket #189 by Erica Neininger."""
@@ -288,7 +287,6 @@ class pp20_t181(rose.upgrade.MacroUpgrade):
                          (str(delay) if delay else '0') + "m")
 
         return config, self.reports
-
 
 class pp20_t228(rose.upgrade.MacroUpgrade):
 

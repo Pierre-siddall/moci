@@ -247,7 +247,7 @@ def extract_to_netcdf(fieldsfile, fields, ncftype, complevel):
     try:
         all_cubes = iris_transform.IrisCubes(fieldsfile, fields)
         icode = 0
-    except AttributeError:
+    except (AttributeError, NameError):
         # Iris module is not available
         utils.log_msg('Iris module is not available - '
                       'cannot extract fields to netCDF format', level='ERROR')

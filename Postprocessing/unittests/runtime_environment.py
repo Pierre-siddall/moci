@@ -32,6 +32,7 @@ def setup_env():
     os.environ['CYLC_SUITE_INITIAL_CYCLE_POINT'] = '19950821T0000Z'
     os.environ['CYLC_SUITE_FINAL_CYCLE_POINT'] = '19950901T0000Z'
     os.environ['CYLC_TASK_CYCLE_POINT'] = '20000121T0000Z'
+    os.environ['CYLC_SUITE_OWNER'] = 'userID'
 
     # Standard UM Setup Environment
     os.environ['RUNID'] = 'TESTP'

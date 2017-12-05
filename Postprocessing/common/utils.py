@@ -152,16 +152,20 @@ def exec_subproc(cmd, verbose=True, cwd=os.getcwd()):
       cwd     = Directory in which to execute the command
     '''
     import subprocess
+    import shlex
+    
     cmd_array = [cmd]
     if not isinstance(cmd, list):
         cmd_array = cmd.split(';')
         for i, cmd in enumerate(cmd_array):
-            cmd_array[i] = cmd.split()
+            # Use shlex.split to cope with arguments that contain whitespace
+            cmd_array[i] = shlex.split(cmd)
+
+    # Initialise rcode, in the event there is no command
+    rcode = 99
+    output = 'No command provided'
 
     for cmd in cmd_array:
-        if 'cd' in cmd:
-            cwd = cmd[1]
-            continue
         try:
             output = subprocess.check_output(cmd, stderr=subprocess.STDOUT,
                                              universal_newlines=True, cwd=cwd)

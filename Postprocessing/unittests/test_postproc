@@ -19,6 +19,7 @@ import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
+sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'platforms'))
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'atmos'))
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'nemocice'))
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir,
@@ -35,36 +36,41 @@ timer.set_nulltimer()
 def main():
     '''Run unit tests for postproc app'''
     groups = {
-        'all':      'test_*.py',
-        'main':     'test_main.py',
-        'common':   'test_common_*.py',
-        'control':  'test_common_control.py',
-        'suitegen': 'test_common_suitegen.py',
-        'nlist':    'test_common_nlist.py',
-        'utils':    'test_common_utils.py',
-        'timer':    'test_common_timer.py',
-        'moo':      'test_common_moo.py',
-        'netcdf':   'test_common_netcdf_*.py',
-        'iris':     'test_common_iris.py',
-        'atmos':    'test_atmos_*.py',
-        'atmbase':  'test_atmos_base.py',
-        'atmutils': 'test_atmos_utils.py',
-        'nemocice': 'test_nemocice*.py',
-        'nemo':     'test_nemocice_nemo.py',
-        'cice':     'test_nemocice_cice.py',
-        'template': 'test_nemocice_template.py',
-        'verify':   'test_verify_*.py',
+        'all':       'test_*.py',
+        'main':      'test_main.py',
+        'common':    'test_common_*.py',
+        'control':   'test_common_control.py',
+        'suitegen':  'test_common_suitegen.py',
+        'nlist':     'test_common_nlist.py',
+        'utils':     'test_common_utils.py',
+        'timer':     'test_common_timer.py',
+        'netcdf':    'test_common_netcdf_*.py',
+        'iris':      'test_common_iris.py',
+        'atmos':     'test_atmos_*.py',
+        'atmbase':   'test_atmos_base.py',
+        'atmutils':  'test_atmos_utils.py',
+        'nemocice':  'test_nemocice*.py',
+        'nemo':      'test_nemocice_nemo.py',
+        'cice':      'test_nemocice_cice.py',
+        'template':  'test_nemocice_template.py',
+        'verify':    'test_verify_*.py',
+        'archer':    'test_platforms_archer.py',
+        'moo':       'test_platforms_moo.py',
+        'platforms': 'test_platforms_*.py',
+        'transfer':  'test_platforms_transfer.py',
         }
 
     subgroups = [
-        ' '.join(['common groups:'] + [c for c in groups.keys() if
+        ' '.join(['common groups:'] + [c for c in groups if
                                        'common_' in groups[c]]),
-        ' '.join(['atmos groups:'] + [a for a in groups.keys() if
+        ' '.join(['atmos groups:'] + [a for a in groups if
                                       'atmos_' in groups[a]]),
-        ' '.join(['nemo and cice groups:'] + [n for n in groups.keys() if
+        ' '.join(['nemo and cice groups:'] + [n for n in groups if
                                               'nemocice_' in groups[n]]),
-        ' '.join(['verification group:'] + [v for v in groups.keys() if
+        ' '.join(['verification group:'] + [v for v in groups if
                                             'verify_' in groups[v]]),
+        ' '.join(['platforms group:'] + [p for p in groups if
+                                         'platforms_' in groups[p]]),
         ]
 
     parser = argparse.ArgumentParser(

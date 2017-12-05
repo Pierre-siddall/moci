@@ -24,7 +24,6 @@ import runtime_environment
 runtime_environment.setup_env()
 import suite
 
-
 class SuiteTests(unittest.TestCase):
     '''Unit tests for the SuiteEnvironment class'''
     def setUp(self):
@@ -37,6 +36,7 @@ class SuiteTests(unittest.TestCase):
             ('&moose_arch', None),
             ('archive_set="SUITENAME"\n/', None),
             ])
+
         self.myfile = 'input.nl'
         open(self.myfile, 'w').write('\n'.join(self.inputnl.keys()))
         self.mypath = 'somePath/directory'
@@ -63,7 +63,7 @@ class SuiteTests(unittest.TestCase):
             os.environ['CYLC_SUITE_INITIAL_CYCLE_POINT']
             )
 
-    def test_suite_object_cycle_overrides(self):
+    def test_suite_object_cycle_ovrides(self):
         '''Test creation of suite object and assertion of Cylc6 environment'''
         func.logtest('Assert creation of a suite object with cycle overrides:')
         with mock.patch.dict('suite.os.environ',
@@ -76,6 +76,22 @@ class SuiteTests(unittest.TestCase):
             '{:0>4}{:0>2}{:0>2}T{:0>2}{:0>2}Z'.format(*mysuite.initpoint),
             '00060708T0910Z'
             )
+
+    def test_suite_object_archer(self):
+        '''Test creation of suite object and assertion of Cylc6 environment'''
+        func.logtest('Assert creation of a suite object:')
+        inputnl = OrderedDict([
+            ('&suitegen', None),
+            ('archive_command="Archer"', None),
+            ('/', None),
+            ('&archer_arch', None),
+            ('archive_name="NAME"\n/', None),
+            ])
+
+        open(self.myfile, 'w').write('\n'.join(inputnl.keys()))
+        self.mypath = 'somePath/directory'
+        self.mysuite = suite.SuiteEnvironment(self.mypath, self.myfile)
+        self.assertEqual(self.mysuite.sourcedir, self.mypath)
 
     def test_suite_object_blank_file(self):
         '''Test creation of suite object with a blank namelist file'''
@@ -150,10 +166,10 @@ class ArchiveTests(unittest.TestCase):
             if os.path.exists(fname):
                 os.remove(fname)
 
-    def test_archive_file(self):
+    def test_archive_file_moose(self):
         '''Test archive_file command - moo is mocked out'''
         func.logtest('File archiving - success:')
-        with mock.patch('moo.archive_to_moose', return_value=0) as dummy:
+        with mock.patch('suite.moo.archive_to_moose', return_value=0) as dummy:
             rcode = self.mysuite.archive_file('TestFile')
             self.assertEqual(rcode, 0)
             self.assertIn('TestFile ARCHIVE OK',
@@ -164,10 +180,25 @@ class ArchiveTests(unittest.TestCase):
                 self.mysuite.nl_arch, False
                 )
 
+    def test_archive_file_archer(self):
+        '''Test archive_file command - archer is mocked out'''
+        func.logtest('File archiving - success:')
+        self.mysuite.naml.archive_command = 'Archer'
+        with mock.patch('suite.archer.archive_to_rdf', return_value=0) as dummy:
+            rcode = self.mysuite.archive_file('TestFile')
+            self.assertEqual(rcode, 0)
+            dummy.assert_called_once_with(
+                'TestFile', 'somePath/directory',
+                self.mysuite.nl_arch
+                )
+        self.assertIn('TestFile ARCHIVE OK',
+                      open(self.mysuite.logfile, 'r').read())
+        self.assertTrue(self.mysuite.archive_ok)
+
     def test_archive_file_fail(self):
         '''Test failure mode of archive_file command - moo is mocked out'''
         func.logtest('File archiving - failure:')
-        with mock.patch('moo.archive_to_moose', return_value=-1) as dummy:
+        with mock.patch('suite.moo.archive_to_moose', return_value=-1) as dummy:
             rcode = self.mysuite.archive_file('TestFile')
             self.assertNotEqual(rcode, 0)
             self.assertIn('TestFile ARCHIVE FAILED',
@@ -177,7 +208,7 @@ class ArchiveTests(unittest.TestCase):
     def test_archive_empty_file_moo(self):
         '''Test attempt to archive an empty file - moo is mocked out'''
         func.logtest('File archiving - Empty file:')
-        with mock.patch('moo.archive_to_moose', return_value=11) as dummy:
+        with mock.patch('suite.moo.archive_to_moose', return_value=11) as dummy:
             rcode = self.mysuite.archive_file('TestFile')
             self.assertEqual(rcode, 0)
             self.assertIn('TestFile FILE NOT ARCHIVED',

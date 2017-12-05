@@ -3,6 +3,23 @@
 {% set TASK_RUN = "rose task-run --verbose -O '(" + SITE + ")'"%}
 {% set PP_CYCLES = range(110,113)|list + range(201,213)|list + [301,]|list %}
 
+{# Test to determine when to use single fcm_make tasks #}
+{% set MULTISTEP_FCM = ['archer'] %}
+{% if SITE in MULTISTEP_FCM %}
+    {% set FCMPP_GRAPH = 'fcm_make_pp => fcm_make2_pp' %}
+    {% set FCMPP_GRAPH2 = 'fcm_make2_pp' %}
+{% else %}
+    {% set FCMPP_GRAPH = 'fcm_make_pp' %}
+    {% set FCMPP_GRAPH2 = 'fcm_make_pp' %}
+{% endif %}
+
+{# Test to determine if need to run pptransfer tasks #}
+{% if SITE in ['archer'] %}
+    {% set PPTRANSFER_GRAPH = 'fcm_make_pptransfer => fcm_make2_pptransfer => pptransfer_19811101\n postproc_19811001' + (":succeed-all" if SPLIT_PP else "") + ' => pptransfer_19811101' %}
+{% else %}
+    {% set PPTRANSFER_GRAPH = '' %}
+{% endif %}
+
 {% macro format_wallclock(time_list) -%}
     PT{{'%02d' % (time_list[0])}}H{{'%02d' % (time_list[1])}}M{{'%02d' % (time_list[2])}}S
 {%- endmacro %}
@@ -31,7 +48,8 @@
          test_mule:succeed => !remove_cutout_from_postproc
          test_mule:fail => remove_cutout_from_postproc
          test_mule | remove_cutout_from_postproc => fcm_make_pp
-         pp_clearlog & fcm_make_pp => coupled_dummy_19811001 => postproc_19811001 & coupled_dummy_19811101
+         pp_clearlog & " + FCMPP_GRAPH + " => coupled_dummy_19811001 => postproc_19811001 & coupled_dummy_19811101
+        " + PPTRANSFER_GRAPH + "
          coupled_dummy_19811101 => postproc_19811101 & coupled_dummy_19811201
          coupled_dummy_19811201 => postproc_19811201 & coupled_dummy_19820101
          coupled_dummy_19820101 => postproc_19820101 & coupled_dummy_19820201
@@ -59,8 +77,8 @@
          pp_nemomean_19820301 & pp_nemorst_19820301 => pp_verifynemo_19820301
          pp_nemomean_19820601 & pp_nemorst_19820601 => pp_verifynemo_19820601
          pp_nemomean_19820901 & pp_nemorst_19820901 => pp_verifynemo_19820901
-         pp_nemomean_19821201 & pp_nemorst_19821201 => pp_verifynemo_19821201" if SPLIT_PP else "") + "
-         fcm_make_pp => pp_unittests",
+         pp_nemomean_19821201 & pp_nemorst_19821201 => pp_verifynemo_19821201" if SPLIT_PP and SITE == 'meto' else "") + "
+         " + FCMPP_GRAPH2 + "=> pp_unittests",
 
     "default" : "default_task"
     }
@@ -135,9 +153,11 @@ export FCM_VERSION={{FCM_VERSION}}
             NEMO_JPROC = 32
             NEMO_NPROC = 512
             CICE_NPROC = 512
+
     [[default_task]]
         inherit = LINUX
         script = "echo [ERROR] Please select a valid group within the test suite to test the component that has been modified >&2; exit 1"
+
     [[HOUSEKEEPING]]
 {%- if HOUSEKEEPING == true %}
         script = "rose task-run --verbose"
@@ -149,6 +169,11 @@ export FCM_VERSION={{FCM_VERSION}}
     
     [[fcm_make_pp]]
         inherit = LINUX
+
+{% if SITE in MULTISTEP_FCM %}
+    [[fcm_make2_pp]]
+        inherit = PPBUILD_RESOURCE
+{% endif %}
             
     [[XBS]]
         env-script = "eval $(rose task-env)"
@@ -189,8 +214,6 @@ export FCM_VERSION={{FCM_VERSION}}
     XBS_SPECIFY_COMPILER_PRGENV = "false"
 {% endif %}
         
-        
-
     [[MODULE_DEPLOYMENT_APP]]
         [[[environment]]]
             {% if DEPLOY_AS_MODULE %}
@@ -328,7 +351,7 @@ export FCM_VERSION={{FCM_VERSION}}
         [[[environment]]]
              SOURCE_MOCI={{SOURCE_MOCI}}
             
-     [[xbs_unitTests]]
+    [[xbs_unitTests]]
         inherit = None, XBS, OASIS_BUILD_APP, XIOS_BUILD_APP, NEMO_BUILD_APP, MODULE_DEPLOYMENT_APP, XBS_UNIT_TEST_SETUP, XBS_UNIT_TEST_RESOURCE, TEST_NEMO, BUILD_NEMO
         [[[environment]]]
             VERBOSE='true'
@@ -342,7 +365,7 @@ export FCM_VERSION={{FCM_VERSION}}
     [[buildOasis]]
         inherit = None, XBS, MODULE_DEPLOYMENT_APP, OASIS_BUILD_APP, BUILD_OASIS_RESOURCE, BUILD_OASIS_SETUP
     
-     [[testOasis]]
+    [[testOasis]]
         inherit = None, XBS, OASIS_APP, TEST_OASIS_SETUP, TEST_OASIS_RESOURCE
         [[[environment]]]
             OASIS_RESULT_DIR=$ROSE_DATA/{{OASIS3_MCT}}
@@ -451,8 +474,7 @@ rm -rf {{dir1}}
 {% endfor %}
 '''
     [[POSTPROC]]
-        pre-script = "ulimit -s unlimited"
-        inherit=None, LINUX
+        inherit=None, POSTPROC_RESOURCE
         [[[environment]]]
             ROSE_TASK_APP = postproc
             RUNID      = hg3es
@@ -554,13 +576,13 @@ rm -rf {{dir1}}
            DATE2 = 19830201
 
     [[pp_verify]]
-        inherit = None, LINUX
+        inherit = None, VERIFY_RESOURCE
 
-   [[pp_unittests]]
-        inherit = None, LINUX
+    [[pp_unittests]]
+        inherit = None, UNITTESTS_RESOURCE
 	# Run each of the main groups (common, atmos, nemocice) first - helps to spot any leaking tests.
         # Finally run 'all' - sweeps up any tests not covered in the main groups
-	script = '$CYLC_SUITE_SHARE_DIR/fcm_make_pp/build/bin/test_postproc -g common -g atmos -g nemocice -g all'
+	script = '$CYLC_SUITE_SHARE_DIR/fcm_make_pp/build/bin/test_postproc -g common -g atmos -g nemocice -g platforms -g all'
 
     [[test_mule]]
         inherit = None, LINUX
@@ -576,8 +598,8 @@ rm -rf {{dir1}}
         script = if [ -f  "$CYLC_SUITE_SHARE_DIR/cylclog" ] ; then rm $CYLC_SUITE_SHARE_DIR/cylclog ; fi
 
     [[housekeeping_pp]]
-        inherit=None, LINUX, HOUSEKEEPING 
+        inherit=None, HOUSEKEEP_RESOURCE, HOUSEKEEPING 
         [[[environment]]]
-            RUNDIR="$CYLC_SUITE_SHARE_DIR/data/postproc $CYLC_SUITE_WORK_DIR/1/fcm_make_pp $CYLC_SUITE_WORK_DIR/1/p*_* $CYLC_SUITE_WORK_DIR/1/housekeeping_pp $CYLC_SUITE_WORK_DIR/1/coupled_dummy_*"
+            RUNDIR="$CYLC_SUITE_SHARE_DIR/data/postproc $CYLC_SUITE_WORK_DIR/1/fcm_mak*_pp $CYLC_SUITE_WORK_DIR/1/p*_* $CYLC_SUITE_WORK_DIR/1/housekeeping_pp $CYLC_SUITE_WORK_DIR/1/coupled_dummy_*"
 
 {% include 'site/'+SYSTEM_NAME+'.rc' %}
