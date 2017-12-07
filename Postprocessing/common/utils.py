@@ -354,15 +354,16 @@ def add_period_to_date(indate, delta):
 @timer.run_timer
 def _mod_all_calendars_date(indate, delta, cal):
     ''' Call `rose date` to return a date '''
-    while len(indate) < 5:
-        val = 1 if len(indate) in [1, 2] else 0
-        indate.append(val)
+    outdate = [int(d) for d in indate]
+    while len(outdate) < 5:
+        val = 1 if len(outdate) in [1, 2] else 0
+        outdate.append(val)
         msg = '`rose date` requires length=5 input date array - adding {}: '
-        log_msg(msg.format(val) + str(indate), level='WARN')
+        log_msg(msg.format(val) + str(outdate), level='WARN')
 
-    offset = ('-' if any([d for d in delta if d < 0]) else '') + 'P'
     for elem in delta:
         if elem != 0:
+            offset = ('-' if elem < 0 else '') + 'P'
             try:
                 offset += str(abs(elem)) + ['Y', 'M', 'D'][delta.index(elem)]
             except IndexError:
@@ -370,21 +371,23 @@ def _mod_all_calendars_date(indate, delta, cal):
                     offset += 'T'
                 offset += str(abs(elem)) + ['M', 'H'][delta.index(elem)-4]
 
-        dateinput = '{0:0>4}{1:0>2}{2:0>2}T{3:0>2}{4:0>2}'.format(*indate)
-        if re.match(r'^\d{8}T\d{4}$', dateinput):
-            cmd = 'rose date {} --calendar {} --offset {} --print-format ' \
-                '%Y,%m,%d,%H,%M'.format(dateinput, cal, offset)
+            dateinput = '{0:0>4}{1:0>2}{2:0>2}T{3:0>2}{4:0>2}'.format(*outdate)
+            if re.match(r'^\d{8}T\d{4}$', dateinput):
+                cmd = 'rose date {} --calendar {} --offset {} --print-format ' \
+                    '%Y,%m,%d,%H,%M'.format(dateinput, cal, offset)
 
-            rcode, output = exec_subproc(cmd, verbose=False)
-        else:
-            log_msg('add_period_to_date: Invalid date for conversion to ISO '
-                    '8601 date representation: ' + str(indate), level='FAIL')
+                rcode, output = exec_subproc(cmd, verbose=False)
+            else:
+                log_msg('add_period_to_date: Invalid date for conversion to '
+                        'ISO 8601 date representation: ' + str(outdate),
+                        level='FAIL')
 
-    if rcode == 0:
-        outdate = map(int, output.split(','))
-    else:
-        log_msg('`rose date` command failed:\n' + output, level='WARN')
-        outdate = None
+            if rcode == 0:
+                outdate = map(int, output.split(','))
+            else:
+                log_msg('`rose date` command failed:\n' + output, level='WARN')
+                outdate = None
+                break
 
     return outdate
 

@@ -203,10 +203,12 @@ class DateCheckTests(unittest.TestCase):
         '''Test adding period to Gregorian date'''
         func.logtest('Cylc6 date manipulation with Gregorian calendar:')
         outdate = [2004, 3, 6, 0, 30]
-        with mock.patch.dict('utils.os.environ',
-                             {'CYLC_CYCLING_MODE': 'gregorian'}):
+        with mock.patch('utils.calendar', return_value='gregorian'):
             date = utils.add_period_to_date(self.indate, self.delta)
-        self.assertListEqual(date, outdate)
+            self.assertListEqual(date, outdate)
+
+            date = utils.add_period_to_date([2004, 2, 15], [0, 1, -1])
+            self.assertListEqual(date, [2004, 3, 14, 0, 0])
 
     def test_short_date(self):
         '''Test date input with short array'''
@@ -217,8 +219,7 @@ class DateCheckTests(unittest.TestCase):
         date = utils.add_period_to_date(indate, self.delta)
         self.assertListEqual(date, outdate)
 
-        with mock.patch.dict('utils.os.environ',
-                             {'CYLC_CYCLING_MODE': 'gregorian'}):
+        with mock.patch('utils.calendar', return_value='gregorian'):
             date = utils.add_period_to_date(indate, self.delta)
             self.assertListEqual(date, outdate)
 
@@ -238,8 +239,7 @@ class DateCheckTests(unittest.TestCase):
 
         delta = [0, -1, -20]
         outdate = [2003, 12, 26, 0, 0]
-        with mock.patch.dict('utils.os.environ',
-                             {'CYLC_CYCLING_MODE': 'gregorian'}):
+        with mock.patch('utils.calendar', return_value='gregorian'):
             date = utils.add_period_to_date(self.indate, delta)
             self.assertListEqual(date, outdate)
 

@@ -83,6 +83,24 @@ class CicePostProc(mt.ModelTemplate):
                    B=base if base else r'\d+[hdsy]',
                    M='' if base else r'|1m.\d{4}-\d{2}')
 
+    def move_to_share(self, pattern=None):
+        '''
+        CICE code differentiates daily data from monthly data only in the
+        date format (not the frequency stamp - this relates to resubmit period):
+            YYYY-MM.nc = monthly data
+            YYYY-MM-DD.nc = daily data
+        Pre-pend ModelTemplate.move_to_share with a forced renaming of
+        "1d.YYYY-MM.nc" files to "1m.YYYY-MM.nc
+        '''
+        monthly_1d = utils.get_subset(
+            self.work,
+            r'^{}i\.1d\.\d{{4}}-\d{{2}}\.nc$'.format(self.prefix)
+            )
+        for fname in monthly_1d:
+            newfname = os.path.join(self.work, fname.replace('.1d.', '.1m.'))
+            os.rename(os.path.join(self.work, fname), newfname)
+        super(CicePostProc, self).move_to_share(pattern=pattern)
+
     def get_date(self, fname, enddate=False, base=None):
         '''
         Returns the date extracted from the filename provided.
@@ -127,39 +145,66 @@ class CicePostProc(mt.ModelTemplate):
     def create_concat_daily_means(self):
         '''
         Concatenate daily mean data into a single file.
-        Files dated YYYY-M1-01 to YYYY-M2-01 are included in a monthly file.
+        Hourly files dated YYYY-M1-02 to YYYY-M2-01 are included in the month.
+        Daily files dated YYYY-MM-01 to YYYY-MM-DEnd are included in the month.
         '''
+        ncf = netcdf_filenames.NCFilename('cice',
+                                          self.suite.prefix,
+                                          self.model_realm,
+                                          base='1d')
+
         patt = r'^{P}i\.[0-9hdm]*_?24h\.{{Y}}-{{M}}-{{D}}(-\d{{{{5}}}})?\.nc$'.\
             format(P=self.suite.prefix)
         if self.work != self.share:
             self.move_to_share(pattern=patt.format(Y=r'\d{4}', M=r'\d{2}',
                                                    D=r'\d{2}'))
 
-        endset = utils.get_subset(self.share,
-                                  patt.format(Y=r'\d{4}', M=r'\d{2}', D='01'))
-        for end in endset:
-            catfiles = [end]
-            # `base=2m` as get_date() usually expects the enddate in filename
-            # to be the last day of the previous month and adjusts accordingly.
-            startdate = self.get_date(end, base='2m')
-            catfiles += utils.get_subset(self.share,
-                                         patt.format(Y=startdate[0],
-                                                     M=startdate[1],
-                                                     D=r'(0[2-9]|[1-3][0-9])'))
+        endfiles = utils.get_subset(self.share,
+                                    patt.format(Y=r'\d{4}', M=r'\d{2}', D='01'))
+        if endfiles:
+            raw_output = True
+        else:
+           # Try again with convention compliant files with base=1d
+            raw_output = False
+            endfiles = utils.get_subset(self.share, self.end_stencil('1m', ncf))
 
-            if len(catfiles) == 30:
+        for end in endfiles:
+            if raw_output:
+                # Using raw output (24 hourly files)
+                # Set ncf.start_date to the start of the period.
+                # `base=2m` is required since get_date() usually expects the
+                # filename enddate to be the last day of the previous month and
+                # adjusts accordingly.
+                ncf.start_date = self.get_date(end, base='2m')
+                catfiles = [end]
+                catfiles += utils.get_subset(
+                    self.share,
+                    patt.format(Y=ncf.start_date[0], M=ncf.start_date[1],
+                                D=r'(0[2-9]|[1-3][0-9])')
+                    )
+
+            else:
+                # Daily mean files - netCDF filename convention files
+                ncf.start_date = self.get_date(end)
+                catfiles = utils.get_subset(self.share,
+                                            self.set_stencil('1m', ncf))
+                # Adjust ncf.start_date back to the start of the period for
+                # file renaming purposes
+                ncf.start_date = [
+                    str(d).zfill(2) for d in utils.add_period_to_date(
+                        self.get_date(end, enddate=True), '-m'
+                        )[:3]
+                    ]
+
+            if len(catfiles) == self.suite.monthlength(ncf.start_date[1]):
                 catfiles = utils.add_path(catfiles, self.share)
                 outfile = os.path.join(self.share, 'cicecat')
                 icode = self.suite.preprocess_file('ncrcat', sorted(catfiles),
                                                    outfile=outfile)
                 if icode == 0:
                     utils.remove_files(catfiles)
-                    ncfname = netcdf_filenames.NCFilename(
-                        'cice', self.suite.prefix, self.model_realm,
-                        base='1d', start_date=startdate
-                        )
                     # Rename file according to netCDF convention
-                    ncfname.rename_ncf(outfile, target='1m')
+                    ncf.rename_ncf(outfile, target='1m')
 
             else:
                 msg = 'concat_daily_means: Cannot create month of daily means '

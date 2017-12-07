@@ -190,6 +190,39 @@ class UtilityMethodTests(unittest.TestCase):
         self.assertTupleEqual(date, (None,)*3)
         self.assertIn('[WARN]  Unable to get date', func.capture('err'))
 
+    @mock.patch('cice.utils.get_subset', return_value=['RUNIDi.1d.1111-22.nc'])
+    @mock.patch('cice.os.rename')
+    @mock.patch('cice.mt.ModelTemplate.move_to_share')
+    def test_move_to_share(self, mock_mts, mock_rename, mock_set):
+        '''Test move_to_share method'''
+        func.logtest('Assert call to super(move_to_share):')
+        self.cice.work = 'WorkDir'
+        with mock.patch('cice.mt.ModelTemplate.prefix',
+                        new_callable=mock.PropertyMock,
+                        return_value='RUNID'):
+            self.cice.move_to_share()
+        mock_set.assert_called_once_with('WorkDir',
+                                         r'^RUNIDi\.1d\.\d{4}-\d{2}\.nc$')
+        mock_rename.assert_called_once_with('WorkDir/RUNIDi.1d.1111-22.nc',
+                                            'WorkDir/RUNIDi.1m.1111-22.nc')
+        mock_mts.assert_called_once_with(pattern=None)
+
+    @mock.patch('cice.utils.get_subset', return_value=['RUNIDi.1d.1111-22.nc'])
+    @mock.patch('cice.os.rename')
+    @mock.patch('cice.mt.ModelTemplate.move_to_share')
+    def test_move_to_share_pattern(self, mock_mts, mock_rename, mock_set):
+        '''Test move_to_share method with pattern'''
+        func.logtest('Assert call to super(move_to_share) with pattern:')
+        self.cice.work = 'WorkDir'
+        with mock.patch('cice.mt.ModelTemplate.prefix',
+                        new_callable=mock.PropertyMock,
+                        return_value='RUNID'):
+            self.cice.move_to_share(pattern='pattern')
+        mock_set.assert_called_once_with('WorkDir',
+                                         r'^RUNIDi\.1d\.\d{4}-\d{2}\.nc$')
+        mock_rename.assert_called_once_with('WorkDir/RUNIDi.1d.1111-22.nc',
+                                            'WorkDir/RUNIDi.1m.1111-22.nc')
+        mock_mts.assert_called_once_with(pattern='pattern')
 
 class MeansProcessingTests(unittest.TestCase):
     '''Unit tests relating to the processing of means files'''
@@ -199,6 +232,7 @@ class MeansProcessingTests(unittest.TestCase):
         self.cice.suite = mock.Mock()
         self.cice.suite.prefix = 'RUNID'
         self.cice.suite.preprocess_file.return_value = 0
+        self.cice.suite.monthlength.return_value = 30
 
     def tearDown(self):
         for fname in ['nemocicepp.nl']:
@@ -208,7 +242,7 @@ class MeansProcessingTests(unittest.TestCase):
                 pass
 
     @mock.patch('cice.utils.get_subset')
-    @mock.patch('cice.mt.ModelTemplate.move_to_share')
+    @mock.patch('cice.CicePostProc.move_to_share')
     @mock.patch('cice.utils.remove_files')
     @mock.patch('cice.netcdf_filenames.os.rename')
     def test_create_concat_daily(self, mock_rn, mock_rm, mock_mv, mock_set):
@@ -236,6 +270,48 @@ class MeansProcessingTests(unittest.TestCase):
         self.assertEqual(mock_set.mock_calls[1],
                          mock.call('.', r'^RUNIDi\.[0-9hdm]*_?24h\.1111-01-' +
                                    r'(0[2-9]|[1-3][0-9])(-\d{5})?\.nc$'))
+
+    @mock.patch('cice.utils.get_subset')
+    @mock.patch('cice.utils.remove_files')
+    @mock.patch('cice.netcdf_filenames.os.rename')
+    def test_create_concat_1dfiles(self, mock_rn, mock_rm, mock_set):
+        '''Test compile list of means to concatenate: _1d_ Gregorian files'''
+        func.logtest('Assert compilation of means to concatenate - _1d_ files:')
+        self.cice.suite.meanref = [0, 12, 1]
+        catsets = ['SET' + str(i) for i in range(1, 31)]
+        mock_set.side_effect = [[],
+                                ['END_1d_11110228-11110301.nc'],
+                                catsets]
+        with mock.patch('cice.utils.calendar', return_value='gregorian'):
+            _ = self.cice.create_concat_daily_means()
+        procsets = sorted(['./' + s for s in catsets])
+        self.cice.suite.preprocess_file.assert_called_with(
+            'ncrcat', procsets,
+            outfile='./cicecat'
+            )
+        self.assertListEqual(sorted(mock_rm.call_args[0][0]),
+                             sorted(procsets))
+
+        mock_rn.assert_called_once_with('./cicecat',
+                                        './cice_runidi_1d_11110201-11110301.nc')
+        # Check call to get_subset for end-of-set files:
+        self.assertEqual(mock_set.mock_calls[0],
+                         mock.call('.', r'^RUNIDi\.[0-9hdm]*_?24h\.\d{4}' +
+                                   r'-\d{2}-01(-\d{5})?\.nc$'))
+        # Check call to get_subset for netCDF fname object:
+        self.assertEqual(mock_set.mock_calls[1],
+                         mock.call('.', r'^cice_runidi_1d_\d{8,10}-\d{4}' +
+                                   r'(\d{2}01)(00)?\.nc$'))
+        self.assertEqual(
+            mock_set.mock_calls[2],
+            mock.call('.', '^cice_runidi_1d_(11110201|11110202|11110203|' +
+                      '11110204|11110205|11110206|11110207|11110208|' +
+                      '11110209|11110210|11110211|11110212|11110213|' +
+                      '11110214|11110215|11110216|11110217|11110218|' +
+                      '11110219|11110220|11110221|11110222|11110223|' +
+                      '11110224|11110225|11110226|11110227|11110228)' +
+                      r'(\d{2})?-\d{8,10}\.nc$')
+            )
 
     @mock.patch('cice.utils.get_subset')
     @mock.patch('cice.utils.remove_files')
@@ -289,13 +365,14 @@ class MeansProcessingTests(unittest.TestCase):
         for fname in meanfiles:
             os.remove(fname)
 
-    @mock.patch('cice.mt.ModelTemplate.move_to_share')
+    @mock.patch('cice.CicePostProc.move_to_share')
     def test_create_concat_move(self, mock_mv):
         '''Test method to compile list of means to concatenate - move'''
         func.logtest('Assert compilation of means to concatenate - move:')
         self.cice.work = 'TestDir'
         with mock.patch('cice.utils.get_subset', return_value=[]):
-            self.cice.create_concat_daily_means()
+            with mock.patch('cice.mt.ModelTemplate.end_stencil'):
+                self.cice.create_concat_daily_means()
         mock_mv.assert_called_once_with(pattern=mock.ANY)
 
     @mock.patch('cice.utils.get_subset')
