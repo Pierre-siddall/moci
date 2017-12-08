@@ -98,6 +98,11 @@ def _setup_common():
         sys.stderr.write('[FAIL] Environment variable CYLC_TASK_NAME '
                          'is not set\n')
         sys.exit(error.MISSING_EVAR_ERROR)
+    # Check to see if the automatic restart has been disabled. By default
+    # DRIVERS_VERIFY_RST will be True, and will be automatically turned off
+    # if the configuration can not support the verification because it runs in
+    # integer or gregorian cycling mode.
+    _ = common_envars.load_envar('DRIVERS_VERIFY_RST', 'True')
     # If available load cylc environment variables to allow for verification
     # of restarts for cycling suites
     _ = common_envars.load_envar('CYLC_CYCLING_MODE', 'unset')
@@ -108,13 +113,12 @@ def _setup_common():
             sys.stderr.write('[FAIL] Environment variable CYLC_TASK_CYCLE_POINT'
                              ' is not specified\n')
             sys.exit(error.MISSING_EVAR_ERROR)
-        common_envars.add('DRIVERS_VERIFY_RST', 'True')
     elif common_envars['CYLC_CYCLING_MODE'] == 'integer':
         sys.stdout.write('[INFO] Using an integer cycling mode, therefore '
                          'drivers are unable to verify restart files\n')
-        common_envars.add('DRIVERS_VERIFY_RST', 'False')
+        common_envars['DRIVERS_VERIFY_RST'] = 'False'
     elif common_envars['CYLC_CYCLING_MODE'] == 'unset':
-        common_envars.add('DRIVERS_VERIFY_RST', 'False')
+        common_envars['DRIVERS_VERIFY_RST'] = 'False'
     else:
         sys.stdout.write('[FAIL] Cycling mode %s not permitted. The '
                          ' environment variable CYLC_CYCLING_MODE must have '

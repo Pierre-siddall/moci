@@ -153,6 +153,7 @@ def _load_environment_variables(top_envar):
 def _setup_top_controller(restart_ctl,
                           nemo_nproc,
                           runid,
+                          verify_restart,
                           nemo_dump_time):
     '''
     Setup the environment and any files required by the executable
@@ -259,7 +260,8 @@ def _setup_top_controller(restart_ctl,
         # This could be a new run or a continutaion run.
         top_dump_time = re.findall(r'_(\d*)_restart_trc', latest_top_dump)[0]
 
-        _verify_top_rst(nemo_dump_time, nemo_nproc, top_restart_files)
+        if verify_restart == 'True':
+            _verify_top_rst(nemo_dump_time, nemo_nproc, top_restart_files)
         if top_dump_time != nemo_dump_time:
             sys.stderr.write('[FAIL] top_controller: Mismatch in TOP restart '
                              'file date %s and NEMO restart file date %s\n'
@@ -377,6 +379,7 @@ def _finalize_top_controller():
 def run_controller(restart_ctl,
                    nemo_nproc,
                    runid,
+                   verify_restart,
                    nemo_dump_time, mode):
     '''
     Run the passive tracer controller.
@@ -385,6 +388,7 @@ def run_controller(restart_ctl,
         exe_envar = _setup_top_controller(restart_ctl,
                                           nemo_nproc,
                                           runid,
+                                          verify_restart,
                                           nemo_dump_time)
 
         launch_cmd = _set_launcher_command(exe_envar)

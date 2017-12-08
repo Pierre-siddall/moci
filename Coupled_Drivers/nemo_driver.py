@@ -97,12 +97,15 @@ def _verify_nemo_rst(cyclepointstr, nemo_rst, nemo_nl, nemo_nproc):
         nemo_icb_regex = r'_icebergs_%s_restart(_\d+)?\.nc' % cyclepointstr
         icb_restart_files = [f for f in restart_files if
                              re.findall(nemo_icb_regex, f)]
-        if len(icb_restart_files) not in (1, nemo_nproc):
+        # we can have a single rebuilt file, number of files equal to
+        # number of nemo processors, or rebuilt file and processor files.
+        if len(icb_restart_files) not in (1, nemo_nproc, nemo_nproc+1):
             sys.stderr.write('[FAIL] Unable to find iceberg restart files for'
-                             ' this cycle. Must either have one, or as many'
-                             ' as there are nemo processors (%i)\n'
+                             ' this cycle. Must either have one rebuilt file,' 
+                             ' as many as there are nemo processors (%i) or'
+                             ' both rebuilt and processor files.'
                              '[FAIL] Found %i iceberg restart files\n'
-                             % (len(icb_restart_files), nemo_nproc))
+                             % (nemo_nproc, len(icb_restart_files)))
             sys.exit(error.MISSING_MODEL_FILE_ERROR)
 
 
@@ -618,10 +621,11 @@ def _setup_executable(common_envar):
 
         controller_mode = "run_controller"
 
-        top_controller.run_controller(restart_ctl,\
-				      int(nemo_envar['NEMO_NPROC']),\
-				      common_envar['RUNID'],\
-				      nemo_dump_time,\
+        top_controller.run_controller(restart_ctl,
+				      int(nemo_envar['NEMO_NPROC']),
+				      common_envar['RUNID'],
+                                      common_envar['DRIVERS_VERIFY_RST'],
+				      nemo_dump_time,
 				      controller_mode)
     else:
         sys.stdout.write('[INFO] nemo_driver: Passive tracer code not active.')
@@ -694,7 +698,7 @@ def _finalize_executable(_):
         sys.stdout.write('[INFO] nemo_driver: Finalize TOP controller.')
 
         controller_mode = "finalize"
-        top_controller.run_controller([], [], [], [], controller_mode)
+        top_controller.run_controller([], [], [], [], [], controller_mode)
 
 def run_driver(common_envar, mode):
     '''

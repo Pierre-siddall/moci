@@ -175,7 +175,20 @@ def find_previous_workdir(cyclepoint, workdir, taskname):
         work_cycles.remove(cyclepoint)
     except ValueError:
         pass
-    return os.path.join(cyclesdir, work_cycles[-1], taskname)
+    # find the last restart directory for the task we are interested in
+    # initialise previous_task_cycle to None
+    previous_task_cycle = None
+    for work_cycle in work_cycles[::-1]:
+        if taskname in os.listdir(os.path.join(cyclesdir, work_cycle)):
+            previous_task_cycle = work_cycle
+            break
+
+    if not previous_task_cycle:
+        sys.stderr.write('[FAIL] Can not find previous work directory for'
+                         ' task %s\n' % taskname)
+        sys.exit(error.MISSING_DRIVER_FILE_ERROR)
+    
+    return os.path.join(cyclesdir, previous_task_cycle, taskname)
 
 
 def get_filepaths(directory):
