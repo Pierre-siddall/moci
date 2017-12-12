@@ -46,7 +46,7 @@ def _setup_nemo_cpld(common_envar, mct_envar):
     _ = nemo_cpld_envar.load_envar('OCEAN_LINK', 'ocean.exe')
     nemo_debug_files = glob.glob('*%s*.nc' % nemo_cpld_envar['OCEAN_LINK'])
     for nemo_debug_file in nemo_debug_files:
-        os.remove(nemo_debug_file)
+        common.remove_file(nemo_debug_file)
 
 
 def _setup_um_cpld(common_envar, mct_envar):
@@ -59,7 +59,7 @@ def _setup_um_cpld(common_envar, mct_envar):
     _ = um_cpld_envar.load_envar('ATMOS_LINK', 'atmos.exe')
     um_debug_files = glob.glob('*%s*.nc' % um_cpld_envar['ATMOS_LINK'])
     for um_debug_file in um_debug_files:
-        os.remove(um_debug_file)
+        common.remove_file(um_debug_file)
 
 
 
@@ -92,7 +92,7 @@ def _setup_executable(common_envar):
     files_to_tidy = _multiglob('nout.*', 'debug.*root.*', 'debug.??.*',
                                'debug.???.*', '*fort*', 'rmp_*')
     for f_to_tidy in files_to_tidy:
-        os.remove(f_to_tidy)
+        common.remove_file(f_to_tidy)
 
     # Organise the remapping files
     remap_files = glob.glob('%s/rmp_*' % mct_envar['RMP_DIR'])

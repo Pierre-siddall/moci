@@ -209,8 +209,7 @@ def _setup_top_controller(restart_ctl,
 
     # If we have a link to restart_trc.nc left over from a previous run,
     # remove it for both NRUNs and CRUNs
-    if os.path.isfile('restart_trc.nc'):
-        os.remove('restart_trc.nc')
+    common.remove_file('restart_trc.nc')
 
     # Is this a CRUN or an NRUN?
     if top_envar['CONTINUE'] == '':
@@ -226,8 +225,7 @@ def _setup_top_controller(restart_ctl,
             for file_path in glob.glob(top_rst+'/*restart_trc*'):
                 # os.path.isfile will return true for symbolic links as well
                 # as physical files.
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
+                common.remove_file(file_path)
 
         # If we do have a passive tracer start dump.
         if top_envar['TOP_START'] != '':
@@ -238,8 +236,7 @@ def _setup_top_controller(restart_ctl,
                 for fname in glob.glob('%s_????.nc' %
                                        top_envar['TOP_START']):
                     proc_number = fname.split('.')[-2][-4:]
-                    if os.path.isfile('restart_trc_%s.nc' % proc_number):
-                        os.remove('restart_trc_%s.nc' % proc_number)
+                    common.remove_file('restart_trc_%s.nc' % proc_number)
                     os.symlink(fname, 'restart_trc_%s.nc' % proc_number)
         else:
             # If there's no TOP restart we must be starting from climatology.
@@ -286,8 +283,7 @@ def _setup_top_controller(restart_ctl,
             top_rst_source = '%s/%so_%s_restart_trc_%s.nc' % \
                 (top_init_dir, runid, top_dump_time, tag)
             top_rst_link = 'restart_trc_%s.nc' % tag
-            if os.path.isfile(top_rst_link):
-                os.remove(top_rst_link)
+            common.remove_file(top_rst_link)
             if os.path.isfile(top_rst_source):
                 os.symlink(top_rst_source, top_rst_link)
                 top_restart_count += 1
@@ -303,8 +299,7 @@ def _setup_top_controller(restart_ctl,
                 sys.stdout.write('[INFO] Using rebuilt TOP restart '\
                      'file: %s\n' % top_rst_source)
                 top_rst_link = 'restart_trc.nc'
-                if os.path.isfile(top_rst_link):
-                    os.remove(top_rst_link)
+                common.remove_file(top_rst_link)
                 os.symlink(top_rst_source, top_rst_link)
 
         # We don't issue an error if we don't find any restart file

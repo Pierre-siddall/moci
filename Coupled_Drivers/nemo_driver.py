@@ -141,7 +141,7 @@ def _verify_fix_rst(restartdate, cyclepoint, nemo_rst):
         for restart_file in all_restart_files:
             fname_date = re.findall(r'\d{8}', restart_file)[0]
             if fname_date > cycle_date_string:
-                os.remove(os.path.join(nemo_rst, restart_file))
+                common.remove_file(os.path.join(nemo_rst, restart_file))
         restartdate = cycle_date_string
     return restartdate
 
@@ -245,8 +245,7 @@ def _setup_executable(common_envar):
 
 
     #Link the ocean executable
-    if os.path.isfile(nemo_envar['OCEAN_LINK']):
-        os.remove(nemo_envar['OCEAN_LINK'])
+    common.remove_file(nemo_envar['OCEAN_LINK'])
     os.symlink(nemo_envar['OCEAN_EXEC'],
                nemo_envar['OCEAN_LINK'])
 
@@ -300,6 +299,13 @@ def _setup_executable(common_envar):
         latest_nemo_dump = 'unset'
 
     nemo_init_dir = '.'
+
+    # We need to ensure any lingering NEMO or iceberg retarts from
+    # previous runs are removed to ensure they're not accidentally
+    # picked up if we're starting from climatology on this occasion.
+    common.remove_file('restart.nc')
+    common.remove_file('restart_icebergs.nc')
+
     if nemo_envar['CONTINUE'] == '':
         # This is a new run
         sys.stdout.write('[INFO] New nemo run\n')
@@ -307,14 +313,11 @@ def _setup_executable(common_envar):
             #os.path.isfile will return true for symbolic links aswell
             sys.stdout.write('[INFO] Removing old NEMO restart data\n')
             for file_path in glob.glob(nemo_rst+'/*restart*'):
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
+                common.remove_file(file_path)
             for file_path in glob.glob(ice_rst+'/*restart*'):
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
+                common.remove_file(file_path)
             for file_path in glob.glob(nemo_rst+'/*trajectory*'):
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
+                common.remove_file(file_path)
         # source our history namelist file from the current directory in case
         # of first cycle
         history_nemo_nl = os.path.join(nemo_init_dir, nemo_envar['NEMO_NL'])
@@ -397,11 +400,9 @@ def _setup_executable(common_envar):
             _verify_nemo_rst(nemo_dump_time, nemo_rst, nemo_envar['NEMO_NL'],
                              int(nemo_envar['NEMO_NPROC']))
         # link restart files no that the last output one becomes next input one
-        if os.path.islink('restart.nc'):
-            os.remove('restart.nc')
+        common.remove_file('restart.nc')
 
-        if os.path.islink('restart_ice_in.nc'):
-            os.remove('restart_ice_in.nc')
+        common.remove_file('restart_ice_in.nc')
 
         # Sort out the processor restart files
         if int(nemo_envar['NEMO_NPROC']) == 1:
@@ -421,8 +422,7 @@ def _setup_executable(common_envar):
                     (nemo_init_dir, common_envar['RUNID'], \
                          nemo_dump_time, tag)
                 nemo_rst_link = 'restart_%s.nc' % tag
-                if os.path.isfile(nemo_rst_link):
-                    os.remove(nemo_rst_link)
+                common.remove_file(nemo_rst_link)
 
                 if os.path.isfile(nemo_rst_source):
                     os.symlink(nemo_rst_source, nemo_rst_link)
@@ -433,8 +433,7 @@ def _setup_executable(common_envar):
                          nemo_dump_time, tag)
                 if os.path.isfile(ice_rst_source):
                     ice_rst_link = 'restart_ice_in_%s.nc' % tag
-                    if os.path.isfile(ice_rst_link):
-                        os.remove(ice_rst_link)
+                    common.remove_file(ice_rst_link)
                     os.symlink(ice_rst_source, ice_rst_link)
                     ice_restart_count += 1
 
@@ -443,8 +442,7 @@ def _setup_executable(common_envar):
                          nemo_dump_time, tag)
                 if os.path.isfile(iceberg_rst_source):
                     iceberg_rst_link = 'restart_icebergs_%s.nc' % tag
-                    if os.path.isfile(iceberg_rst_link):
-                        os.remove(iceberg_rst_link)
+                    common.remove_file(iceberg_rst_link)
                     os.symlink(iceberg_rst_source, iceberg_rst_link)
                     iceberg_restart_count += 1
             #endfor
@@ -460,8 +458,7 @@ def _setup_executable(common_envar):
                     sys.stdout.write('[INFO] Using rebuilt NEMO restart '\
                          'file: %s\n' % nemo_rst_source)
                     nemo_rst_link = 'restart.nc'
-                    if os.path.isfile(nemo_rst_link):
-                        os.remove(nemo_rst_link)
+                    common.remove_file(nemo_rst_link)
                     os.symlink(nemo_rst_source, nemo_rst_link)
 
             if ice_restart_count < 1:
@@ -475,8 +472,7 @@ def _setup_executable(common_envar):
                     sys.stdout.write('[INFO] Using rebuilt ice restart '\
                         'file: %s\n' % ice_rst_source)
                     ice_rst_link = 'restart_ice_in.nc'
-                    if os.path.isfile(ice_rst_link):
-                        os.remove(ice_rst_link)
+                    common.remove_file(ice_rst_link)
                     os.symlink(ice_rst_source, ice_rst_link)
 
             if iceberg_restart_count < 1:
@@ -490,8 +486,7 @@ def _setup_executable(common_envar):
                     sys.stdout.write('[INFO] Using rebuilt iceberg restart'\
                         'file: %s\n' % iceberg_rst_source)
                     iceberg_rst_link = 'restart_icebergs.nc'
-                    if os.path.isfile(iceberg_rst_link):
-                        os.remove(iceberg_rst_link)
+                    common.remove_file(iceberg_rst_link)
                     os.symlink(iceberg_rst_source, iceberg_rst_link)
 
         #endif (nemo_envar(NEMO_NPROC) == 1)
@@ -513,12 +508,6 @@ def _setup_executable(common_envar):
         if nemo_envar['NEMO_START'] != '':
             if os.path.isfile(nemo_envar['NEMO_START']):
 
-                # We need to make sure there isn't already
-		# a restart file link set up, and if there is, get
-		# rid of it because symlink wont work otherwise!
-                if os.path.isfile('restart.nc'):
-                    os.remove('restart.nc')
-
                 os.symlink(nemo_envar['NEMO_START'], 'restart.nc')
                 ln_restart = ".true."
 
@@ -531,8 +520,7 @@ def _setup_executable(common_envar):
                     # We need to make sure there isn't already
 	  	    # a restart file link set up, and if there is, get
 		    # rid of it because symlink wont work otherwise!
-                    if os.path.isfile('restart_%s.nc' % proc_number):
-                        os.remove('restart_%s.nc' % proc_number)
+                    common.remove_file('restart_%s.nc' % proc_number)
 
                     os.symlink(fname, 'restart_%s.nc' % proc_number)
                 ln_restart = ".true."
@@ -552,9 +540,7 @@ def _setup_executable(common_envar):
                 # We need to make sure there isn't already
 	  	# an iceberg restart file link set up, and if there is, get
 		# rid of it because symlink wont work otherwise!
-                if os.path.isfile('restart_icebergs.nc') or \
-                        os.path.islink('restart_icebergs.nc'):
-                    os.remove('restart_icebergs.nc')
+                common.remove_file('restart_icebergs.nc')
                 os.symlink(nemo_envar['NEMO_ICEBERGS_START'],
                            'restart_icebergs.nc')
             elif os.path.isfile('%s_0000.nc' %
@@ -566,8 +552,7 @@ def _setup_executable(common_envar):
                     # We need to make sure there isn't already
 	      	    # an iceberg restart file link set up, and if there is, get
 		    # rid of it because symlink wont work otherwise!
-                    if os.path.isfile('restart_icebergs_%s.nc' % proc_number):
-                        os.remove('restart_icebergs_%s.nc' % proc_number)
+                    common.remove_file('restart_icebergs_%s.nc' % proc_number)
 
                     os.symlink(fname, 'restart_icebergs_%s.nc' % proc_number)
             else:

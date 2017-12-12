@@ -85,8 +85,7 @@ def _setup_executable(_):
             sys.stderr.write('[FAIL] Environment variable XIOS_EXEC '
                              'not set\n')
             sys.exit(error.MISSING_EVAR_ERROR)
-        if os.path.isfile(xios_envar['XIOS_LINK']):
-            os.remove(xios_envar['XIOS_LINK'])
+        common.remove_file(xios_envar['XIOS_LINK'])
         os.symlink(xios_envar['XIOS_EXEC'],
                    xios_envar['XIOS_LINK'])
 

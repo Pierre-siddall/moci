@@ -244,7 +244,16 @@ def is_non_zero_file(path):
     else:
         return False
 
-
+def remove_file(filename):
+    '''
+    Check to see if a file or a link exists and if it does, remove it.
+    Return True if a file/link was removed, False otherwise.
+    '''
+    if os.path.isfile(filename) or os.path.islink(filename):
+        os.remove(filename)
+        return True
+    else:
+        return False
 
 
 def exec_subproc(cmd, verbose=True):

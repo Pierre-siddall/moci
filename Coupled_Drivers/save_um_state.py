@@ -43,7 +43,8 @@ def save_state(common_envar, iscrun):
         previous_psums = [f for f in datam_files if \
                               re.match(all_partial_sum_regex, f)]
         for psum_to_delete in previous_psums:
-            os.remove(os.path.join(common_envar['DATAM'], psum_to_delete))
+            common.remove_file(os.path.join(common_envar['DATAM'],
+                                            psum_to_delete))
 
     # Find the non backed up partial sum files
     partial_sum_regex = r'^%sa_s\d{1}(?:a|b)$' % common_envar['RUNID']
@@ -83,4 +84,5 @@ def save_state(common_envar, iscrun):
         general_bup.sort()
         num_partial_sum_to_keep = num_mean_period * 2 * 3
         for psum_to_delete in general_bup[:-num_partial_sum_to_keep]:
-            os.remove(os.path.join(common_envar['DATAM'], psum_to_delete))
+            common.remove_file(os.path.join(common_envar['DATAM'],
+                                            psum_to_delete))

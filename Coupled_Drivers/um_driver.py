@@ -160,15 +160,13 @@ def _setup_executable(common_envar):
     save_um_state.save_state(common_envar, um_envar['CONTINUE'])
 
     # Create a link to the UM atmos exec in the work directory
-    if os.path.isfile(um_envar['ATMOS_LINK']):
-        os.remove(um_envar['ATMOS_LINK'])
+    common.remove_file(um_envar['ATMOS_LINK'])
     os.symlink(um_envar['ATMOS_EXEC'],
                um_envar['ATMOS_LINK'])
 
     if um_envar['CONTINUE'] in ('', 'false'):
         sys.stdout.write('[INFO] This is an NRUN\n')
-        if os.path.isfile(um_envar['HISTORY']):
-            os.remove(um_envar['HISTORY'])
+        common.remove_file(um_envar['HISTORY'])
     else:
         # check if file exists and is readable
         sys.stdout.write('[INFO] This is a CRUN\n')
@@ -217,8 +215,7 @@ def _setup_executable(common_envar):
         pass
     # Delete any previous stdout files
     for stdout_file in glob.glob('%s*' % um_envar['STDOUT_FILE']):
-        if os.path.isfile(stdout_file):
-            os.remove(stdout_file)
+        common.remove_file(stdout_file)
 
     return um_envar
 
@@ -278,8 +275,7 @@ def _finalize_executable(_):
     if um_envar_fin['ATMOS_KEEP_MPP_STDOUT'] == 'false':
         for stdout_file in glob.glob('%s*' %
                                      um_envar_fin['STDOUT_FILE']):
-            if os.path.isfile(stdout_file):
-                os.remove(stdout_file)
+            common.remove_file(stdout_file)
 
     # Rose-ana expects fixed filenames so we link to .pe0 as otherwise the
     # filename depends on the processor decomposition
@@ -289,9 +285,7 @@ def _finalize_executable(_):
                 (os.path.basename(um_envar_fin['STDOUT_FILE']),
                  pe0_suffix)
             lnk_dst = '%s0' % um_envar_fin['STDOUT_FILE']
-            if os.path.isfile(lnk_dst):
-                # Check and remove any existing symlink of this name
-                os.remove(lnk_dst)
+            common.remove_file(lnk_dst)
             os.symlink(lnk_src, lnk_dst)
 
     # Make any core dump files world-readable to assist in debugging problems
@@ -303,7 +297,10 @@ def _finalize_executable(_):
             os.chmod(corefile, current_st.st_mode | stat.S_IRUSR |
                      stat.S_IRGRP | stat.S_IROTH)
 
+            # Check and remove any existing symlink of this name
+            common.remove_file(lnk_dst)
 
+            os.symlink(lnk_src, lnk_dst)
 
 
 def run_driver(common_envar, mode):

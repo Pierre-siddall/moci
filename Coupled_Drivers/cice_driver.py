@@ -215,7 +215,7 @@ def _setup_executable(common_envar):
     if False in (cice_envar['MODELBASIS'],
                  cice_envar['TASKSTART'],
                  cice_envar['TASKLENGTH']):
-        # at least one variable has to be read from thes shared namelist file
+        # at least one variable has to be read from the shared namelist file
         if not os.path.ispath(cice_envar['SHARED_FNAME']):
             sys.stderr.write('[FAIL] Can not find shared namelist file %s\n' %
                              cice_envar['SHARED_FNAME'])
