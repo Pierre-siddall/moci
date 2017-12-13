@@ -294,3 +294,20 @@ class pp20_t122(rose.upgrade.MacroUpgrade):
 
         return config, self.reports
 
+
+class pp21_t280(rose.upgrade.MacroUpgrade):
+
+    """
+    Upgrade macro for ticket #280 by Erica Neininger.
+    Version postproc_2.2 release.
+    """
+    BEFORE_TAG = "pp21_t122"
+    AFTER_TAG = "postproc_2.2"
+
+    def upgrade(self, config, meta_config=None):
+        """Upgrade a Postproc app to postproc_2.2."""
+        
+        return config, self.reports
+
+
+
