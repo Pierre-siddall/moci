@@ -24,6 +24,7 @@ import os
 import shutil
 import re
 import sys
+import common
 
 def save_state(common_envar, iscrun):
     '''
