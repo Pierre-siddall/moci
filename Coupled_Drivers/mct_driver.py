@@ -25,7 +25,7 @@ import common
 import error
 import update_namcouple
 
-
+import cpmip_controller
 
 
 def _multiglob(*args):
@@ -80,6 +80,7 @@ def _setup_executable(common_envar):
                          ' remapping weights files not defined in the'
                          ' environment\n')
         sys.exit(error.MISSING_EVAR_ERROR)
+    _ = mct_envar.load_envar('CPMIP_ANALYSIS', 'False')
 
     # Does the namcouple file exist
     if not os.path.exists('namcouple'):
@@ -119,11 +120,16 @@ def _setup_executable(common_envar):
                          component)
         SUPPORTED_MODELS[component](common_envar, mct_envar)
 
-
     # Update the general, non-component specific namcouple details 
     update_namcouple.update('mct')
 
-
+    # Run the CPMIP controller if appropriate
+    # Check for the presence of t (as in TRUE, True, or true) in the
+    # CPMIP_ANALYSIS value
+    if mct_envar['CPMIP_ANALYSIS'].lower().startswith('t'):
+        controller_mode = "run_controller"
+        sys.stdout.write('[INFO] mct_driver: CPMIP analyis will be performed\n')
+        cpmip_controller.run_controller(controller_mode)
 
     return mct_envar
 
@@ -141,7 +147,17 @@ def _finalize_executable(_):
     '''
     Perform any tasks required after completion of model run
     '''
-    pass
+    # Load the environment variables required
+    mct_envar = common.LoadEnvar()
+    _ = mct_envar.load_envar('CPMIP_ANALYSIS', 'False')
+    # run the cpmip controller if appropriate
+    # check for the presence of t (as in TRUE, True, or true) in the
+    # CPMIP_ANALYSIS value
+    if mct_envar['CPMIP_ANALYSIS'].lower().startswith('t'):
+        controller_mode = "finalize"
+        sys.stdout.write(
+            '[INFO] mct_driver: CPMIP analyis is being performed\n')
+        cpmip_controller.run_controller(controller_mode)
 
 
 def run_driver(common_envar, mode):
