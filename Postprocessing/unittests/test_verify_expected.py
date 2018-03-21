@@ -469,7 +469,8 @@ class RestartFilesTests(unittest.TestCase):
                                  expect[:-4])
 
             self.files.finalcycle = True
-            self.assertListEqual(self.files.expected_files()['ida.file'], expect)
+            self.assertListEqual(self.files.expected_files()['ida.file'],
+                                 expect)
 
     def test_expected_cice_dumps_suffix(self):
         ''' Test calculation of expected cice restarts - with suffix'''
@@ -749,6 +750,24 @@ class DiagnosticFilesTests(unittest.TestCase):
         outfiles = self.files.remove_higher_mean_components(infiles[:], 's')
         self.assertListEqual(outfiles, infiles)
 
+    def test_rm_component_above_year(self):
+        ''' Assert correct removal of higher mean components (year) '''
+        func.logtest('Assert correct removal of higher mean components:')
+        infiles = ['file_19901201-19911201.nc', 'file_19911201-19921201.nc',
+                   'file_19921201-19931201.nc', 'file_19931201-19941201.nc',
+                   'file_19941201-19951201.nc', 'file_19951201-19961201.nc',
+                   'file_19961201-19971201.nc', 'file_19971201-19981201.nc']
+
+        self.files.meanref = [1956, 12, 1]
+        outfiles = self.files.remove_higher_mean_components(infiles[:], 'y')
+        print 'out:', outfiles
+        self.assertListEqual(outfiles, infiles[:-2])
+
+        self.files.meanref = [1988, 12, 1]
+        outfiles = self.files.remove_higher_mean_components(infiles[:], 'y')
+        print 'out2:', outfiles
+        self.assertListEqual(outfiles, infiles)
+
     def test_rm_component_ds_only(self):
         ''' Assert correct removal of higher mean components (d,s only) '''
         func.logtest('Assert correct removal of higher mean components:')
@@ -848,7 +867,6 @@ class DiagnosticFilesTests(unittest.TestCase):
                             r'[a-zA-Z0-9\-]*\.nc$']
             }
         expected = self.files.expected_diags()
-        print expected.keys()
         for key in outfiles:
             self.assertListEqual(expected[key][:2], outfiles[key][:2])
             self.assertListEqual(expected[key][-2:], outfiles[key][-2:])
@@ -980,7 +998,6 @@ class DiagnosticFilesTests(unittest.TestCase):
         func.logtest('Assert correct return of expected cice hourly files:')
         self.files.naml.meanstreams = []
         self.files.naml.streams_12h = True
-        print 'start:', self.files.sdate
         self.files.edate = [1995, 10, 1]
 
         hr_files = ['cice_prefixi_12h_1995081100-1995081112.nc',
@@ -994,15 +1011,19 @@ class DiagnosticFilesTests(unittest.TestCase):
     def test_expected_cice_final(self):
         ''' Assert correct list of expected cice files'''
         func.logtest('Assert correct return of expected cice files:')
-        self.files.naml.meanstreams = ['1s', '1y']
+        self.files.naml.meanstreams = ['1s', '1y', '1x']
+        self.files.edate = [2011, 10, 1]
         self.files.finalcycle = True
         outfiles = {
             'ins.nc.file': ['cice_prefixi_1s_19950901-19951201.nc',
                             'cice_prefixi_1s_19951201-19960301.nc',
-                            'cice_prefixi_1s_19980301-19980601.nc',
-                            'cice_prefixi_1s_19980601-19980901.nc'],
+                            'cice_prefixi_1s_20110301-20110601.nc',
+                            'cice_prefixi_1s_20110601-20110901.nc'],
             'iny.nc.file': ['cice_prefixi_1y_19951201-19961201.nc',
-                            'cice_prefixi_1y_19961201-19971201.nc'],
+                            'cice_prefixi_1y_19961201-19971201.nc',
+                            'cice_prefixi_1y_20081201-20091201.nc',
+                            'cice_prefixi_1y_20091201-20101201.nc'],
+            'inx.nc.file': ['cice_prefixi_1x_20001201-20101201.nc'],
             }
         expected = self.files.expected_diags()
         for key in outfiles:

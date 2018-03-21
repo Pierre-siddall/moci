@@ -19,6 +19,7 @@ DESCRIPTION
 
 '''
 
+import shutil
 import unittest
 import mock
 
@@ -39,7 +40,11 @@ class ArcherTests(unittest.TestCase):
         self.inst = archer._Archer(cmd)
 
     def tearDown(self):
-        pass
+        for dirname in ['ArchiveDir', 'suiteID']:
+            try:
+                shutil.rmtree(dirname)
+            except OSError:
+                pass
 
     @mock.patch('archer._Archer.put_data')
     def test_archive(self, mock_putdata):

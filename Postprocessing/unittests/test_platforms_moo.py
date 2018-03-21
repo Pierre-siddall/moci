@@ -319,13 +319,38 @@ class MooseTests(unittest.TestCase):
             _ = self.inst._collection()
         self.assertIn('file type not recognised', func.capture('err'))
 
-    def test_collection_ocn_hourly_file(self):
-        '''Test formation of collection name - NEMO 12 hourly file'''
-        func.logtest('test formation of collection name: NEMO 12 hourly file:')
+    def test_collection_ocn_period_file(self):
+        '''Test formation of collection name - NEMO period files'''
+        func.logtest('test formation of collection name: NEMO period file:')
         self.inst._model_id = 'o'
         self.inst._file_id = '12h'
         collection = self.inst._collection()
         self.assertEqual(collection, 'onh.nc.file')
+        self.assertFalse(self.inst.fl_pp)
+
+        self.inst._file_id = '10d'
+        collection = self.inst._collection()
+        self.assertEqual(collection, 'ond.nc.file')
+        self.assertFalse(self.inst.fl_pp)
+
+        self.inst._file_id = '1m'
+        collection = self.inst._collection()
+        self.assertEqual(collection, 'onm.nc.file')
+        self.assertFalse(self.inst.fl_pp)
+
+        self.inst._file_id = '1s'
+        collection = self.inst._collection()
+        self.assertEqual(collection, 'ons.nc.file')
+        self.assertFalse(self.inst.fl_pp)
+
+        self.inst._file_id = '1y'
+        collection = self.inst._collection()
+        self.assertEqual(collection, 'ony.nc.file')
+        self.assertFalse(self.inst.fl_pp)
+
+        self.inst._file_id = '1x'
+        collection = self.inst._collection()
+        self.assertEqual(collection, 'onx.nc.file')
         self.assertFalse(self.inst.fl_pp)
 
     def test_collection_passive_tracer(self):

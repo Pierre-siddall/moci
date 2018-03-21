@@ -17,6 +17,23 @@ class UpgradeError(Exception):
       __str__ = __repr__
 
 
+class pp22_t282(rose.upgrade.MacroUpgrade):
+
+    """Upgrade macro for ticket #282 by Erica Neininger."""
+    BEFORE_TAG = "postproc_2.2"
+    AFTER_TAG = "pp22_t282"
+
+    def upgrade(self, config, meta_config=None):
+        """Upgrade a Postproc app configuration."""
+        self.add_setting(config,
+                         ["namelist:nemo_processing", "create_decadal_mean",],
+                         "false")
+        self.add_setting(config,
+                         ["namelist:cice_processing", "create_decadal_mean",],
+                         "false")
+
+        return config, self.reports
+
 class pp22_tXXX(rose.upgrade.MacroUpgrade):
 
     """Upgrade macro for ticket #XXX by <Author>."""

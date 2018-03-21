@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -219,6 +219,23 @@ class StencilTests(unittest.TestCase):
         stencil = '^model_suitex_1m_\\d{8,10}-\\d{4}(0115)(00)?_field\\.nc$'
         self.assertEqual(regex, stencil)
 
+    def test_decade_end(self):
+        '''Test period_end method - Decade'''
+        func.logtest('Assert return from period_end method - Decade:')
+        self.ncf.base = '1m'
+        regex = netcdf_filenames.period_end('1x', self.ncf, [1978, 1, 15])
+        stencil = '^model_suitex_1m_\\d{8,10}-\\d{3}8(0115)(00)?\\.nc$'
+        self.assertEqual(regex, stencil)
+
+    def test_decade_end_custom(self):
+        '''Test period_end method - Year with custom field'''
+        func.logtest('Assert return from period_end method - Decade, custom:')
+        self.ncf.base = '1y'
+        self.ncf.custom = '_field'
+        regex = netcdf_filenames.period_end('1x', self.ncf, [78, 1, 15])
+        stencil = '^model_suitex_1y_\\d{8,10}-\\d{3}8(0115)(00)?_field\\.nc$'
+        self.assertEqual(regex, stencil)
+
     def test_month_set(self):
         '''Test period_set method - Month'''
         func.logtest('Assert return from period_end method - Month:')
@@ -281,6 +298,33 @@ class StencilTests(unittest.TestCase):
         stencil = '^model_suitex_1m_(19990216|19990316|19990416|19990516|' \
             '19990616|19990716|19990816|19990916|19991016|19991116|19991216|' \
             '20000116)(\\d{2})?-\\d{8,10}_field\\.nc$'
+        self.assertEqual(regex, stencil)
+
+    def test_decade_set(self):
+        '''Test period_set method - Decade'''
+        func.logtest('Assert return from period_end method - Decade:')
+        self.ncf.start_date = ('2000', '12', '01')
+        self.ncf.base = '1s'
+        regex = netcdf_filenames.period_set('1x', self.ncf)
+        stencil = '^model_suitex_1s_(19910301|19910601|19910901|19911201|' \
+            '19920301|19920601|19920901|19921201|19930301|19930601|19930901|' \
+            '19931201|19940301|19940601|19940901|19941201|19950301|19950601|' \
+            '19950901|19951201|19960301|19960601|19960901|19961201|19970301|' \
+            '19970601|19970901|19971201|19980301|19980601|19980901|19981201|' \
+            '19990301|19990601|19990901|19991201|20000301|20000601|20000901|' \
+            '20001201)(\\d{2})?-\\d{8,10}\\.nc$'
+        self.assertEqual(regex, stencil)
+
+    def test_decade_set_custom(self):
+        '''Test period_set method - Decade with custom field'''
+        func.logtest('Assert return from period_end method - Decade, custom:')
+        self.ncf.start_date = ('2000', '01', '16')
+        self.ncf.base = '1y'
+        self.ncf.custom = '_field'
+        regex = netcdf_filenames.period_set('1x', self.ncf)
+        stencil = '^model_suitex_1y_(19910116|19920116|19930116|19940116|' \
+            '19950116|19960116|19970116|19980116|19990116|20000116)' \
+            '(\\d{2})?-\\d{8,10}_field\\.nc$'
         self.assertEqual(regex, stencil)
 
     def test_10d_stencil(self):
@@ -481,13 +525,14 @@ class DateTests(unittest.TestCase):
         for date in dates:
             self.assertEqual(date, ('2001', '12', '11'))
 
-    def test_calc_enddate_10y(self):
-        '''Test calc_enddate method with 10y period'''
-        func.logtest('Assert return from calc_enddate with 10y:')
+    def test_calc_enddate_1x(self):
+        '''Test calc_enddate method with 10y (1x) period'''
+        func.logtest('Assert return from calc_enddate with 10y (1x):')
         startdate = ('2000', '12', '11')
         dates = [netcdf_filenames.calc_enddate(startdate, 'yr', freq=10)]
         dates.append(netcdf_filenames.calc_enddate(startdate, '10yrs'))
         dates.append(netcdf_filenames.calc_enddate(startdate, 'Year', freq=10))
+        dates.append(netcdf_filenames.calc_enddate(startdate, '1x'))
         for date in dates:
             self.assertEqual(date, ('2010', '12', '11'))
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -34,17 +34,7 @@ import timer
 import utils
 import netcdf_utils
 import netcdf_filenames
-
-# Define constants
-XX = 'General'
-MM = '1m'
-SS = '1s'
-AA = '1y'
-DD = '1x'
-RR = 'Restarts'
-
-MEANPERIODS = (MM, SS, AA)
-
+import climatemean
 
 class ModelTemplate(control.RunPostProc):
     '''
@@ -73,13 +63,16 @@ class ModelTemplate(control.RunPostProc):
             self.diagsdir = os.path.join(self.share, 'archive_ready')
             self.suite = suite.SuiteEnvironment(self.share, input_nl)
 
+            self.requested_means = climatemean.available_means(
+                self.naml.processing
+                )
+            msg = 'Processing {} means'.format(
+                ','.join(self.requested_means.keys())
+                )
+            utils.log_msg(msg, level='INFO')
+
             # Initialise debug mode - calling base class method
             self._debug_mode(self.naml.pp.debug)
-            self.meansets = self._mean_bases()
-            self.requested_means = [m for m in MEANPERIODS
-                                    if self.meansets[m][0]]
-            msg = 'Processing {} means'.format(','.join(self.requested_means))
-            utils.log_msg(msg, level='INFO')
 
     @property
     def runpp(self):
@@ -200,102 +193,27 @@ class ModelTemplate(control.RunPostProc):
         '''Base component used to create the first mean file'''
         return self.naml.processing.base_component
 
-    def _mean_bases(self):
-        '''
-        Return a dictionary of base periods for each mean:
-           { <PERIOD>: tuple(<PERIOD BASE>, <SET LENGTH> }
-             <PERIOD>      = MM,SS,AA,DD
-             <PERIOD BASE> = Base component used to create the mean
-             <SET LENGTH>  = Number of base component files to create the mean
-        '''
-        basecmpt = self.base_component
-        multiplier = float(basecmpt[:-1])
-
-        if utils.calendar() == '360day':
-            cal_hd = 'hd'
-        else:
-            cal_hd = ''
-
-        all_periods = {
-            '1m': [None, 1 if (basecmpt == '1m') else
-                   (30 if (basecmpt[-1] == 'd' and cal_hd) else
-                    (720 if (basecmpt[-1] == 'h' and cal_hd) else 0))],
-            '1s': [None, 1 if (basecmpt == '1s') else
-                   (3 if (basecmpt[-1] in cal_hd + 'm') else 0)],
-            '1y': [None, 1 if (basecmpt == '1y') else
-                   (4 if (basecmpt[-1] in cal_hd + 'ms') else 0)],
-            '1x': [None, 1 if (basecmpt == '10y') else
-                   (10 if (basecmpt[-1] in cal_hd + 'msy') else 0)],
-            }
-
-        base_mean = None
-        for i, period in enumerate(MEANPERIODS):
-            if all_periods[period][1] == 0:
-                # This period mean has already been assessed as not possible
-                continue
-
-            try:
-                nextp = MEANPERIODS[i + 1]
-                all_periods[nextp][0] = period
-            except IndexError:
-                # No further means possible
-                nextp = None
-
-            if base_mean:
-                all_periods[period][0] = basecmpt
-            else:
-                if all_periods[period][1] % multiplier == 0 and \
-                        all_periods[period][1] >= multiplier:
-                    all_periods[period] = [
-                        basecmpt, int(all_periods[period][1] / multiplier)
-                        ]
-                    base_mean = period
-                else:
-                    # mean is not possible on the given base
-                    if nextp:
-                        all_periods[nextp][0] = basecmpt
-                        all_periods[nextp][1] *= \
-                            all_periods[period][1]
-                    all_periods[period] = [None, 0]
-                    continue
-
-            meantitles = {'1m': 'monthly',
-                          '1s': 'seasonal',
-                          '1y': 'annual',
-                          '1x': 'decadal'}
-            if getattr(self.naml.processing,
-                       'create_{}_mean'.format(meantitles[period])):
-                # Update the base component for the next mean
-                basecmpt = period
-            else:
-                if nextp:
-                    all_periods[nextp][0] = period
-                    all_periods[nextp][1] *= all_periods[period][1]
-                all_periods[period] = [None, 0]
-
-        return all_periods
-
     def set_stencil(self, period, fn_vars):
         '''
         Return the regular expression for matching a set of files
         for a given period.
 
-        Restart Files (period==RR):
+        Restart Files (period==None):
            The regex should match ALL restart files of the given type (fn_vars)
           irrespective of date stamp
 
-        Means Files (period in [MM,SS,AA,XX]):
+        Means Files (period == One of climatemean.MEANPERIODS.keys()):
            The regex should match the set of component files for a period mean
           with the given start date (fn_vars.start_date) and base component
           (fn_vars.base)
 
         Arguments:
-            period  - <type str> - One of MEANPERIODS
+            period  - <type str> - One of climatemean.MEANPERIODS.keys()
             fn_vars - Type depends on the file type in question -
                          Restart files: <type tuple> - One of self.rsttypes
                          Means files:   <type netcdf_filename.NCFilename>
         '''
-        if period == RR:
+        if period is None:
             set_stencil = self.rst_set_stencil(fn_vars)
         else:
             set_stencil = netcdf_filenames.period_set(period, fn_vars)
@@ -313,7 +231,7 @@ class ModelTemplate(control.RunPostProc):
         created/archived as sufficient components must logically exist.
 
         Arguments:
-            period  - <type str> - One of MEANPERIODS
+            period  - <type str> - One of climatemen.MEANPERIODS.keys()
             fn_vars - <type netcdf_filename.NCFilename>
         '''
         return netcdf_filenames.period_end(period, fn_vars, self.suite.meanref)
@@ -476,8 +394,8 @@ class ModelTemplate(control.RunPostProc):
                     datadir=None, archive_mean=False):
         '''
         Returns the files available to create a given set:
-           RR = all restart files
-           MM/SS/AA = All files belonging to a given month, season or year.
+           Restart files - period==None
+           Means - All files belonging to a given month, season or year.
 
         Arguments:
            inputs       - <type NCFilename> for means files
@@ -502,23 +420,23 @@ class ModelTemplate(control.RunPostProc):
 
         tmp_inputs = copy.copy(inputs)
         if archive_mean:
-            if inputs.base == self.requested_means[-1]:
+            next_id = self.requested_means.keys().index(inputs.base) + 1
+            try:
+                period = self.requested_means.keys()[next_id]
+            except IndexError:
                 # Archive all top mean files
                 call_method = ''
                 period = inputs.base
                 tmp_inputs.start_date = (r'\d{4}', r'\d{2}', r'\d{2}')
-            else:
-                period = self.requested_means[self.requested_means.
-                                              index(inputs.base)+1]
         else:
             try:
                 # Create means
                 period = inputs.base
-                tmp_inputs.base = self.meansets[period][0]
+                tmp_inputs.base = self.requested_means[period].component
             except AttributeError:
                 # Restart Files
                 # "inputs" is <type tuple> with no "base" attribute
-                period = RR
+                period = None
 
         try:
             pattern = getattr(self,
@@ -622,11 +540,10 @@ class ModelTemplate(control.RunPostProc):
                                                  self.model_realm)
             for field in fields:
                 inputs.custom = '_' + field if field else ''
-                for mean in MEANPERIODS:
+                for mean in self.requested_means.keys():
+                    # Yield NCFilename object for required mean periods
                     inputs.base = mean
-                    if mean in self.requested_means:
-                        # Yield NCFilename object for required mean periods
-                        yield inputs
+                    yield inputs
 
     # *** REBUILD *** #########################################################
     def rebuild_restarts(self):
@@ -648,57 +565,6 @@ class ModelTemplate(control.RunPostProc):
         except AttributeError:
             raise UserWarning('[FAIL] MEANS executable not defined for model.')
 
-    def describe_mean(self, inp):
-        '''Compose informative description for mean under consideration'''
-        months = [None, 'January', 'February', 'March', 'April',
-                  'May', 'June', 'July', 'August', 'September',
-                  'October', 'November', 'December']
-
-        target = inp.base
-        year_stamp = int(inp.start_date[0])
-        if target == MM:
-            period = 'Monthly'
-            subperiod = months[int(inp.start_date[1])]
-
-        elif target == SS:
-            # Keywords for the seasons dictionary are used in the output
-            # message, prior to the year, to describe the mean being processed
-            seasons = {}
-            tag = ''
-            for ssn in netcdf_filenames.seasonend(self.suite.meanref):
-                ssn_mths = [int(ssn[0:2])]
-                while len(ssn_mths) < 3:
-                    next_mth = ssn_mths[len(ssn_mths) - 1] + 1
-                    if next_mth == 13:
-                        next_mth = 1
-                        tag = ', ending'
-                    ssn_mths.append(next_mth)
-
-                name = '{}-{}-{}'.format(*[months[m][0:3] for m in ssn_mths])
-                seasons[name + tag] = ssn_mths
-
-            period = 'Seasonal'
-            subperiod = [s for s in seasons if
-                         int(inp.start_date[1]) in seasons[s]][0]
-            if int(inp.start_date[1]) > 10:
-                year_stamp += 1
-
-        elif target == AA:
-            period = 'Annual'
-            subperiod = 'year ending ' + months[self.suite.meanref[1]]
-            year_stamp += 1
-
-        else:
-            utils.log_msg('describe_mean - Unknown mean period:' + target,
-                          level='ERROR')
-            period = 'Unknown'
-            subperiod = ''
-            year_stamp = 0
-
-        meandate = ' '.join([subperiod, str(year_stamp)])
-        meantype = ' '.join([inp.custom.strip('_'), period])
-        return '{} mean for {}'.format(meantype, meandate)
-
     @timer.run_timer
     def create_means(self):
         '''
@@ -713,78 +579,41 @@ class ModelTemplate(control.RunPostProc):
             for setend in self.periodfiles(inputs, 'end'):
                 period = inputs.base
                 inputs.start_date = self.get_date(setend)
-                describe = self.describe_mean(inputs)
                 meanset = self.periodfiles(inputs, 'set')
-
                 self.preprocess_meanset(meanset)
 
-                # Reset start date to beginning of the meaning period:
+                # Reset start date to beginning of the period for mean_stencil
                 inputs.start_date = self.get_date(sorted(meanset)[0])
-                meanfile = self.mean_stencil(inputs)
-                tidy_components = False
-                if len(meanset) == 1 and self.meansets[period][1] == 1:
-                    # Base component is equal to the period mean
-                    msg = 'create_means: {} mean output directly by the model.'
-                    utils.log_msg(msg.format(period), level='INFO')
 
-                elif len(meanset) == self.meansets[period][1]:
-                    fn_full = os.path.join(self.share, meanfile)
-                    if os.path.isfile(fn_full):
-                        # Mean file may already exist from a previous attempt
-                        msg = '{} already exists: {}'.format(describe, meanfile)
-                        utils.log_msg(msg, level='INFO')
-                        icode = 0
-                    else:
-                        cmd = '{} {} {}'.format(self.means_cmd,
-                                                (' ').join(meanset),
-                                                meanfile)
-                        icode, output = utils.exec_subproc(cmd, cwd=self.share)
+                pmean = self.requested_means[period]
+                pmean.component_files = meanset
+                pmean.periodend = self.get_date(setend, enddate=True)
+                pmean.set_filename(self.mean_stencil(inputs), self.share)
+                if inputs.custom:
+                    pmean.set_title(prefix=inputs.custom)
 
-                    if icode == 0 and os.path.isfile(fn_full):
-                        msg = 'Created {}: {}'.format(describe, meanfile)
-                        utils.log_msg(msg, level='OK')
-                        tidy_components = True
-                    else:
-                        msg = '{C}: Error={E}\n{O}\nFailed to create {M}: {L}'
-                        msg = msg.format(C=self.means_cmd, E=icode, O=output,
-                                         M=describe, L=meanfile)
-                        utils.remove_files(fn_full, ignoreNonExist=True)
-                        utils.log_msg(msg, level='FAIL')
-
+                cmd = ' '.join([self.means_cmd,
+                                ' '.join(meanset),
+                                pmean.fname['file']])
+                climatemean.create_mean(pmean, cmd, self.suite.initpoint)
+                if os.path.isfile(pmean.fname['full']):
                     # Meaning gets the time_bounds variables wrong
                     # so correct them here
                     self.fix_mean_time(utils.add_path(meanset, self.share),
-                                       fn_full)
-                    tidy_components = True
+                                       pmean.fname['full'])
 
-                else:
-                    # Insuffient component files available to create mean.
-                    msg = '{} not possible as only got {} file(s): \n\t{}'.\
-                        format(describe, len(meanset), ', '.join(meanset))
-                    enddate = self.get_date(setend, enddate=True)
-                    if self.means_spinup(describe, enddate):
-                        # Model in spinup period for the given mean.
-                        # Insufficent component files is expected.
-                        msg = msg + '\n\t -> Means creation in spinup mode.'
-                        utils.log_msg(msg, level='INFO')
-                        tidy_components = True
-                    else:
-                        # This error should fail, even in debug mode, otherwise
-                        # components will be archived and deleted.
-                        utils.log_msg(msg, level='FAIL')
+                    if period != pmean.component:
+                        # Either archive or delete base mean components
+                        if period == self.requested_means.keys()[0] and \
+                                pmean.component not in self.additional_means:
+                            msg = 'Deleting component means for '
+                            utils.log_msg(msg + pmean.fname['file'])
+                            utils.remove_files(meanset, path=self.share)
+                        else:
+                            # Move component files to `archive_ready` directory
+                            utils.move_files(meanset, self.diagsdir,
+                                             originpath=self.share)
 
-                if tidy_components:
-                    # Either archive or delete base mean components as required
-                    if period == self.requested_means[0] and \
-                            self.base_component not in \
-                            self.additional_means:
-                        msg = 'Deleting component means for '
-                        utils.log_msg(msg + meanfile)
-                        utils.remove_files(meanset, path=self.share)
-                    else:
-                        # Move component files to `archive_ready` directory
-                        utils.move_files(meanset, self.diagsdir,
-                                         originpath=self.share)
 
     @timer.run_timer
     def prepare_archive(self):
@@ -818,9 +647,10 @@ class ModelTemplate(control.RunPostProc):
 
             # Select additional means files, not in base_component
             # or standard means
+            requested_means = self.requested_means.keys()
             additional = set(self.additional_means).\
-                difference(set(self.requested_means))
-            if len(self.requested_means) > 0:
+                difference(set(requested_means))
+            if len(requested_means) > 0:
                 additional = additional.difference(set([self.base_component]))
 
             if len(additional) > 0:
@@ -835,7 +665,7 @@ class ModelTemplate(control.RunPostProc):
                 # Final cycle only - select all required means remaining in
                 # share directory as components of future higher means
                 match_bases = '({})'.format('|'.join(list(additional) +
-                                                     self.requested_means))
+                                                     requested_means))
                 ncf.base = match_bases
                 final_means = utils.get_subset(self.share,
                                                self.mean_stencil(ncf))
@@ -850,7 +680,7 @@ class ModelTemplate(control.RunPostProc):
             if self.naml.processing.compression_level > 0:
                 # Compress as required
                 match_bases = '({})'.format('|'.join(list(additional) +
-                                                     self.requested_means))
+                                                     requested_means))
                 for field in self.mean_fields:
                     if field.lower() in ['diaptr', 'scalar']:
                         # These NEMO files cannot currently be compressed.

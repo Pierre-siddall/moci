@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -116,6 +116,13 @@ class StencilTests(unittest.TestCase):
         _ = self.model.end_stencil('1y', self.ncf)
         mock_end.assert_called_once_with('1y', self.ncf, [0, 12, 1])
 
+    @mock.patch('modeltemplate.netcdf_filenames.period_end')
+    def test_end_stencil_decadal(self, mock_end):
+        '''Test the call to period_end by end_stencil method - decadal'''
+        func.logtest('Assert annual pattern matching of end_stencil:')
+        _ = self.model.end_stencil('1x', self.ncf)
+        mock_end.assert_called_once_with('1x', self.ncf, [0, 12, 1])
+
     @mock.patch('modeltemplate.netcdf_filenames.mean_stencil')
     def test_mean_stencil_ncf_filename(self, mock_stencil):
         '''Test the regular expressions of the mean_stencil method - monthly'''
@@ -150,8 +157,11 @@ class PeriodTests(unittest.TestCase):
         self.model.naml.processing.create_monthly_mean = True
         self.model.naml.processing.create_seasonal_mean = True
         self.model.naml.processing.create_annual_mean = True
-        self.model.meansets = self.model._mean_bases()
-        self.model.requested_means = ['1m', '1s', '1y']
+        self.model.naml.processing.create_decadal_mean = True
+        self.model.naml.processing.base_component = '10d'
+        self.model.requested_means = modeltemplate.climatemean.available_means(
+            self.model.naml.processing
+            )
 
         self.ncf = netcdf_filenames.NCFilename(
             'MODEL', 'RUNID', 'X',
@@ -206,8 +216,13 @@ class PeriodTests(unittest.TestCase):
     def test_period_set_annual_no_1s(self, mock_subset):
         '''Test function of the periodfiles method - year set with seasons'''
         func.logtest('Assert pattern from periodfiles method - year set:')
-        self.model.meansets['1s'] = (None,)
-        self.model.meansets['1y'] = ('1m',)
+        self.model.naml.processing.create_monthly_mean = False
+        self.model.naml.processing.create_seasonal_mean = False
+        self.model.naml.processing.create_decadal_mean = False
+        self.model.naml.processing.base_component = '1m'
+        self.model.requested_means = modeltemplate.climatemean.available_means(
+            self.model.naml.processing
+            )
         ncf = copy.copy(self.ncf)
         ncf.start_date = ('2001', '02', '01')
         ncf.base = '1y'
@@ -217,6 +232,21 @@ class PeriodTests(unittest.TestCase):
             r'^model_runidx_1m_(20000301|20000401|20000501|20000601|20000701|'
             r'20000801|20000901|20001001|20001101|20001201|20010101|20010201)'
             r'(\d{2})?-\d{8,10}_FIELD\.nc$'
+            )
+
+    @mock.patch('modeltemplate.utils.get_subset')
+    def test_period_set_decadal(self, mock_subset):
+        '''Test function of the periodfiles method - decade set'''
+        func.logtest('Assert pattern from periodfiles method - decade set:')
+        ncf = copy.copy(self.ncf)
+        ncf.start_date = ('2001', '02', '01')
+        ncf.base = '1x'
+        _ = self.model.periodfiles(ncf, 'set')
+        mock_subset.assert_called_once_with(
+            'ShareDir',
+            r'^model_runidx_1y_(19920201|19930201|19940201|19950201|19960201'
+            r'|19970201|19980201|19990201|20000201|20010201)(\d{2})?'
+            r'-\d{8,10}_FIELD\.nc$'
             )
 
     @mock.patch('modeltemplate.utils.get_subset')
@@ -270,14 +300,29 @@ class PeriodTests(unittest.TestCase):
     @mock.patch('modeltemplate.utils.get_subset')
     def test_period_set_arch_annual(self, mock_subset):
         '''Test function of the periodfiles method - annual archive set'''
-        func.logtest('Assert pattern by periodfiles - archive year set:')
+        func.logtest('Assert pattern by periodset - archive year set:')
         ncf = copy.copy(self.ncf)
         ncf.start_date = ('2001', '09', '01')
         ncf.base = '1y'
         _ = self.model.periodfiles(ncf, 'set', archive_mean=True)
         mock_subset.assert_called_once_with(
             'ShareDir',
-            r'model_runidx_1y_\d{4}\d{2}\d{2}-\d{4}\d{2}\d{2}_FIELD.nc$'
+            r'^model_runidx_1y_(19920901|19930901|19940901|19950901|19960901|'
+            r'19970901|19980901|19990901|20000901|20010901)(\d{2})?'
+            r'-\d{8,10}_FIELD\.nc$'
+            )
+
+    @mock.patch('modeltemplate.utils.get_subset')
+    def test_period_set_arch_decadal(self, mock_subset):
+        '''Test function of the periodfiles method - 10y (topmean) arch set'''
+        func.logtest('Assert pattern by periodfiles - topmean decadal set:')
+        ncf = copy.copy(self.ncf)
+        ncf.start_date = ('2001', '09', '01')
+        ncf.base = '1x'
+        _ = self.model.periodfiles(ncf, 'set', archive_mean=True)
+        mock_subset.assert_called_once_with(
+            'ShareDir',
+            r'model_runidx_1x_\d{4}\d{2}\d{2}-\d{4}\d{2}\d{2}_FIELD.nc$'
             )
 
     @mock.patch('modeltemplate.utils.get_subset')
@@ -340,6 +385,29 @@ class PeriodTests(unittest.TestCase):
             )
 
     @mock.patch('modeltemplate.utils.get_subset')
+    def test_period_end_decadal(self, mock_subset):
+        '''Test function of the periodfiles method - decade end'''
+        func.logtest('Assert pattern by periodfiles method - decade end:')
+        ncf = copy.copy(self.ncf)
+        ncf.base = '1x'
+        _ = self.model.periodfiles(ncf, 'end')
+        mock_subset.assert_called_once_with(
+            'ShareDir',
+            r'^model_runidx_1y_\d{8,10}-\d{3}0(1201)(00)?_FIELD\.nc$'
+            )
+
+        ncf = copy.copy(self.ncf)
+        ncf.base = '1x'
+        with mock.patch('modeltemplate.suite.SuiteEnvironment.meanref',
+                        new_callable=mock.PropertyMock,
+                        return_value=[1978, 1, 1]):
+            _ = self.model.periodfiles(ncf, 'end')
+        mock_subset.assert_called_with(
+            'ShareDir',
+            r'^model_runidx_1y_\d{8,10}-\d{3}8(0101)(00)?_FIELD\.nc$'
+            )
+
+    @mock.patch('modeltemplate.utils.get_subset')
     def test_period_end_datadir(self, mock_subset):
         '''Test function of the periodfiles end method - with datadir'''
         func.logtest('Assert pattern by periodfiles end method - datadir:')
@@ -380,11 +448,24 @@ class PeriodTests(unittest.TestCase):
         '''Test function of the periodfiles method - year end archive'''
         func.logtest('Assert pattern by periodfiles - archive year end:')
         ncf = copy.copy(self.ncf)
+        self.model.suite.naml.mean_reference_date = [1234, 5, 67]
         ncf.base = '1y'
         _ = self.model.periodfiles(ncf, 'end', archive_mean=True)
         mock_subset.assert_called_with(
             'ShareDir',
-            r'model_runidx_1y_\d{4}\d{2}\d{2}-\d{4}\d{2}\d{2}_FIELD.nc$'
+            r'^model_runidx_1y_\d{8,10}-\d{3}4(0567)(00)?_FIELD\.nc$'
+            )
+
+    @mock.patch('modeltemplate.utils.get_subset')
+    def test_period_end_arch_decadal(self, mock_subset):
+        '''Test function of the periodfiles method - decade end archive'''
+        func.logtest('Assert pattern by periodfiles - archive decade end:')
+        ncf = copy.copy(self.ncf)
+        ncf.base = '1x'
+        _ = self.model.periodfiles(ncf, 'end', archive_mean=True)
+        mock_subset.assert_called_with(
+            'ShareDir',
+            r'model_runidx_1x_\d{4}\d{2}\d{2}-\d{4}\d{2}\d{2}_FIELD.nc$'
             )
 
     @mock.patch('modeltemplate.utils.get_subset')
@@ -393,7 +474,14 @@ class PeriodTests(unittest.TestCase):
         func.logtest('Assert pattern by periodfiles - archive 1s only:')
         ncf = copy.copy(self.ncf)
         ncf.base = '1s'
-        self.model.requested_means = ['1s']
+        self.model.naml.processing.create_monthly_mean = False
+        self.model.naml.processing.create_annual_mean = False
+        self.model.naml.processing.create_decadal_mean = False
+        self.model.naml.processing.base_component = '1m'
+
+        self.model.requested_means = modeltemplate.climatemean.available_means(
+            self.model.naml.processing
+            )
 
         _ = self.model.periodfiles(ncf, 'set', archive_mean=True)
         mock_subset.assert_called_once_with(
@@ -423,17 +511,24 @@ class MeansTests(unittest.TestCase):
         self.model.naml.processing.create_monthly_mean = True
         self.model.naml.processing.create_seasonal_mean = True
         self.model.naml.processing.create_annual_mean = True
-        self.model.meansets = self.model._mean_bases()
-        self.model.requested_means = ['1m', '1s', '1y']
+        self.model.naml.processing.create_decadal_mean = True
+        self.model.naml.processing.base_component = '10d'
+        self.model.requested_means = modeltemplate.climatemean.available_means(
+            self.model.naml.processing
+            )
+
 
         self.model.loop_inputs = mock.Mock()
         self.model.get_date = mock.Mock(return_value=('1996', '09', '01'))
         self.model.periodfiles = mock.Mock()
-        self.model.describe_mean = mock.Mock()
+        self.model.preprocess_meanset = mock.Mock()
+        self.model.mean_stencil = mock.Mock(return_value='MeanFileName')
+        self.model.fix_mean_time = mock.Mock()
 
         self.model.suite = mock.Mock()
-        self.model.suite.envars = {}
         self.model.suite.initpoint = [0]*5
+
+        self.ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X', base='1d')
 
     def tearDown(self):
         try:
@@ -448,267 +543,134 @@ class MeansTests(unittest.TestCase):
                 pass
 
     @mock.patch('modeltemplate.os.path')
-    @mock.patch('modeltemplate.utils.exec_subproc', side_effect=[(0, 'None')])
     @mock.patch('modeltemplate.utils.move_files')
-    @mock.patch('modeltemplate.ModelTemplate.mean_stencil')
-    @mock.patch('modeltemplate.ModelTemplate.preprocess_meanset')
-    def test_create_annual_mean(self, mock_ppset, mock_stencil, mock_mv,
-                                mock_exec, mock_path):
-        '''Test successful creation of annual mean'''
-        func.logtest('Assert successful creation of annual mean:')
-        ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X',
-                                          base='1y')
-        self.model.loop_inputs.return_value = [ncf]
-        self.model.periodfiles.side_effect = [['setend'],
-                                              ['ssn1', 'ssn2', 'ssn3', 'ssn4']]
-        mock_path.isfile.side_effect = [False, True]
-        mock_stencil.return_value = 'AnnualMean'
+    @mock.patch('modeltemplate.climatemean.create_mean')
+    def test_create_means_mv_cmpts(self, mock_create, mock_mv, mock_path):
+        '''Test successful creation of means - move components'''
+        func.logtest('Assert successful creation of a mean - move components:')
+        self.ncf.base = '1y'
+        self.ncf.custom = 'FIELD'
+        self.model.loop_inputs.return_value = [self.ncf]
+        cmpt_files = ['ssn' + str(x) for x in range(1, 4)]
+        self.model.periodfiles.side_effect = [['setend'], cmpt_files]
+        mock_path.isfile.side_effect = [True]
 
         with mock.patch('modeltemplate.utils.create_dir'):
             self.model.create_means()
-        self.assertIn('[ OK ]  Created', func.capture())
-        self.assertIn(': AnnualMean', func.capture())
 
-        cmd = '{} ssn1 ssn2 ssn3 ssn4 AnnualMean'.format(self.model.means_cmd)
-        mock_exec.assert_called_once_with(cmd, cwd='ShareDir')
-        mock_mv.assert_called_once_with(['ssn1', 'ssn2', 'ssn3', 'ssn4'],
+        self.model.preprocess_meanset.assert_called_once_with(cmpt_files)
+
+        cmd = '{} {} MeanFileName'.format(self.model.means_cmd,
+                                          ' '.join(cmpt_files))
+        mock_create.assert_called_once_with(mock.ANY, cmd, [0]*5)
+        self.assertTrue(isinstance(mock_create.call_args[0][0],
+                                   modeltemplate.climatemean.MeanFile))
+        self.assertEqual(mock_create.call_args[0][0].period, '1y')
+        self.assertEqual(mock_create.call_args[0][0].component, '1s')
+        self.assertEqual(mock_create.call_args[0][0].periodend,
+                         ('1996', '09', '01'))
+        self.assertEqual(mock_create.call_args[0][0].title, 'FIELD Annual')
+        self.assertListEqual(mock_create.call_args[0][0].component_files,
+                             cmpt_files)
+
+        mock_mv.assert_called_once_with(cmpt_files,
                                         'ModelDir/archive_ready',
                                         originpath='ShareDir')
-        mock_ppset.assert_called_once_with(['ssn1', 'ssn2', 'ssn3', 'ssn4'])
+        self.assertEqual(len(self.model.fix_mean_time.mock_calls), 1)
 
-    @mock.patch('modeltemplate.utils.remove_files')
     @mock.patch('modeltemplate.os.path')
-    @mock.patch('modeltemplate.utils.exec_subproc', side_effect=[(0, 'None')])
-    @mock.patch('modeltemplate.ModelTemplate.mean_stencil')
-    def test_create_monthly_mean_10d(self, mock_stencil, mock_exec, mock_path,
-                                     mock_rm):
-        '''Test successful creation of monthly mean - 10day base'''
-        func.logtest('Assert successful creation of monthly mean - 10d base:')
-        self.model.meansets['1m'] = ('10d', 3)
-        mock_path.isfile.side_effect = [False, True]
-        mock_stencil.return_value = 'MonthlyMean'
-        ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X', base='1m')
-        self.model.loop_inputs = mock.Mock(return_value=[ncf])
-        self.model.periodfiles.side_effect = [['setend'],
-                                              ['10d1', '10d2', '10d3']]
+    @mock.patch('modeltemplate.utils.remove_files')
+    @mock.patch('modeltemplate.climatemean.create_mean')
+    def test_create_means_del_cmpts(self, mock_create, mock_rm, mock_path):
+        '''Test successful creation of means - delete base components'''
+        func.logtest('Assert deletion of base components after means creation:')
+        self.ncf.base = '1m'
+        self.model.loop_inputs.return_value = [self.ncf]
+        cmpt_files = ['month' + str(x) for x in range(1, 3)]
+        self.model.periodfiles.side_effect = [['setend'], cmpt_files]
+        mock_path.isfile.side_effect = [True]
 
         with mock.patch('modeltemplate.utils.create_dir'):
             self.model.create_means()
-        self.assertIn('[ OK ]  Created', func.capture())
-        self.assertIn(': MonthlyMean', func.capture())
-        mock_rm.assert_called_once_with(['10d1', '10d2', '10d3'],
-                                        path='ShareDir')
-        cmd = '{} 10d1 10d2 10d3 MonthlyMean'.format(self.model.means_cmd)
-        mock_exec.assert_called_once_with(cmd, cwd='ShareDir')
 
-    @mock.patch('modeltemplate.utils.remove_files')
+        self.model.preprocess_meanset.assert_called_once_with(cmpt_files)
+
+        cmd = '{} {} MeanFileName'.format(self.model.means_cmd,
+                                          ' '.join(cmpt_files))
+        mock_create.assert_called_once_with(mock.ANY, cmd, [0]*5)
+        self.assertTrue(isinstance(mock_create.call_args[0][0],
+                                   modeltemplate.climatemean.MeanFile))
+        self.assertEqual(mock_create.call_args[0][0].period, '1m')
+        self.assertEqual(mock_create.call_args[0][0].component, '10d')
+        self.assertEqual(mock_create.call_args[0][0].title, 'Monthly')
+        self.assertListEqual(mock_create.call_args[0][0].component_files,
+                             cmpt_files)
+
+        mock_rm.assert_called_once_with(cmpt_files, path='ShareDir')
+        self.assertIn('Deleting component means for MeanFileName',
+                      func.capture())
+        self.assertEqual(len(self.model.fix_mean_time.mock_calls), 1)
+
+
     @mock.patch('modeltemplate.os.path')
-    @mock.patch('modeltemplate.utils.exec_subproc', side_effect=[(0, 'None')])
-    @mock.patch('modeltemplate.ModelTemplate.mean_stencil')
-    def test_create_monthly_mean_5dbase(self, mock_stencil, mock_exec,
-                                        mock_path, mock_rm):
-        '''Test successful creation of monthly mean - 5day base'''
-        func.logtest('Assert successful creation of monthly mean - 5d base:')
-        mock_path.isfile.side_effect = [False, True]
-        mock_stencil.return_value = 'MonthlyMean'
-        ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X', base='1m')
-        self.model.loop_inputs = mock.Mock(return_value=[ncf])
-        self.model.meansets['1m'] = ('5d', 6)
-        self.model.periodfiles.side_effect = [['setend'],
-                                              ['5d1', '5d2', '5d3',
-                                               '5d4', '5d5', '5d6']]
-
-        with mock.patch('modeltemplate.utils.create_dir'):
-            self.model.create_means()
-        self.assertIn('[ OK ]  Created', func.capture())
-        self.assertIn(': MonthlyMean', func.capture())
-        self.assertIn('Deleting component means', func.capture())
-        mock_rm.assert_called_once_with(
-            ['5d1', '5d2', '5d3', '5d4', '5d5', '5d6'], path='ShareDir'
+    @mock.patch('modeltemplate.utils.move_files')
+    @mock.patch('modeltemplate.utils.remove_files')
+    @mock.patch('modeltemplate.climatemean.create_mean')
+    def test_create_means_leave_cmpts(self, mock_create, mock_rm, mock_mv,
+                                      mock_path):
+        '''Test successful creation of means - leave base components'''
+        func.logtest('Assert base components untouched after means creation:')
+        self.model.naml.processing.create_monthly_mean = False
+        self.model.naml.processing.create_decadal_mean = False
+        self.model.naml.processing.base_component = '1s'
+        self.model.requested_means = modeltemplate.climatemean.available_means(
+            self.model.naml.processing
             )
-        cmd = '{} 5d1 5d2 5d3 5d4 5d5 5d6 MonthlyMean'.\
-            format(self.model.means_cmd)
-        mock_exec.assert_called_once_with(cmd, cwd='ShareDir')
 
-    def test_create_monthly_mean_1mbase(self):
-        '''Test successful creation of monthly mean - 1m base'''
-        func.logtest('Assert successful creation of monthly mean - 1m base:')
-        ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X', base='1m')
-        self.model.loop_inputs = mock.Mock(return_value=[ncf])
-        self.model.meansets['1m'] = ('1m', 1)
-        self.model.periodfiles.side_effect = [['setend'], ['1m']]
+        self.ncf.base = '1s'
+        self.model.loop_inputs.return_value = [self.ncf]
+        cmpt_files = ['ssn' + str(x) for x in range(1, 3)]
+        self.model.periodfiles.side_effect = [['setend'], cmpt_files]
+        mock_path.isfile.side_effect = [True]
 
         with mock.patch('modeltemplate.utils.create_dir'):
             self.model.create_means()
-        self.assertIn('1m mean output directly by the model.', func.capture())
-        self.assertNotIn('Deleting component means', func.capture())
+
+        self.model.preprocess_meanset.assert_called_once_with(cmpt_files)
+
+        cmd = '{} {} MeanFileName'.format(self.model.means_cmd,
+                                          ' '.join(cmpt_files))
+        mock_create.assert_called_once_with(mock.ANY, cmd, [0]*5)
+        self.assertTrue(isinstance(mock_create.call_args[0][0],
+                                   modeltemplate.climatemean.MeanFile))
+        self.assertEqual(mock_create.call_args[0][0].period, '1s')
+        self.assertEqual(mock_create.call_args[0][0].component, '1s')
+        self.assertListEqual(mock_create.call_args[0][0].component_files,
+                             cmpt_files)
+
+        self.assertListEqual(mock_rm.mock_calls, [])
+        self.assertListEqual(mock_mv.mock_calls, [])
+        self.assertEqual(len(self.model.fix_mean_time.mock_calls), 1)
 
     @mock.patch('modeltemplate.os.path')
-    @mock.patch('modeltemplate.utils.exec_subproc', side_effect=[(99, 'None')])
-    @mock.patch('modeltemplate.ModelTemplate.mean_stencil')
-    @mock.patch('modeltemplate.utils.remove_files')
-    def test_create_annual_mean_fail(self, mock_rm, mock_stencil,
-                                     mock_exec, mock_path):
-        '''Test failed creation of annual mean'''
-        func.logtest('Assert failed creation of annual mean:')
-        mock_path.isfile.return_value = False
-        mock_stencil.return_value = 'AnnualMean'
-        ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X', base='1y')
-        self.model.loop_inputs.return_value = [ncf]
-        self.model.periodfiles.side_effect = [['setend'],
-                                              ['ssn1', 'ssn2', 'ssn3', 'ssn4']]
+    @mock.patch('modeltemplate.climatemean.create_mean')
+    def test_create_means_fail(self, mock_create, mock_path):
+        '''Test successful creation of means - move components'''
+        func.logtest('Assert successful creation of a mean - move components:')
+
+        self.ncf.base = '1y'
+        self.model.loop_inputs.return_value = [self.ncf]
+        cmpt_files = ['ssn' + str(x) for x in range(1, 4)]
+        self.model.periodfiles.side_effect = [['setend'], cmpt_files]
+        mock_path.isfile.side_effect = [False]
 
         with mock.patch('modeltemplate.utils.create_dir'):
-            with self.assertRaises(SystemExit):
-                self.model.create_means()
-        self.assertIn('Error=99', func.capture('err'))
-        cmd = '{} ssn1 ssn2 ssn3 ssn4 AnnualMean'.format(self.model.means_cmd)
-        mock_exec.assert_called_once_with(cmd, cwd='ShareDir')
-        self.assertIn('Failed to create', func.capture('err'))
-        mock_rm.assert_called_once_with(mock_path.join.return_value,
-                                        ignoreNonExist=True)
-
-    def test_create_means_partial(self):
-        '''Test create_means function with partial period'''
-        func.logtest('Assert create_means functionality with partial period:')
-        self.model.periodfiles.side_effect = [['setend'],
-                                              ['ssn1', 'ssn2', 'ssn3']]
-        ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X', base='1y')
-        self.model.loop_inputs.return_value = [ncf]
-        with mock.patch('modeltemplate.ModelTemplate.means_spinup',
-                        return_value=False):
-            with self.assertRaises(SystemExit):
-                self.model.create_means()
-        self.assertIn('not possible as only got 3', func.capture('err'))
-
-    @mock.patch('modeltemplate.utils.remove_files')
-    def test_create_means_spinup_del(self, mock_rm):
-        '''Test create_means function in spinup mode (remove components)'''
-        func.logtest('Assert create_means functionality in spinup (remove):')
-        self.model.meansets['1m'] = ('5d', 6)
-        self.model.periodfiles.side_effect = [['setend'],
-                                              ['5d1', '5d2', '5d3']]
-        ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X', base='1m')
-        self.model.loop_inputs.return_value = [ncf]
-        with mock.patch('modeltemplate.ModelTemplate.means_spinup',
-                        return_value=True):
             self.model.create_means()
-        self.assertIn('in spinup mode', func.capture())
-        self.assertIn('not possible as only got 3', func.capture())
-        mock_rm.assert_called_once_with(['5d1', '5d2', '5d3'], path='ShareDir')
 
-    @mock.patch('modeltemplate.utils.move_files')
-    def test_create_means_spinup_move(self, mock_mv):
-        '''Test create_means function in spinup mode (move components)'''
-        func.logtest('Assert create_means functionality in spinup (move):')
-        self.model.requested_means = ['1d', '1m']
-        self.model.meansets['1m'] = ('5d', 6)
-        self.model.periodfiles.side_effect = [['setend'],
-                                              ['5d1', '5d2', '5d3']]
-        ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X', base='1m')
-        self.model.loop_inputs.return_value = [ncf]
-        with mock.patch('modeltemplate.ModelTemplate.means_spinup',
-                        return_value=True):
-            self.model.create_means()
-        self.assertIn('in spinup mode', func.capture())
-        self.assertIn('not possible as only got 3', func.capture())
-        mock_mv.assert_called_once_with(['5d1', '5d2', '5d3'],
-                                        'ModelDir/archive_ready',
-                                        originpath='ShareDir')
-
-    def test_annual_mean_spinup(self):
-        '''Test Spinup period for annual means'''
-        func.logtest('Assert initial spinup period for annual means:')
-
-        for startdate in [1994, 12, 11], [1995, 12, 1]:
-            func.logtest('Autumn mean - Testing start date: ' +
-                         '{}{:0>2}{:0>2}T0000Z'.format(*startdate))
-            self.model.suite.initpoint = startdate
-            self.assertTrue(self.model.means_spinup(
-                'FIELD Annual mean for YYYY', ('1995', '12', '01')
-                ))
-
-        for startdate in [1994, 12, 1], [1994, 11, 11]:
-            func.logtest('Autumn mean - Testing start date: ' +
-                         '{}{:0>2}{:0>2}T0000Z'.format(*startdate))
-            self.model.suite.initpoint = startdate
-            self.assertFalse(self.model.means_spinup(
-                'FIELD Annual mean for YYYY', ('1995', '12', '01')
-                ))
-
-    def test_seasonal_mean_spinup_yr1(self):
-        '''Test Spinup period for seasonal means - first year'''
-        func.logtest('Assert initial spinup period for seasonal means - yr1:')
-
-        for startdate in [1995, 9, 11], [1995, 10, 1], [1995, 11, 1]:
-            func.logtest('Autumn mean - Testing start date: ' +
-                         '{}{:0>2}{:0>2}T0000Z'.format(*startdate))
-            self.model.suite.initpoint = startdate
-            self.assertTrue(self.model.means_spinup(
-                'FIELD Seasonal mean for SEASON YYYY', ('1995', '12', '01')
-                ))
-
-        for startdate in [1995, 8, 1], [1995, 9, 1]:
-            func.logtest('Autumn mean - Testing start date: ' +
-                         '{}{:0>2}{:0>2}T0000Z'.format(*startdate))
-            self.model.suite.initpoint = startdate
-            self.assertFalse(self.model.means_spinup(
-                'FIELD Seasonal mean for SEASON YYYY', ('1995', '12', '01')
-                ))
-
-    def test_seasonal_mean_spinup_yr2(self):
-        '''Test Spinup period for seasonal means - second year'''
-        func.logtest('Assert initial spinup period for seasonal means - yr2:')
-
-        for startdate in [1995, 12, 11], [1995, 12, 21]:
-            func.logtest('Autumn mean - Testing start date: ' +
-                         '{}{:0>2}{:0>2}T0000Z'.format(*startdate))
-            self.model.suite.initpoint = startdate
-            self.assertTrue(self.model.means_spinup(
-                'FIELD Seasonal mean for SEASON YYYY', ('1996', '03', '01')
-                ))
-
-        for startdate in [1995, 12, 1], [1995, 10, 1]:
-            func.logtest('Autumn mean - Testing start date: ' +
-                         '{}{:0>2}{:0>2}T0000Z'.format(*startdate))
-            self.model.suite.initpoint = startdate
-            self.assertFalse(self.model.means_spinup(
-                'FIELD Seasonal mean for SEASON YYYY', ('1996', '03', '01')
-                ))
-
-        for startdate in [1995, 12, 21], [1995, 9, 1]:
-            func.logtest('Autumn mean - Testing start date: ' +
-                         '{}{:0>2}{:0>2}T0000Z'.format(*startdate))
-            self.model.suite.initpoint = startdate
-            self.assertFalse(self.model.means_spinup(
-                'FIELD Seasonal mean for SEASON YYYY', ('1996', '06', '01')
-                ))
-
-    def test_monthly_mean_spinup(self):
-        '''Test Spinup period for monthly means'''
-        func.logtest('Assert initial spinup period for monthly means:')
-        self.model.suite.initpoint = [1995, 8, 1, 0, 0]
-        self.assertTrue(self.model.means_spinup(
-            'FIELD Monthly mean for MONTH YYYY', ('1995', '08', '01')))
-        self.assertTrue(self.model.means_spinup(
-            'FIELD Monthly mean for MONTH YYYY', ('1995', '08', '11')))
-        self.assertFalse(self.model.means_spinup(
-            'FIELD Monthly mean for MONTH YYYY', ('1995', '09', '01')))
-
-        self.model.suite.initpoint = [1995, 8, 11, 0, 0]
-        self.assertTrue(self.model.means_spinup(
-            'FIELD Monthly mean for MONTH YYYY', ('1995', '09', '01')))
-        self.assertFalse(self.model.means_spinup(
-            'FIELD Monthly mean for MONTH YYYY', ('1995', '09', '11')))
-
-    def test_spinup_invalid(self):
-        '''Test Spinup period for invalid means'''
-        func.logtest('Assert initial spinup period for invalid means:')
-        self.model.suite.initpoint = [1995, 8, 1, 0, 0]
-        self.assertFalse(self.model.means_spinup(
-            'FIELD INVALID mean for YYYY', ('1995', '10', '01')))
-        self.assertIn('[WARN]', func.capture('err'))
-        self.assertIn('unknown meantype', func.capture('err'))
+        cmd = '{} {} MeanFileName'.format(self.model.means_cmd,
+                                          ' '.join(cmpt_files))
+        mock_create.assert_called_once_with(mock.ANY, cmd, [0]*5)
+        self.assertListEqual(self.model.fix_mean_time.mock_calls, [])
 
 
 class ArchiveTests(unittest.TestCase):
@@ -724,7 +686,13 @@ class ArchiveTests(unittest.TestCase):
 
         self.model.share = os.getcwd()
         self.model.diagsdir = os.path.join('ModelDir', 'archive_ready')
-        self.model.requested_means = ['1m', '1s', '1y']
+        self.model.naml.processing.create_monthly_mean = True
+        self.model.naml.processing.create_seasonal_mean = True
+        self.model.naml.processing.create_annual_mean = True
+        self.model.naml.processing.base_component = '10d'
+        self.model.requested_means = modeltemplate.climatemean.available_means(
+            self.model.naml.processing
+            )
 
         self.model.suite = mock.Mock()
         self.model.suite.finalcycle = False
@@ -1368,11 +1336,6 @@ class MethodsTests(unittest.TestCase):
 
         self.model.share = 'ShareDir'
 
-        self.ncf = netcdf_filenames.NCFilename(
-            'MODEL', 'RUNID', 'X',
-            start_date=('2001', '01', '21'), base='1m', custom='_FIELD'
-            )
-
     def tearDown(self):
         try:
             os.remove(NLFILE)
@@ -1453,7 +1416,13 @@ class MethodsTests(unittest.TestCase):
     def test_loop_inputs(self):
         '''Test loop_inputs functionality'''
         func.logtest('Assert behaviour of loop_inputs method:')
-        self.model.requested_means = ['1m', '1s', '1y']
+        self.model.naml.processing.create_monthly_mean = True
+        self.model.naml.processing.create_seasonal_mean = True
+        self.model.naml.processing.create_annual_mean = True
+        self.model.naml.processing.base_component = '10d'
+        self.model.requested_means = modeltemplate.climatemean.available_means(
+            self.model.naml.processing
+            )
 
         yield_prefix = []
         yield_field = []
@@ -1475,7 +1444,14 @@ class MethodsTests(unittest.TestCase):
     def test_loop_inputs_multifield(self):
         '''Test loop_inputs functionality - multiple fields'''
         func.logtest('Assert behaviour of loop_inputs method - multifield:')
-        self.model.requested_means = ['1m', '1s', '1y']
+        self.model.naml.processing.create_monthly_mean = True
+        self.model.naml.processing.create_seasonal_mean = True
+        self.model.naml.processing.create_annual_mean = True
+        self.model.naml.processing.base_component = '10d'
+        self.model.requested_means = modeltemplate.climatemean.available_means(
+            self.model.naml.processing
+            )
+
         yield_prefix = []
         yield_field = []
         yield_period = []
@@ -1493,59 +1469,6 @@ class MethodsTests(unittest.TestCase):
         self.assertEqual(['_f1']*3 + ['_f2']*3 + ['_f1']*3 + ['_f2']*3,
                          yield_field)
         self.assertEqual(['1m', '1s', '1y']*4, yield_period)
-
-    def test_describe_mean_monthly(self):
-        '''Test compostion of mean description - monthly'''
-        func.logtest('Assert correct composition of monthly mean description:')
-        ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X',
-                                          start_date=('1111', '06', '01'),
-                                          base='1m')
-        self.assertIn('Monthly mean for June 1111',
-                      self.model.describe_mean(ncf))
-
-    def test_describe_mean_mth_field(self):
-        '''Test compostion of mean description - monthly field'''
-        func.logtest('Assert correct composition of monthly mean description:')
-        ncf = netcdf_filenames.NCFilename('MODEL', 'RUNID', 'X',
-                                          start_date=('1111', '06', '01'),
-                                          base='1m',
-                                          custom='_FIELD')
-        self.assertIn('FIELD Monthly mean for June 1111',
-                      self.model.describe_mean(ncf))
-
-    def test_describe_mean_seasonal(self):
-        '''Test compostion of mean description - seasonal'''
-        func.logtest('Assert correct composition of seasonal mean description:')
-        ncf = copy.copy(self.ncf)
-        ncf.base = '1s'
-        ncf.start_date = ('1111', '06', '01')
-        self.assertIn('Seasonal mean for Jun-Jul-Aug 1111',
-                      self.model.describe_mean(ncf))
-
-        ncf.start_date = ('1111', '12', '01')
-        self.assertIn('Seasonal mean for Dec-Jan-Feb, ending 1112',
-                      self.model.describe_mean(ncf))
-
-        ncf.start_date = ('1111', '02', '01')
-        with mock.patch('modeltemplate.suite.SuiteEnvironment.meanref',
-                        new_callable=mock.PropertyMock,
-                        return_value=[None, 2, None]):
-            self.assertIn('Seasonal mean for Feb-Mar-Apr 1111',
-                          self.model.describe_mean(ncf))
-
-    def test_describe_mean_annual(self):
-        '''Test compostion of mean description - annual'''
-        func.logtest('Assert correct composition of annual mean description:')
-        ncf = copy.copy(self.ncf)
-        ncf.base = '1y'
-        self.assertIn('Annual mean for year ending December 2002',
-                      self.model.describe_mean(ncf))
-
-        with mock.patch('modeltemplate.suite.SuiteEnvironment.meanref',
-                        new_callable=mock.PropertyMock,
-                        return_value=[None, 3, 15]):
-            self.assertIn('Annual mean for year ending March 2002',
-                          self.model.describe_mean(ncf))
 
     @mock.patch('modeltemplate.netcdf_filenames.NCFilename')
     def test_components(self, mock_ncf):

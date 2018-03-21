@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -185,7 +185,7 @@ class _Moose(object):
         elif model_id in 'io':  # NEMO/CICE means and restart dumps
             # ultimately file_id needs to be reassigned as a 2char variable
             file_id = re.split('[._]', self._file_id)
-            if re.match(r'\d+[hdmsy]', file_id[0]):
+            if re.match(r'\d+[hdmsyx]', file_id[0]):
                 ext = '.nc.file'
                 file_id = 'n' + file_id[0][-1]
             elif 'restart' in file_id:

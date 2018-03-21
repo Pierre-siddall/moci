@@ -588,7 +588,8 @@ class DiagnosticFiles(ArchivedFiles):
                 'd': day == self.meanref[2],
                 'm': month in season_starts and day == self.meanref[2],
                 's': [month, day] == self.meanref[1:3],
-                'y': [year, month, day] == self.meanref[:3],
+                'y': [month, day] == self.meanref[1:3] and \
+                    str(year)[-1] == str(self.meanref[0])[-1],
                 'x': True,
                 }
             if topmean or conditions[period_condition]:

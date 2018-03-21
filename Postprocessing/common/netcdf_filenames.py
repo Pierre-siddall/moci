@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -201,7 +201,7 @@ def calc_enddate(startdate, target, freq=1):
     while len(indate) < 5:
         indate.append('00')
 
-    digit, char = utils.get_frequency(target)
+    digit, char = utils.get_frequency(target)[:2]
     rtndate = utils.add_period_to_date(indate,
                                        '{}{}'.format(digit * freq, char))
     # Truncate rtndate at the same length as start_date
@@ -238,7 +238,7 @@ def period_end(period, fvars, meanref):
     period mean must logically exist.
 
     Arguments:
-        period <type str>       - Target period. One of ['1m', '1s', '1y']
+        period <type str>       - Target period. One of [1m, 1s, 1y, 1x]
         fvars <type NCFilename> - fvars.base should either be a base frequency
                                   (e.g. 6h, 10d, 1m)
         meanref <type list>     - Mean reference date
@@ -249,12 +249,15 @@ def period_end(period, fvars, meanref):
         freq = '1'
         base = fvars.base[0].lower()
 
+    end_year = r'\d{4}'
     if period == '1m':
         end_mmdd = r'\d{{2}}{:02}'.format(meanref[2])
     elif period == '1s':
         end_mmdd = '|'.join(seasonend(meanref))
-    elif period == '1y':
+    elif period in ['1y', '1x']:
         end_mmdd = str(meanref[1]).zfill(2) + str(meanref[2]).zfill(2)
+        if period == '1x':
+            end_year = r'\d{3}' + str(meanref[0])[-1]
     else:
         # Period not recognised
         end_mmdd = 'MMDD'
@@ -264,7 +267,7 @@ def period_end(period, fvars, meanref):
 
     return NCF_REGEX.format(P=fvars.prefix, B=''.join([freq, base]),
                             S=r'\d{8,10}',
-                            E=r'\d{{4}}({})(00)?'.format(end_mmdd),
+                            E=r'{}({})(00)?'.format(end_year, end_mmdd),
                             C=fvars.custom)
 
 
@@ -276,7 +279,7 @@ def period_set(period, fvars):
     start date and base frequency attributes of end-of-period file.
 
     Arguments:
-        period <type str>       - One of '1m', '1s', '1y'
+        period <type str>       - One of [1m, 1s, 1y, 1x]
         fvars <type NCFilename> - The representation of the end-of-period file
                                   in the mean set.
                                   fvars.base should be a base frequency

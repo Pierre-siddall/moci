@@ -262,6 +262,8 @@ class DateCheckTests(unittest.TestCase):
                              [0, 3, 0, 0, 0])
         self.assertListEqual(utils.add_period_to_date([0]*5, '1y'),
                              [1, 0, 0, 0, 0])
+        self.assertListEqual(utils.add_period_to_date([0]*5, '1x'),
+                             [10, 0, 0, 0, 0])
 
     def test_bad_string_delta(self):
         '''Test date input with bad string delta input'''
