@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -50,6 +50,8 @@ class HousekeepTests(unittest.TestCase):
         self.atmos.share = 'ShareDir'
         self.atmos.suite = mock.Mock()
         self.atmos.suite.prefix = 'RUNID'
+        self.atmos.ff_pattern = r'^RUNIDa\.[pm][{}]' + \
+                r'\d{{4}}(\d{{4}}|\w{{3}})(_\d{{2}})?(\.pp)?(\.arch)?$'
 
         self.del_inst_pp = [('INST1', True), ('INST2', False), ('INST3', True)]
         self.del_mean_pp = [('MEAN1', True), ('MEAN2', False), ('MEAN3', True)]
@@ -150,6 +152,8 @@ class HousekeepTests(unittest.TestCase):
         '''Test delete_ppfiles functionality - mean files'''
         func.logtest('Assert successful deletion of mean ppfiles:')
         self.atmos.naml.delete_sc.gcmdel = True
+        self.atmos.ff_pattern = 'MEAN1{}'
+        self.atmos.convpp_streams = ''
         mock_ft.__getitem__().__getitem__().return_value = 'MEAN'
         mock_mark.return_value = [f[0] for f in self.del_inst_pp +
                                   self.del_mean_pp]
@@ -157,11 +161,13 @@ class HousekeepTests(unittest.TestCase):
                                     self.del_mean_pp, self.del_ncfiles, False)
         self.assertEqual(
             mock_rm.mock_calls,
-            [mock.call(['MEAN1', 'MEAN2', 'MEAN3'], path='ShareDir'),
-             mock.call(['MEAN1.arch', 'MEAN2.arch', 'MEAN3.arch'],
+            [mock.call(['MEAN1.pp', 'MEAN1', 'MEAN2', 'MEAN3'],
+                       path='ShareDir'),
+             mock.call(['MEAN1.arch', 'MEAN1.arch', 'MEAN2.arch', 'MEAN3.arch'],
                        path='WorkDir', ignoreNonExist=True)]
             )
-        arch_regex = '^RUNIDa\\.[pm][a-z1-9]*(_\\d{2})?\\.arch$'
+        arch_regex = \
+            '^RUNIDa\\.[pm][a-z1-9]\\d{4}(\\d{4}|[a-z]{3})(_\\d{2})?\\.arch$'
         mock_mark.assert_called_once_with('WorkDir', arch_regex, '.arch')
         ppfiles = ['RUNIDa.pa11112233.arch', 'RUNIDa.pb11112233_44.arch',
                    'RUNIDa.pc1111mmm.arch']
@@ -228,9 +234,11 @@ class HousekeepTests(unittest.TestCase):
         '''Test delete_dumps functionality'''
         func.logtest('Assert successful deletion of dumps:')
         mock_set.return_value = self.del_dumps
-        mock_match().group.side_effect = ['11', '22', '33', '44',
-                                          '55', '66', '77', '88']
-        self.atmos.suite.cyclestring = '44'
+        mock_match().group.side_effect = [
+            'YYYYMM11', 'YYYYMM22', 'YYYYMM33', 'YYYYMM44',
+            'YYYYMM55', 'YYYYMM66', 'YYYYMM77', 'YYYYMM88'
+            ]
+        self.atmos.suite.cyclepoint.startcycle = {'iso': 'YYYYMM44T0000Z'}
         housekeeping.delete_dumps(self.atmos, self.arch_dumps, False)
         mock_rm.assert_called_once_with(self.del_dumps[0:4], path='ShareDir')
 

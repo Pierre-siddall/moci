@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -105,7 +105,7 @@ def delete_dumps(atmos, dump_names, archived):
         for fname in dumps_available:
             # Delete files upto and including current cycle time
             filetime = re.search(r'a.da(\d{8})', fname).group(1)
-            if filetime <= ''.join(atmos.suite.cyclestring[:3]):
+            if filetime <= atmos.suite.cyclepoint.startcycle['iso'][:8]:
                 to_delete.append(fname)
 
     if to_delete:
@@ -138,8 +138,8 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, nc_names, archived):
             to_delete += [nc for nc, tag in nc_names if tag]
 
     else:  # Not archiving
-        pattern = r'^{}a\.[pm][a-z1-9]*(_\d{{2}})?\.arch$'.\
-            format(atmos.suite.prefix)
+        pattern = r'^{}a\.[pm][a-z1-9]'.format(atmos.suite.prefix)
+        pattern += r'\d{4}(\d{4}|[a-z]{3})(_\d{2})?\.arch$'
         for ppfile in get_marked_files(atmos.work, pattern, '.arch'):
             pp_inst = atmos.naml.delete_sc.gpdel and \
                 re.search(FILETYPE['pp_inst_names'][REGEX](atmos.suite.prefix,
@@ -150,6 +150,12 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, nc_names, archived):
                                                            atmos.means),
                           ppfile)
             if pp_inst or pp_mean:
+                if re.match(atmos.ff_pattern.format(atmos.convpp_streams),
+                            ppfile):
+                    to_delete.append(ppfile + '.pp')
+                # Mark the original fieldsfile for deletion regardless of
+                # whether it should have been converted to pp.  If the file
+                # contains no fields then it may not have been converted
                 to_delete.append(ppfile)
 
     if to_delete:
@@ -174,7 +180,7 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, nc_names, archived):
                 lim = -3 if fname.endswith('.pp') else None
                 del_dot_arch.append(os.path.basename(fname[:lim]) + ".arch")
 
-            msg = 'Removing .arch files from work directory:\n ' + \
+        msg = 'Removing .arch files from work directory:\n ' + \
             '\n '.join([f for f in del_dot_arch])
         if utils.get_debugmode() and archived:
             # Append "ARCHIVED" suffix to files, rather than deleting
