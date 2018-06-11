@@ -1,6 +1,21 @@
 #!/usr/bin/env python2.7
 """
-Script to launch MOCI Rose stem using cron job.
+Script to launch MOCI Rose stem using launcher rose suite.
+
+The script expects the following environment variables:
+
+TESTDIR - file path to a directory where the suite source code can be extracted
+SUITE_URL - The URL of the suite rose bush page
+SUITE_REV - The revision number of the suite
+SUITE_NAME - The name of the suite being launched
+HEADER_MSG - (optional) A message to be displayed when launching the suite
+GROUPS - List of rose stem groups to be run. Passed to --groups option
+         of the the rose stem command
+ADD_OPTS - (optional) A a list of argument to be passed to the rose suite-run
+           command. The list should be specified as a python format list of
+           tuples. For example: [('a',1),('b',2)]. You can check whether you
+           have a valid string by running the command dict(eval(add_opts)). If
+           a dictionary is successfully created, then the format is correct.
 """
 
 import os
@@ -13,15 +28,34 @@ def main():
     """
     Main function for launching moci rose stem nightly test suite.
     """
+    # see module docstring for more info on list of options
     test_dir = os.environ['TESTDIR']
     suite_url = os.environ['SUITE_URL']
     suite_rev = os.environ['SUITE_REV']
     suite_name = os.environ['SUITE_NAME']
     suite_local_dir = os.path.join(test_dir, suite_name)
-    header_msg = os.environ['HEADER_MSG']
-    add_opts = os.environ['ADD_OPTS']
+    header_msg = os.environ.get('HEADER_MSG','')
     stem_group = os.environ['GROUPS']
-    
+
+    try:
+        # see module docstring for details on expected format
+        add_opts_raw = eval(os.environ['ADD_OPTS'])
+    except KeyError:
+        add_opts_raw = []
+    except SyntaxError:
+        add_opts_raw = []
+    #check that the resulting add_opts is in the expected format
+    add_opts = []
+    for t1 in add_opts_raw:
+        try:
+            if len(t1) == 2:
+                add_opts += [(t1[0], t1[1])]
+        # deliberately catching all exceptions, so that we can move on to
+        # the next list item if there's any issue
+        except:
+            pass
+
+
     msg1 = '{msg} test suite script {datetime}'
     msg1 = msg1.format(msg=header_msg,
                        datetime=str(datetime.datetime.now()))
@@ -54,7 +88,11 @@ def main():
 
     name_str = '--name={0}'.format(suite_name)
     group_str = '--group={group}'.format(group=stem_group)
-    opts_str = '--new   --no-gcontrol {0}'.format(add_opts)
+    opts_str = '--new   --no-gcontrol'
+    for opt1, value1 in add_opts:
+        opts_str += ' --{opt}={val} '.format(opt=opt1,
+                                             val=value1)
+
     suite_run_cmd = 'rose stem {name} {group} {opts}'
     suite_run_cmd = suite_run_cmd.format(name=name_str,
                                          group=group_str,
