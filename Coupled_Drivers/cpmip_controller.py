@@ -21,12 +21,132 @@ DESCRIPTION
 import math
 import re
 import sys
+import os
+import shutil
+import time
 import common
 import error
 
 
 CORES_PER_NODE_UKMO_XC40 = {'broadwell': 36,
                             'haswell': 32}
+
+
+def _get_directory_usage(directory_path, timeout=60):
+    '''
+    Get the data used in a directory, using the du -s command. This
+    command takes two arguments, the path to the directory and a timeout
+    in seconds. This timeout is required as some filesystems (notably Lustre)
+    can take a long time to respond to metadata queries.
+    '''
+    size_k = -1.0
+    if os.path.isdir(directory_path):
+        du_command = ['du', '-s', directory_path]
+        rcode, output = common.exec_subproc_timeout(du_command, timeout)
+        if rcode == 0:
+            size_k = float(output.split()[0])
+    else:
+        sys.stderr.write('[WARN] Attempting to determine size of directory %s'
+                         ' This directory doesnt exist\n' % directory_path)
+    return size_k
+
+
+def _get_workdir_netcdf_output(timeout=60):
+    '''
+    Gather any netcdf output files written to the work directory
+    '''
+    output_files = [i_f for i_f in os.listdir('.') if \
+                        i_f.split('.')[-1] == 'nc' and not os.path.islink(i_f)]
+    size_k = -1.0
+    du_command = ['du', '-c'] + output_files
+    rcode, output = common.exec_subproc_timeout(du_command, timeout)
+    if rcode == 0:
+        size_k = float(output.split()[-2])
+    return size_k
+
+def _measure_xios_client_times(timeout=120):
+    '''
+    Gather the output from XIOS client files. Takes in an optional value
+    of timeout in seconds, as there may be a lot of files and we don't want
+    to hang around forever if there is a problem opening them all. Returns
+    the mean time and high watermark time
+    '''
+    total_measured = 0
+    total_time = 0.
+    max_time = 0.
+    files = [i_f for i_f in os.listdir('.') if \
+                 'xios_client' in i_f and 'out' in i_f]
+    total_files = len(files)
+    wall_start = time.time()
+    for i_f in files:
+        rcode, out = common.exec_subproc(['grep', 'total time', i_f],
+                                         verbose=False)
+        if rcode == 0:
+            meas_time = float(out.split()[-2])
+            total_measured += 1
+            total_time += meas_time
+            if meas_time > max_time:
+                max_time = meas_time
+        #check if out timeout has been reached
+        accum_wall = time.time() - wall_start
+        if accum_wall > timeout:
+            break
+    sys.stdout.write('[INFO] Measured timings for (%s/%s) XIOS clients\n' %
+                     (total_measured, total_files))
+    mean_time = total_time / float(total_measured)
+    return mean_time, max_time
+
+
+def data_intensity_initial(common_envar):
+    '''
+    Setup for the data intensity metric, getting intial directory sizes,
+    and write to a placeholder file. Also set up IODEF file to produce
+    XIOS timing files
+    '''
+    size_k = _get_directory_usage(common_envar['DATAM'])
+    with common.open_text_file('datam.size', 'w') as f_size:
+        f_size.write(str(size_k))
+    with open('iodef.xml', 'r') as f_in, \
+            open('iodef_out.xml', 'w') as f_out:
+        update = False
+        for line in f_in.readlines():
+            if update:
+                if 'variable id="print_file"' in line:
+                    f_out.write(line)
+                    update = False
+                else:
+                    new_line = '\t  <variable id="print_file"           ' + \
+                        '     type="bool">true</variable>\n'
+                    f_out.write(new_line)
+                    f_out.write(line)
+                    update = False
+            else:
+                f_out.write(line)
+                if 'variable id="using_server"' in line:
+                    update = True
+    shutil.move('iodef_out.xml', 'iodef.xml')
+
+def data_intensity_final(core_hour_cycle, common_envar):
+    '''
+    Calculate the data intensity metric. This is the increase in size of
+    DATAM between the start and end of the coupled app, as well as the
+    total size of the NEMO output files in the coupled work directory
+    '''
+    with common.open_text_file('datam.size', 'r') as f_size:
+        for line in f_size.readlines():
+            size_init = float(line)
+    size_final = _get_directory_usage(common_envar['DATAM'])
+    size_wrkdir = _get_workdir_netcdf_output()
+    if size_final > -1.0 and size_init > -1.0 and size_wrkdir > -1.0:
+        data_produced_k = (size_final - size_init) + size_wrkdir
+        data_produced_g = data_produced_k / (1024. * 1024.)
+        data_intensity = data_produced_g / core_hour_cycle
+    else:
+        sys.stderr.write('[WARN] The du operation to determine the data volume'
+                         ' has timed out. This metric will be ignored\n')
+        data_produced_g = -1
+        data_intensity = -1
+    return data_produced_g, data_intensity
 
 def get_allocated_cpus(cpmip_envar):
     '''
@@ -121,6 +241,46 @@ def __get_jobfile_info(jobfile):
     return pbs_l_dict
 
 
+def __get_um_io(pe0_output):
+    '''
+    Grab the UM timing information for IO routines if avaliable. These
+    routines are AS STASH, DUMPCTL, MEANCTL, IOS_Shutdown,
+    IOS_stash_client_fini
+    Note that not all these routines may be avaliable in a given
+    Run
+    '''
+    get_times = False
+    possible_routines = ['AS STASH', 'DUMPCTL', 'MEANCTL',
+                         'IOS_Shutdown', 'IOS_stash_client_fini']
+    present = []
+    times = []
+    with open(pe0_output, 'r') as f_pe0:
+        for line in f_pe0:
+            if 'MPP : Inclusive timer summary' in line:
+                get_times = True
+            if 'CPU TIMES (sorted by wallclock times)' in line:
+                get_times = False
+            if get_times:
+                for routine in possible_routines:
+                    routine_regex = re.compile(
+                        r"\d+\s*%s\s*(\d+.\d+)" % routine)
+                    routine_match = routine_regex.search(line)
+                    if routine_match:
+                        present.append(routine)
+                        cpu_time = float(routine_match.group(1))
+                        times.append(cpu_time)
+    missing = set(possible_routines) - set(present)
+    missing = list(missing)
+    if len(missing) > 0:
+        for missing_routine in missing:
+            sys.stdout.write('[INFO] IO timings running, routine %s'
+                             ' unavaliable in this configuration\n' %
+                             (missing_routine,))
+    total_io_times = sum(times)
+    return total_io_times
+
+
+
 def __get_um_info(pe0_output):
     '''
     Grab the UM output. Returns the UM CPU time (sans coupling), and the time
@@ -153,12 +313,43 @@ def __get_um_info(pe0_output):
                     um_shell_time = float(um_shell_match.group(1))
     try:
         coupling_time = geto2a_time + puta2o_time + inita2o_time
-        model_time = um_shell_time - coupling_time
+        model_time = um_shell_time
     except NameError:
         sys.stderr.write('[FAIL] Unable to determine Oasis timings from'
                          ' the UM standard output\n')
         sys.exit(error.MISSING_CONTROLLER_FILE_ERROR)
     return model_time, coupling_time
+
+
+def __get_nemo_io(nemo_timing_output='timing.output'):
+    '''
+    Grab NEMO IO timing output. Takies an optional argument, the path to the
+    NEMO timing.output file for NEMO/CICE. Returns the time spent in the
+    restart file writing routines (not including file writing in XIOS)
+    '''
+    total_time_regex = re.compile(r"\s*Total\s*\|\s*(\d+.\d+)")
+    # These regexes will pull out a percentage
+    iom_rstget_regex = re.compile(r"\s*iom_rstget\s*\d+.\d+\s*(\d+.\d+)")
+    iom_rstput_regex = re.compile(r"\s*iom_rstput\s*\d+.\d+\s*(\d+.\d+)")
+    with common.open_text_file(nemo_timing_output, 'r') as nemo_timing_handle:
+        for line in nemo_timing_handle.readlines():
+            tot_match = total_time_regex.search(line)
+            iom_rstget_match = iom_rstget_regex.search(line)
+            iom_rstput_match = iom_rstput_regex.search(line)
+            if tot_match:
+                total_time = float(tot_match.group(1))
+            if iom_rstget_match:
+                iom_rstget_percentage = float(iom_rstget_match.group(1))
+            if iom_rstput_match:
+                iom_rstput_percentage = float(iom_rstput_match.group(1))
+        try:
+            restart_io_time = total_time * \
+                (iom_rstget_percentage + iom_rstput_percentage) * 0.01
+        except NameError:
+            sys.stderr.write('[FAIL] Unable to determine NEMO restart IO'
+                             ' timings from the NEMO standard output\n')
+            sys.exit(error.MISSING_CONTROLLER_FILE_ERROR)
+        return restart_io_time
 
 
 def __get_nemo_info(nemo_timing_output='timing.output'):
@@ -181,6 +372,9 @@ def __get_nemo_info(nemo_timing_output='timing.output'):
     sbc_cpl_snd_regex = re.compile(r"\s*sbc_cpl_snd\s*\d+.\d+\s*(\d+.\d+)")
     sbc_ice_cice_regex = re.compile(r"\s*sbc_ice_cice\s*\d+.\d+\s*(\d+.\d+)")
 
+    #depending on the particular configuration we may not be able to determine
+    #the time spent in CICE
+    cice_measurement = False
     with common.open_text_file(nemo_timing_output, 'r') as nemo_timing_handle:
         for line in nemo_timing_handle.readlines():
             tot_match = total_time_regex.search(line)
@@ -198,17 +392,24 @@ def __get_nemo_info(nemo_timing_output='timing.output'):
                 snd_percentge = float(cpl_snd_match.group(1))
             if sbc_ice_cice_match:
                 cice_percentage = float(sbc_ice_cice_match.group(1))
+                cice_measurement = True
 
     try:
         model_time = total_time * \
             (100.0 - rcv_percentge - init_percentge - snd_percentge) * 0.01
         coupling_time = total_time * \
             (rcv_percentge + init_percentge + snd_percentge) * 0.01
-        cice_time = total_time * cice_percentage * 0.01
     except NameError:
         sys.stderr.write('[FAIL] Unable to determine Oasis timings from'
                          ' the NEMO standard output\n')
         sys.exit(error.MISSING_CONTROLLER_FILE_ERROR)
+
+    if cice_measurement:
+        cice_time = total_time * cice_percentage * 0.01
+    else:
+        sys.stdout.write('[INFO] Unable to determine time in CICE for this'
+                         ' configuration')
+        cice_time = False
 
     return model_time, coupling_time, cice_time
 
@@ -233,6 +434,14 @@ def __update_namelists_for_timing(cpmip_envar):
     else:
         mod_shared_nl.var_val('ltimer', '.false.')
     mod_shared_nl.var_val('l_oasis_timers', '.true.')
+
+    #If required update the namelist for IO timing.
+    if cpmip_envar['IO_COST'] in ('true', 'True'):
+        mod_shared_nl.var_val('lstashdumptimer', '.true.')
+        nn_timing_val = 2
+    else:
+        nn_timing_val = 1
+
     mod_shared_nl.replace()
 
     # Let the UM only write out on the first task (rank 0) to attempt to
@@ -244,7 +453,7 @@ def __update_namelists_for_timing(cpmip_envar):
     mod_ioscntl_nl.replace()
 
     mod_namelist_cfg = common.ModNamelist(cpmip_envar['NEMO_NL'])
-    mod_namelist_cfg.var_val('nn_timing', 1)
+    mod_namelist_cfg.var_val('nn_timing', nn_timing_val)
     mod_namelist_cfg.replace()
 
 
@@ -258,6 +467,8 @@ def _load_environment_variables(cpmip_envar):
                          'UM version is not set\n')
         sys.exit(error.MISSING_EVAR_ERROR)
     _ = cpmip_envar.load_envar('NEMO_NL', 'namelist_cfg')
+    _ = cpmip_envar.load_envar('IO_COST', 'False')
+    _ = cpmip_envar.load_envar('DATA_INTENSITY', 'False')
 
     return cpmip_envar
 
@@ -328,10 +539,15 @@ def _load_environment_variables_finalise(cpmip_envar):
                          'not set\n')
         sys.exit(error.MISSING_EVAR_ERROR)
 
+    # Are we calculating IO cost
+    _ = cpmip_envar.load_envar('IO_COST', 'False')
+    # Are we calculating data intensity
+    _ = cpmip_envar.load_envar('DATA_INTENSITY', 'False')
+
     return cpmip_envar
 
 
-def _setup_cpmip_controller():
+def _setup_cpmip_controller(common_envar):
     '''
     Setup the environment and any files required by the executable
     '''
@@ -345,6 +561,14 @@ def _setup_cpmip_controller():
 
     __update_namelists_for_timing(cpmip_envar)
 
+    # Are we prerforming the data intensity calculations
+    if cpmip_envar['DATA_INTENSITY'] in ('true', 'True'):
+        sys.stdout.write('[INFO] Calculating the data intensity metric.'
+                         ' Whilst this will not affect the execution time'
+                         ' of the model, it may increase time spent in the'
+                         ' model drivers\n')
+        data_intensity_initial(common_envar)
+
     return cpmip_envar
 
 
@@ -356,7 +580,7 @@ def _set_launcher_command(_):
     return launch_cmd
 
 
-def _finalize_cpmip_controller():
+def _finalize_cpmip_controller(common_envar):
     '''
     Finalize the CPMIP controller.
     '''
@@ -386,7 +610,8 @@ def _finalize_cpmip_controller():
     nemo_time, nemo_coupling_time, cice_time = __get_nemo_info()
     nemo_time /= nemo_cpus
     nemo_coupling_time /= nemo_cpus
-    cice_time /= nemo_cpus
+    if cice_time:
+        cice_time /= nemo_cpus
     # Get the arguments from the -l PBS directive
     pbs_l_dict = __get_jobfile_info(cpmip_envar['CYLC_TASK_LOG_ROOT'])
 
@@ -440,9 +665,14 @@ def _finalize_cpmip_controller():
     aprun_time_message = 'Time in APRUN: %s s\n' % cpmip_envar['time_in_aprun']
     um_time_message = 'Time in UM model code: %i s\nTime in UM coupling' \
         ' code: %i s\n' % (um_time, um_coupling_time)
-    nemo_time_message = 'Time in NEMO model code: %i s\n   Including' \
-        ' %is in CICE\nTime in NEMO coupling code: %i s\n' % \
-        (nemo_time, cice_time, nemo_coupling_time)
+    if cice_time:
+        nemo_time_message = 'Time in NEMO model code: %i s\n   Including' \
+            ' %is in CICE\nTime in NEMO coupling code: %i s\n' % \
+            (nemo_time, cice_time, nemo_coupling_time)
+    else:
+        nemo_time_message = 'Time in NEMO model code: %i s\nTime in' \
+            ' NEMO coupling code: %i s\n' % \
+            (nemo_time, nemo_coupling_time)
     ypd_message = 'This equates to %.2f years per day run (SYPD)\n' % \
         years_per_day
 
@@ -460,6 +690,45 @@ def _finalize_cpmip_controller():
 
     coupling_metric_message = 'The CPMIP coupling metric for this run is ' \
         '%.3f\n' % coupling_metric
+
+    if cpmip_envar['IO_COST'] in ('true', 'True'):
+        # determine for the UM
+        um_io_time = __get_um_io(um_pe0_stdout_file)
+        um_io_frac = float(um_io_time) / float(um_time)
+        um_io_frac_mess = 'The UM spends %i s performing IO\n   This' \
+            ' is a fraction of %.2f\n' % (um_io_time, um_io_frac)
+        # determine for NEMO
+        nemo_io_time = __get_nemo_io()
+        nemo_io_time /= nemo_cpus
+        nemo_io_frac = float(nemo_io_time) / float(nemo_time)
+        nemo_io_frac_mess = 'NEMO spends %i s performing IO\n   This' \
+            ' is a fraction of %.2f\n' % (nemo_io_time, nemo_io_frac)
+        # determine XIOS client
+        xios_client_mean, xios_client_max = _measure_xios_client_times()
+        xios_io_mess = 'XIOS spends on average %i s in each client, and' \
+            ' a maxiumum time of %i s\n' % (xios_client_mean,
+                                            xios_client_max)
+    else:
+        um_io_frac_mess = ''
+        nemo_io_frac_mess = ''
+        xios_io_mess = ''
+
+    if cpmip_envar['DATA_INTENSITY'] in ('true', 'True'):
+        core_hour_cycle = total_cpus * \
+            float(int(cpmip_envar['time_in_aprun']) * secs_to_hours)
+        data_produced, data_intensity = \
+            data_intensity_final(core_hour_cycle, common_envar)
+        if data_intensity > -1:
+            data_intensity_msg = 'This cycle produces %.2f GiB of data.\n' \
+                '  The data intensity metric is %.6f GiB per core hour\n' % \
+                (data_produced, data_intensity)
+        else:
+            #The du operation timed out
+            data_intensity_msg = 'Data intensity measurement unavailable' \
+                ' owing to filesystem timeout\n'
+    else:
+        data_intensity_msg = ''
+
 
 
     # Produce a nice summary of the coupling metric and various information
@@ -486,6 +755,10 @@ def _finalize_cpmip_controller():
                      ' run\n' %
                      (coupling_metric * total_resource * secs_to_hours,))
     sys.stdout.write(chsy_message)
+    sys.stdout.write(data_intensity_msg)
+    sys.stdout.write('\n%s' % um_io_frac_mess)
+    sys.stdout.write('\n%s' % nemo_io_frac_mess)
+    sys.stdout.write('\n%s' % xios_io_mess)
     sys.stdout.write('%s\n' % ('-'*80,))
 
     # Write an output file containing runtime and processor number information
@@ -499,6 +772,10 @@ def _finalize_cpmip_controller():
         cpmip_f.write('%s%s%s%s%s%s' % (aprun_time_message, um_time_message,
                                         nemo_time_message, ypd_message,
                                         chsy_message, coupling_metric_message))
+        cpmip_f.write(um_io_frac_mess)
+        cpmip_f.write(nemo_io_frac_mess)
+        cpmip_f.write(xios_io_mess)
+        cpmip_f.write(data_intensity_msg)
         cpmip_f.write('UM Processors: %i\n' % um_cpus)
         cpmip_f.write('NEMO Processors: %i\n' % nemo_cpus)
         if xios_cpus:
@@ -506,16 +783,16 @@ def _finalize_cpmip_controller():
 
 
 
-def run_controller(mode):
+def run_controller(mode, common_envar):
     '''
     Run the CPMIP controller.
     '''
     if mode == 'run_controller':
-        exe_envar = _setup_cpmip_controller()
+        exe_envar = _setup_cpmip_controller(common_envar)
 
         launch_cmd = _set_launcher_command(exe_envar)
     elif mode == 'finalize':
-        _finalize_cpmip_controller()
+        _finalize_cpmip_controller(common_envar)
         exe_envar = None
         launch_cmd = None
 

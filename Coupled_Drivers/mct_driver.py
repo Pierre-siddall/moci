@@ -129,7 +129,7 @@ def _setup_executable(common_envar):
     if mct_envar['CPMIP_ANALYSIS'].lower().startswith('t'):
         controller_mode = "run_controller"
         sys.stdout.write('[INFO] mct_driver: CPMIP analyis will be performed\n')
-        cpmip_controller.run_controller(controller_mode)
+        cpmip_controller.run_controller(controller_mode, common_envar)
 
     return mct_envar
 
@@ -143,7 +143,7 @@ def _set_launcher_command(_):
     return launch_cmd
 
 
-def _finalize_executable(_):
+def _finalize_executable(common_envar):
     '''
     Perform any tasks required after completion of model run
     '''
@@ -157,7 +157,7 @@ def _finalize_executable(_):
         controller_mode = "finalize"
         sys.stdout.write(
             '[INFO] mct_driver: CPMIP analyis is being performed\n')
-        cpmip_controller.run_controller(controller_mode)
+        cpmip_controller.run_controller(controller_mode, common_envar)
 
 
 def run_driver(common_envar, mode):

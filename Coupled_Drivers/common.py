@@ -24,6 +24,7 @@ import re
 import os
 import sys
 import subprocess
+import threading
 import inc_days
 
 class LoadEnvar(object):
@@ -310,6 +311,28 @@ def setup_runtime():
                  + run_length[5]
 				 				 				 
     return runlen_sec
+
+def exec_subproc_timeout(cmd, timeout_sec=10):
+    '''
+    Execute a given shell command with a timeout. Takes a list containing
+    the commands to be run, and an integer timeout_sec for how long to
+    wait for the command to run. Returns the return code from the process
+    and the standard out from the command or 'None' if the command times out.
+    '''
+    process = subprocess.Popen(cmd, shell=False,
+                               stdin=subprocess.PIPE,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
+    timer = threading.Timer(timeout_sec, process.kill)
+    try:
+        timer.start()
+        stdout, err = process.communicate()
+        if err:
+            sys.stderr.write('[SUBPROCESS ERROR] %s\n' % error)
+        rcode = process.returncode
+    finally:
+        timer.cancel()
+    return rcode, stdout
 
 
 def exec_subproc(cmd, verbose=True):
