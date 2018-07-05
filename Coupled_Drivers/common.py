@@ -173,10 +173,12 @@ def find_previous_workdir(cyclepoint, workdir, taskname):
     #find the work directory for the previous cycle
     work_cycles = os.listdir(cyclesdir)
     work_cycles.sort()
-    try:
-        work_cycles.remove(cyclepoint)
-    except ValueError:
-        pass
+    # remove the current cyclepoint if present, and any future cyclepoints
+    # that may mess up the automatic restart
+    for work_cycle in work_cycles:
+        if work_cycle >= cyclepoint:
+            work_cycles.remove(cyclepoint)
+            
     # find the last restart directory for the task we are interested in
     # initialise previous_task_cycle to None
     previous_task_cycle = None
