@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2015-2017 Met Office. All rights reserved.

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2015-2017 Met Office. All rights reserved.
@@ -38,8 +38,8 @@ import archer
 class SuiteEnvironment(object):
     '''Object to hold model independent aspects of the post processing app'''
     def __init__(self, sourcedir, input_nl='atmospp.nl'):
-        from nlist import loadNamelist
-        load_nl = loadNamelist(input_nl)
+        from nlist import load_namelist
+        load_nl = load_namelist(input_nl)
         try:
             self.naml = load_nl.suitegen
         except AttributeError:

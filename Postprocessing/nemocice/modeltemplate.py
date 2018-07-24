@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2015-2018 Met Office. All rights reserved.
@@ -45,7 +45,7 @@ class ModelTemplate(control.RunPostProc):
     def __init__(self, input_nl='nemocicepp.nl'):
         name = self.__class__.__name__
         self.naml = utils.Variables()
-        namelists_in_file = nlist.loadNamelist(input_nl)
+        namelists_in_file = nlist.load_namelist(input_nl)
         for nl_name in dir(namelists_in_file):
             modelprefix = name.lower().replace('postproc', '') + '_'
             if nl_name.startswith(modelprefix):
@@ -67,7 +67,7 @@ class ModelTemplate(control.RunPostProc):
                 self.naml.processing
                 )
             msg = 'Processing {} means'.format(
-                ','.join(self.requested_means.keys())
+                ','.join(list(self.requested_means.keys()))
                 )
             utils.log_msg(msg, level='INFO')
 
@@ -420,9 +420,9 @@ class ModelTemplate(control.RunPostProc):
 
         tmp_inputs = copy.copy(inputs)
         if archive_mean:
-            next_id = self.requested_means.keys().index(inputs.base) + 1
+            next_id = list(self.requested_means.keys()).index(inputs.base) + 1
             try:
-                period = self.requested_means.keys()[next_id]
+                period = list(self.requested_means.keys())[next_id]
             except IndexError:
                 # Archive all top mean files
                 call_method = ''
@@ -484,9 +484,15 @@ class ModelTemplate(control.RunPostProc):
                 component, self.prefix, self.model_realm,
                 base=base, start_date=startdate, custom=field
                 )
-        except NameError as exc:
+        except UnboundLocalError as exc:
+            try:
+                # Python 3+
+                errmsg = exc.with_traceback(None)
+            except AttributeError:
+                # Python 2.7
+                errmsg = exc.message
             msg = 'unable to extract "{}" from filename: {}'.\
-                format(str(exc.message).split('\'')[1], filename)
+                format(str(errmsg).split('\'')[1], filename)
             utils.log_msg('filename_components: ' + msg, level='ERROR')
             ncf = netcdf_filenames.NCFilename('component', 'PREFIX', 'R')
 
@@ -604,7 +610,7 @@ class ModelTemplate(control.RunPostProc):
 
                     if period != pmean.component:
                         # Either archive or delete base mean components
-                        if period == self.requested_means.keys()[0] and \
+                        if period == list(self.requested_means.keys())[0] and \
                                 pmean.component not in self.additional_means:
                             msg = 'Deleting component means for '
                             utils.log_msg(msg + pmean.fname['file'])
@@ -647,7 +653,7 @@ class ModelTemplate(control.RunPostProc):
 
             # Select additional means files, not in base_component
             # or standard means
-            requested_means = self.requested_means.keys()
+            requested_means = list(self.requested_means.keys())
             additional = set(self.additional_means).\
                 difference(set(requested_means))
             if len(requested_means) > 0:

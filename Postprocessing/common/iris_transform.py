@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2017 Met Office. All rights reserved.
@@ -199,11 +199,11 @@ def save_format(cube, outfile, fileformat, kwargs=None):
         msg += 'Could not extract data: {}'.format(err)
         utils.log_msg(msg, level='WARN')
     except KeyError as err:
-        if call_method in err:
+        if call_method in str(err):
             msg += 'File format not recognised: {}'.format(fileformat)
         else:
-            msg += 'Could not extract data - missing keyword: {}'.format(err)
-        utils.log_msg(msg, level='WARN')
+            msg += 'Could not extract data - missing keyword: {}'
+        utils.log_msg(msg.format(str(err)), level='WARN')
 
     if os.path.isfile(outfile) and rtn_val == 0:
         msg += 'Saved data to {} file: {}'.format(fileformat, outfile)

@@ -1,7 +1,7 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -35,7 +35,9 @@ try:
     import archive_integrity
 except ImportError:
     pass
-    
+
+assert sys.version_info >= (2, 7)
+
 def run_postproc():
     '''Main function for PostProcessing App'''
     timer.initialise_timer()

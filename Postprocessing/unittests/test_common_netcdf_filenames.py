@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2016-2018 Met Office. All rights reserved.
@@ -13,7 +13,12 @@
 *****************************COPYRIGHT******************************
 '''
 import unittest
-import mock
+try:
+    # mock is integrated into unittest as of Python 3.3
+    import unittest.mock as mock
+except ImportError:
+    # mock is a standalone package (back-ported)
+    import mock
 
 import testing_functions as func
 import runtime_environment

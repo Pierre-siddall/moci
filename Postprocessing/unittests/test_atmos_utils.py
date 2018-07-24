@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2015-2018 Met Office. All rights reserved.
@@ -15,7 +15,12 @@
 import unittest
 import os
 import re
-import mock
+try:
+    # mock is integrated into unittest as of Python 3.3
+    import unittest.mock as mock
+except ImportError:
+    # mock is a standalone package (back-ported)
+    import mock
 
 import testing_functions as func
 import runtime_environment
@@ -28,17 +33,13 @@ import housekeeping
 runtime_environment.setup_env()
 import atmos
 
-
-try:
-    IRIS_AVAIL = True
-    try:
-        IRIS_DATA = os.path.isfile(housekeeping.iris_transform.
-                                   iris.sample_data_path('air_temp.pp'))
-    except ValueError:
-        # Requires the "iris_sample_data" package to be installed
-        IRIS_DATA = False
-except AttributeError:
-    IRIS_DATA = IRIS_AVAIL = False
+IRIS_AVAIL = hasattr(housekeeping, 'iris_transform')
+if not IRIS_AVAIL:
+    func.logtest('\n*** Iris is not available.  '
+                 '4 ATMOS_UTILS tests (TransformTests) will be skipped.\n')
+if not housekeeping.MULE_AVAIL:
+    func.logtest('\n*** Mule is not available.  '
+                 '3 ATMOS_UTILS tests (HeaderTests) will be skipped.\n')
 
 
 class HousekeepTests(unittest.TestCase):
@@ -78,7 +79,7 @@ class HousekeepTests(unittest.TestCase):
             mock_rm.mock_calls,
             [mock.call(['INST1', 'INST3'], path='ShareDir'),
              mock.call(['INST1.arch', 'INST3.arch'], path='WorkDir',
-                       ignoreNonExist=True)]
+                       ignore_non_exist=True)]
             )
 
     @mock.patch('housekeeping.utils.remove_files')
@@ -92,7 +93,7 @@ class HousekeepTests(unittest.TestCase):
             mock_rm.mock_calls,
             [mock.call(['MEAN1', 'MEAN3'], path='ShareDir'),
              mock.call(['MEAN1.arch', 'MEAN3.arch'], path='WorkDir',
-                       ignoreNonExist=True)]
+                       ignore_non_exist=True)]
             )
 
     @mock.patch('utils.remove_files')
@@ -105,7 +106,7 @@ class HousekeepTests(unittest.TestCase):
         self.assertEqual(
             mock_rm.mock_calls,
             [mock.call(['NCFILE2'], path='ShareDir'),
-             mock.call(['NCFILE2.arch'], path='WorkDir', ignoreNonExist=True)]
+             mock.call(['NCFILE2.arch'], path='WorkDir', ignore_non_exist=True)]
             )
 
     @mock.patch('housekeeping.os.rename')
@@ -142,7 +143,7 @@ class HousekeepTests(unittest.TestCase):
             mock_rm.mock_calls,
             [mock.call(['INST1', 'INST2', 'INST3'], path='ShareDir'),
              mock.call(['INST1.arch', 'INST2.arch', 'INST3.arch'],
-                       path='WorkDir', ignoreNonExist=True)]
+                       path='WorkDir', ignore_non_exist=True)]
             )
 
     @mock.patch('housekeeping.get_marked_files')
@@ -164,7 +165,7 @@ class HousekeepTests(unittest.TestCase):
             [mock.call(['MEAN1.pp', 'MEAN1', 'MEAN2', 'MEAN3'],
                        path='ShareDir'),
              mock.call(['MEAN1.arch', 'MEAN1.arch', 'MEAN2.arch', 'MEAN3.arch'],
-                       path='WorkDir', ignoreNonExist=True)]
+                       path='WorkDir', ignore_non_exist=True)]
             )
         arch_regex = \
             '^RUNIDa\\.[pm][a-z1-9]\\d{4}(\\d{4}|[a-z]{3})(_\\d{2})?\\.arch$'
@@ -747,11 +748,8 @@ class TransformTests(unittest.TestCase):
     '''Unit tests relating to transformation of fieldsfiles'''
     def setUp(self):
         self.umutils = 'UMDIR/../utilities'
-        if IRIS_DATA:
-            self.ppfile = \
-                housekeeping.iris_transform.iris.sample_data_path('air_temp.pp')
-        else:
-            self.ppfile = None
+        self.ppfile = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                   'air_temp.pp')
         self.mule_avail = housekeeping.MULE_AVAIL
 
 
@@ -816,7 +814,6 @@ class TransformTests(unittest.TestCase):
         self.assertIn('I failed', func.capture('err'))
 
     @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
-    @unittest.skipUnless(IRIS_DATA, 'Iris sample data is not available')
     @mock.patch('housekeeping.iris_transform.save_format', return_value=0)
     def test_extract_to_netcdf(self, mock_save):
         '''Test extraction of single field from single fieldsfile'''
@@ -835,7 +832,6 @@ class TransformTests(unittest.TestCase):
         self.assertIn('Fieldsfile name does not match', func.capture('err'))
 
     @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
-    @unittest.skipUnless(IRIS_DATA, 'Iris sample data is not available')
     @mock.patch('housekeeping.iris_transform.save_format', return_value=10)
     def test_extract_to_netcdf_failsave(self, mock_save):
         '''Test failure to save netCDF file'''

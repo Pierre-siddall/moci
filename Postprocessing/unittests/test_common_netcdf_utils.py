@@ -1,7 +1,7 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -13,7 +13,12 @@
 *****************************COPYRIGHT******************************
 '''
 import unittest
-import mock
+try:
+    # mock is integrated into unittest as of Python 3.3
+    import unittest.mock as mock
+except ImportError:
+    # mock is a standalone package (back-ported)
+    import mock
 import numpy
 from netCDF4 import netcdftime
 
@@ -94,7 +99,15 @@ class FixTimeTests(unittest.TestCase):
                 [numpy.array([0., 86400])]
             date = netcdf_utils.time_bounds_var_to_date('fname', 'timevar')
             # assertEqual doesn't work for dates so test string representation
-            rtnval = '[1950-01-01 00:00:00, 1950-01-02 00:00:00]'
+            try:
+                # netcdftime.__version__ >= 1.4.1
+                rtnval = str([netcdftime._netcdftime.DatetimeNoLeap
+                              (1950, 1, 1, 0, 0, 0, 0, 6, 1),
+                              netcdftime._netcdftime.DatetimeNoLeap
+                              (1950, 1, 2, 0, 0, 0, 0, 0, 2)])
+            except AttributeError:
+                # Prior to introduction of netcdftime._netcdftime attribute
+                rtnval = '[1950-01-01 00:00:00, 1950-01-02 00:00:00]'
             self.assertEqual(date.__repr__(), rtnval)
 
     def test_time_bounds_date_gregorian(self):

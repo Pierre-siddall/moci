@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2015-2018 Met Office. All rights reserved.
@@ -191,7 +191,7 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, nc_names, archived):
         else:
             utils.log_msg(msg)
             utils.remove_files(del_dot_arch, path=atmos.work,
-                               ignoreNonExist=True)
+                               ignore_non_exist=True)
 
 
 @timer.run_timer

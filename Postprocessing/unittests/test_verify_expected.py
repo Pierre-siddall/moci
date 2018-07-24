@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2016-2018 Met Office. All rights reserved.
@@ -13,7 +13,12 @@
 *****************************COPYRIGHT******************************
 '''
 import unittest
-import mock
+try:
+    # mock is integrated into unittest as of Python 3.3
+    import unittest.mock as mock
+except ImportError:
+    # mock is a standalone package (back-ported)
+    import mock
 
 import testing_functions as func
 
@@ -341,9 +346,9 @@ class RestartFilesTests(unittest.TestCase):
                   'PREFIXa.da19970901_00', 'PREFIXa.da19971201_00',
                   'PREFIXa.da19980301_00', 'PREFIXa.da19980601_00',
                   'PREFIXa.da19980901_00', 'PREFIXa.da19981101_00']
-        self.assertListEqual(self.files.expected_files()['ada.file'],
-                             expect[:-1])
-        self.assertListEqual(self.files.expected_files().keys(), ['ada.file'])
+        actual = self.files.expected_files()
+        self.assertListEqual(actual['ada.file'], expect[:-1])
+        self.assertListEqual(list(actual.keys()), ['ada.file'])
 
         self.files.finalcycle = True
         self.assertListEqual(self.files.expected_files()['ada.file'], expect)
@@ -384,8 +389,9 @@ class RestartFilesTests(unittest.TestCase):
                              expect[:-1])
 
         self.files.finalcycle = True
-        self.assertListEqual(self.files.expected_files()['oda.file'], expect)
-        self.assertListEqual(self.files.expected_files().keys(), ['oda.file'])
+        actual = self.files.expected_files()
+        self.assertListEqual(actual['oda.file'], expect)
+        self.assertListEqual(list(actual.keys()), ['oda.file'])
 
     def test_expected_nemo_dumps_buffer(self):
         ''' Test calculation of expected nemo restart files buffer=3'''
@@ -410,7 +416,7 @@ class RestartFilesTests(unittest.TestCase):
             self.files.finalcycle = True
             dict_returned = self.files.expected_files()
             self.assertListEqual(dict_returned['oda.file'], expect)
-            self.assertListEqual(dict_returned.keys(), ['oda.file'])
+            self.assertListEqual(list(dict_returned.keys()), ['oda.file'])
 
     def test_expected_nemo_olddumps(self):
         ''' Test calculation of expected nemo restarts with 3.1 datestamp'''
@@ -427,8 +433,9 @@ class RestartFilesTests(unittest.TestCase):
                              expect[:-1])
 
         self.files.finalcycle = True
-        self.assertListEqual(self.files.expected_files()['oda.file'], expect)
-        self.assertListEqual(self.files.expected_files().keys(), ['oda.file'])
+        actual_final = self.files.expected_files()
+        self.assertListEqual(actual_final['oda.file'], expect)
+        self.assertListEqual(list(actual_final.keys()), ['oda.file'])
 
     def test_expected_cice_dumps(self):
         ''' Test calculation of expected cice restart files '''
@@ -446,8 +453,9 @@ class RestartFilesTests(unittest.TestCase):
                              expect[:-2])
 
         self.files.finalcycle = True
-        self.assertListEqual(self.files.expected_files()['ida.file'], expect)
-        self.assertListEqual(self.files.expected_files().keys(), ['ida.file'])
+        actual = self.files.expected_files()
+        self.assertListEqual(actual['ida.file'], expect)
+        self.assertListEqual(list(actual.keys()), ['ida.file'])
 
     def test_expected_cice_dumps_buffer(self):
         ''' Test calculation of expected cice restart files - buffer=2'''
@@ -483,8 +491,10 @@ class RestartFilesTests(unittest.TestCase):
                   'PREFIXi.restart.age.1997-03-01-00000*blue',
                   'PREFIXi.restart.1998-03-01-00000*blue',
                   'PREFIXi.restart.age.1998-03-01-00000*blue']
-        self.assertListEqual(self.files.expected_files()['ida.file'], expect)
-        self.assertListEqual(self.files.expected_files().keys(), ['ida.file'])
+
+        actual = self.files.expected_files()
+        self.assertListEqual(actual['ida.file'], expect)
+        self.assertListEqual(list(actual.keys()), ['ida.file'])
 
 
 class DiagnosticFilesTests(unittest.TestCase):
@@ -546,13 +556,19 @@ class DiagnosticFilesTests(unittest.TestCase):
                                                   '1m', '2s', 'y']):
             yield_rtn.append(rval)
 
-        self.assertListEqual(yield_rtn,
-                             [('6h', '1m', ['OtherFld1', 'OtherFld2'],
-                               'instantaneous'),
-                              ('1d', '1d', ['grid-T'], 'instantaneous'),
-                              ('1m', '1m', self.files.naml.meanfields, 'mean'),
-                              ('2s', '2s', self.files.naml.meanfields, 'mean'),
-                              ('y', 'y', self.files.naml.meanfields, 'mean')])
+        expected = [('6h', '1m', ['OtherFld1', 'OtherFld2'], 'instantaneous'),
+                    ('1d', '1d', ['grid-T'], 'instantaneous'),
+                    ('1m', '1m', self.files.naml.meanfields, 'mean'),
+                    ('2s', '2s', self.files.naml.meanfields, 'mean'),
+                    ('y', 'y', self.files.naml.meanfields, 'mean')]
+
+        for exp, act in zip(expected, yield_rtn):
+            for elem in range(len(exp)):
+                if isinstance(elem, str):
+                    self.assertEqual(exp[elem], act[elem])
+                else:
+                    self.assertListEqual(sorted(exp[elem]), sorted(act[elem]))
+
         self.assertListEqual(self.files.naml.meanfields,
                              verify_namelist.NemoVerify().meanfields)
 
@@ -564,11 +580,12 @@ class DiagnosticFilesTests(unittest.TestCase):
         for rval in self.files.gen_reinit_period(['streams_1d_1m',
                                                   'm', 's', 'y']):
             yield_rtn.append(rval)
-        self.assertListEqual(yield_rtn,
-                             [('1d', '1m', [''], 'instantaneous'),
-                              ('m', 'm', [''], 'mean'),
-                              ('s', 's', [''], 'mean'),
-                              ('y', 'y', [''], 'mean')])
+
+        expected = [('1d', '1m', [''], 'instantaneous'),
+                    ('m', 'm', [''], 'mean'),
+                    ('s', 's', [''], 'mean'),
+                    ('y', 'y', [''], 'mean')]
+        self.assertListEqual(yield_rtn, expected)
 
     def test_get_period_startdate(self):
         ''' Assert return of adjusted startdate for a given period '''
@@ -615,7 +632,7 @@ class DiagnosticFilesTests(unittest.TestCase):
         timlim = self.files.time_limited_streams()
 
         self.assertTupleEqual(timlim['x'], ([1990, 2, 1], [1990, 8, 1]))
-        self.assertListEqual(timlim.keys(), ['x'])
+        self.assertListEqual(list(timlim.keys()), ['x'])
 
     def test_timelimited_multi(self):
         ''' Assert time limited streams - multi stream '''
@@ -760,12 +777,10 @@ class DiagnosticFilesTests(unittest.TestCase):
 
         self.files.meanref = [1956, 12, 1]
         outfiles = self.files.remove_higher_mean_components(infiles[:], 'y')
-        print 'out:', outfiles
         self.assertListEqual(outfiles, infiles[:-2])
 
         self.files.meanref = [1988, 12, 1]
         outfiles = self.files.remove_higher_mean_components(infiles[:], 'y')
-        print 'out2:', outfiles
         self.assertListEqual(outfiles, infiles)
 
     def test_rm_component_ds_only(self):
@@ -958,14 +973,15 @@ class DiagnosticFilesTests(unittest.TestCase):
             }
 
         expected = self.files.expected_diags()
-        self.assertListEqual(expected['onm.nc.file'],
-                             outfiles['onm.nc.file'][:-2])
-        self.assertListEqual(expected['ons.nc.file'], outfiles['ons.nc.file'])
+        self.assertListEqual(sorted(expected['onm.nc.file']),
+                             sorted(outfiles['onm.nc.file'][:-2]))
+        self.assertListEqual(sorted(expected['ons.nc.file']),
+                             sorted(outfiles['ons.nc.file']))
 
         self.files.finalcycle = True
         expected = self.files.expected_diags()
         for key in outfiles:
-            self.assertListEqual(expected[key], outfiles[key])
+            self.assertListEqual(sorted(expected[key]), sorted(outfiles[key]))
 
         self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
 
@@ -983,11 +999,13 @@ class DiagnosticFilesTests(unittest.TestCase):
             }
 
         expected = self.files.expected_diags()
-        self.assertListEqual(expected['ons.nc.file'], outfiles['ons.nc.file'])
+        self.assertListEqual(sorted(expected['ons.nc.file']),
+                             sorted(outfiles['ons.nc.file']))
 
         self.files.finalcycle = True
         expected = self.files.expected_diags()
-        self.assertListEqual(expected['ons.nc.file'], outfiles['ons.nc.file'])
+        self.assertListEqual(sorted(expected['ons.nc.file']),
+                                    sorted(outfiles['ons.nc.file']))
 
     def test_expected_nemo_buffer(self):
         ''' Assert correct list of expected nemo files - buffered'''
@@ -1011,12 +1029,13 @@ class DiagnosticFilesTests(unittest.TestCase):
             }
 
         expected = self.files.expected_diags()
-        self.assertListEqual(expected['onm.nc.file'],
-                             outfiles['onm.nc.file'][:-4])
+        self.assertListEqual(sorted(expected['onm.nc.file']),
+                             sorted(outfiles['onm.nc.file'][:-4]))
 
         self.files.finalcycle = True
         expected = self.files.expected_diags()
-        self.assertListEqual(expected['onm.nc.file'], outfiles['onm.nc.file'])
+        self.assertListEqual(sorted(expected['onm.nc.file']),
+                             sorted(outfiles['onm.nc.file']))
 
     def test_expected_cice_hourly(self):
         '''Assert correct return of expected cice hourly files'''

@@ -474,7 +474,7 @@ rm -rf {{dir1}}
 {% endfor %}
 '''
     [[POSTPROC]]
-        inherit=None, POSTPROC_RESOURCE
+        inherit=None, POSTPROC_RESOURCE, PYTHON_ENV
         [[[environment]]]
             ROSE_TASK_APP = postproc
             RUNID      = hg3es
@@ -580,14 +580,15 @@ rm -rf {{dir1}}
         inherit = None, VERIFY_RESOURCE
 
     [[pp_unittests]]
-        inherit = None, UNITTESTS_RESOURCE
+        inherit = None, UNITTESTS_RESOURCE, PYTHON_ENV
+        env-script = "eval $(rose task-env)"
 	# Run each of the main groups (common, atmos, nemocice) first - helps to spot any leaking tests.
         # Finally run 'all' - sweeps up any tests not covered in the main groups
-	script = '$CYLC_SUITE_SHARE_DIR/fcm_make_pp/build/bin/test_postproc -g common -g atmos -g nemocice -g platforms -g all'
+        script = run_python_env.sh test_postproc -g common -g atmos -g nemocice -g platforms -g all
 
     [[test_mule]]
-        inherit = None, LINUX
-	script = test_mulepath.py
+        inherit = None, LINUX, PYTHON_ENV
+        script = run_python_env.sh test_mulepath.py
 
     [[remove_mule_from_postproc]]
        inherit = None, LINUX

@@ -1,7 +1,7 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -15,7 +15,12 @@
 import unittest
 import os
 import re
-import mock
+try:
+    # mock is integrated into unittest as of Python 3.3
+    import unittest.mock as mock
+except ImportError:
+    # mock is a standalone package (back-ported)
+    import mock
 
 import testing_functions as func
 import runtime_environment
@@ -495,7 +500,7 @@ class PropertyTests(unittest.TestCase):
         func.logtest('Assert correct return of fields file regex:')
 
         mock_suite().prefix = 'RUNID'
-
+        mock_suite().umtask = 'myUM'
         with mock.patch('atmos.AtmosPostProc.runpp',
                         new_callable=mock.PropertyMock,
                         return_value=True):

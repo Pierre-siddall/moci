@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2018 Met Office. All rights reserved.
@@ -14,7 +14,12 @@
 '''
 import os
 import unittest
-import mock
+try:
+    # mock is integrated into unittest as of Python 3.3
+    import unittest.mock as mock
+except ImportError:
+    # mock is a standalone package (back-ported)
+    import mock
 
 import testing_functions as func
 
@@ -485,7 +490,7 @@ class MeansMethodsTests(unittest.TestCase):
         self.assertIn('Error=5\nNot possible!\nFailed to create FIELD monthly',
                       func.capture('err'))
         mock_rm.assert_called_once_with(
-            os.path.join(os.getcwd(), 'MeanFileName'), ignoreNonExist=True
+            os.path.join(os.getcwd(), 'MeanFileName'), ignore_non_exist=True
             )
 
 

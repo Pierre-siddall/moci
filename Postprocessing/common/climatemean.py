@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2018 Met Office. All rights reserved.
@@ -243,7 +243,7 @@ def create_mean(meanfile, mean_cmd, basistime):
             msg = '{C}: Error={E}\n{O}\nFailed to create {M}: {L}'
             msg = msg.format(C=mean_cmd, E=icode, O=output,
                              M=meanfile.description, L=meanfile.fname['file'])
-            utils.remove_files(meanfile.fname['full'], ignoreNonExist=True)
+            utils.remove_files(meanfile.fname['full'], ignore_non_exist=True)
             utils.log_msg(msg, level='ERROR')
 
     else:

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 **********************************************************************
 Contribution by NCAS-CMS
@@ -27,7 +27,7 @@ class Transfer(object):
     '''Transfer archived files to JASMIN'''
 
     def __init__(self, input_nl='pptransfer.nl'):
-        load_nl = nlist.loadNamelist(input_nl)
+        load_nl = nlist.load_namelist(input_nl)
         try:
             nl_arch = load_nl.archer_arch
         except AttributeError:
@@ -128,7 +128,7 @@ class Transfer(object):
             # Pushing files
             files_to_archive = glob.glob(self._archive_dir + '/*')
             # Strip off pathnames
-            files_to_archive = map(os.path.basename, files_to_archive)
+            files_to_archive = [os.path.basename(f) for f in files_to_archive]
 
             cmd = (['md5sum'] + files_to_archive)
             ret_code, output = utils.exec_subproc(cmd,
@@ -143,7 +143,7 @@ class Transfer(object):
             cmd = (['ssh', '-oBatchMode=yes', self._remote_host, '-n', 'cd',
                     self._archive_dir, ';', 'md5sum', '*', '>',
                     self._checksums])
-            workdir = os.environ['PWD']
+            workdir = os.getcwd()
             ret_code, _ = utils.exec_subproc(cmd, verbose=False, cwd=workdir)
 
         if ret_code != 0:
@@ -163,7 +163,7 @@ class Transfer(object):
             cmd = (['ssh', '-oBatchMode=yes', self._remote_host, '-n', 'cd',
                     self._transfer_dir, ';', 'md5sum', '-c',
                     self._checksums])
-            workdir = os.environ['PWD']
+            workdir = os.getcwd()
         else:
             # Pulling files
             cmd = 'md5sum -c ' + self._checksums

@@ -1,7 +1,7 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -14,8 +14,12 @@
 '''
 import unittest
 import os
-import mock
-
+try:
+    # mock is integrated into unittest as of Python 3.3
+    import unittest.mock as mock
+except ImportError:
+    # mock is a standalone package (back-ported)
+    import mock
 import testing_functions as func
 
 import archive_integrity
@@ -170,7 +174,7 @@ class VerifyArchiveTests(unittest.TestCase):
                                                        self.archcontent)
             )
 
-    @mock.patch('archive_integrity.nlist.loadNamelist')
+    @mock.patch('archive_integrity.nlist.load_namelist')
     @mock.patch('archive_integrity.expected_content.RestartFiles')
     @mock.patch('archive_integrity.expected_content.DiagnosticFiles')
     @mock.patch('archive_integrity.log_archive')
@@ -193,7 +197,7 @@ class VerifyArchiveTests(unittest.TestCase):
         mock_verify.assert_called_once_with({}, {})
         self.assertIn('All expected files', func.capture())
 
-    @mock.patch('archive_integrity.nlist.loadNamelist')
+    @mock.patch('archive_integrity.nlist.load_namelist')
     @mock.patch('expected_content.RestartFiles.expected_files',
                 return_value={'ada': ['dump1']})
     @mock.patch('archive_integrity.expected_content.DiagnosticFiles'
@@ -235,7 +239,7 @@ class VerifyArchiveTests(unittest.TestCase):
         mock_add.assert_called_once_with(expected, mock_moo.return_value)
         self.assertIn('Unexpected files present in moose', func.capture())
 
-    @mock.patch('archive_integrity.nlist.loadNamelist')
+    @mock.patch('archive_integrity.nlist.load_namelist')
     @mock.patch('expected_content.RestartFiles.expected_files',
                 return_value={'oda': ['rst1']})
     @mock.patch('archive_integrity.expected_content.DiagnosticFiles.'
@@ -282,7 +286,7 @@ class VerifyArchiveTests(unittest.TestCase):
         mock_add.assert_called_once_with(expected, mock_moo.return_value)
         self.assertIn('Unexpected files present in moose', func.capture())
 
-    @mock.patch('archive_integrity.nlist.loadNamelist')
+    @mock.patch('archive_integrity.nlist.load_namelist')
     def test_main_function_verify_fail(self, mock_nl):
         ''' Test main function - atmos namelist'''
         func.logtest('Assert calls to methods by main function - atmos :')

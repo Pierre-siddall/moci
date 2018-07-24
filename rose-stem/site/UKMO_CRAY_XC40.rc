@@ -17,13 +17,14 @@
 
     [[POSTPROC_RESOURCE]]
         inherit = LINUX
-        pre-script = "ulimit -s unlimited; module load scitools; export PYTHONPATH=$PYTHONPATH:$UMDIR/mule/mule-next/python2.7/lib/"
+        pre-script = "ulimit -s unlimited ; module load scitools"
 
     [[VERIFY_RESOURCE]]
-        inherit = LINUX
-
+        inherit = POSTPROC_RESOURCE
+	
     [[UNITTESTS_RESOURCE]]
         inherit = LINUX
+	pre-script = "module load scitools{{ '/experimental-current' if PYTHON3 else '' }}"
 
     [[HOUSEKEEP_RESOURCE]]
         inherit = LINUX
@@ -272,3 +273,17 @@ module load {{XIOS}}-PrgEnv/{{XIOS_PRGENV_VERSION}}-nooasis/{{ROSE_SUITE_REV_NO}
 """
         [[[environment]]]
             KGO_DIR={{KGO_DIR}}
+
+    [[PYTHON_ENV]]
+        [[[environment]]]
+            PYTHON_ENVIRONMENT = """
+{% if PYTHON3 %}
+module load scitools/experimental-current > /dev/null 2>&1 ;
+module swap scitools scitools/experimental-current ;
+module list ;
+echo PLEASE NOTE:  Mule is not compatible with Python3, so is cannot be used. ;
+{% else %}
+export PYTHONPATH=$PYTHONPATH:$UMDIR/mule/mule-next/python2.7/lib ;
+{% endif %}
+echo ;
+"""

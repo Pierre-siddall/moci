@@ -1,7 +1,7 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -15,7 +15,12 @@
 import unittest
 import os
 import re
-import mock
+try:
+    # mock is integrated into unittest as of Python 3.3
+    import unittest.mock as mock
+except ImportError:
+    # mock is a standalone package (back-ported)
+    import mock
 
 import testing_functions as func
 import runtime_environment
@@ -1151,7 +1156,9 @@ class AdditionalArchiveTests(unittest.TestCase):
             with mock.patch('nemo.utils.check_directory', return_value='DDIR'):
                 self.nemo.archive_general()
 
-        self.nemo.archive_files.assert_called_once_with([mock_set.return_value])
+        self.nemo.archive_files.assert_called_once_with(
+            [os.path.join(self.nemo.diagsdir, str(mock_set.return_value))]
+            )
         self.assertListEqual(mock_rm.mock_calls, [])
 
         self.assertEqual(len(mock_name.mock_calls), 2)
@@ -1307,7 +1314,7 @@ class UtilityMethodTests(unittest.TestCase):
         self.assertListEqual(msgs, [])
 
     @mock.patch('nemo.netcdf_utils.get_dataset')
-    def test_fix_nemo_cell_methods_oneeach(self, mock_ncid):
+    def test_fix_nemo_cell_methods(self, mock_ncid):
         '''Test fix_nemo_cell_methods - one variable type each'''
         func.logtest('Assert changes reported by fix_nemo_cell_methods:')
         self.ncid.variables['ttrd_iso'] = nemo.utils.Variables()
@@ -1335,4 +1342,4 @@ class UtilityMethodTests(unittest.TestCase):
         self.nemo.preprocess_meanset(files_in)
         mock_fix.assert_called_once_with([os.path.join(os.getcwd(), f)
                                           for f in files_in])
-        self.assertIn('Change1\nChange2', func.capture()) 
+        self.assertIn('Change1\nChange2', func.capture())

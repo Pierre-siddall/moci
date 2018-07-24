@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2015 Met Office. All rights reserved.
@@ -32,8 +32,8 @@ def initialise_timer():
     '''
     # This import must be inside the function to allow correct functioning of
     # the unit tests
-    from nlist import loadNamelist
-    namelist = loadNamelist('monitorpp.nl')
+    from nlist import load_namelist
+    namelist = load_namelist('monitorpp.nl')
     try:
         if namelist.monitoring.ltimer:
             timer_instance = PostProcTimer()

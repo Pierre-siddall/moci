@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2015-2018 Met Office. All rights reserved.
@@ -16,6 +16,8 @@ import argparse
 import unittest
 import sys
 import os
+
+assert sys.version_info >= (2, 7)
 
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
@@ -46,7 +48,7 @@ def main():
         'timer':     'test_common_timer.py',
         'netcdf':    'test_common_netcdf_*.py',
         'iris':      'test_common_iris.py',
-	'means':     'test_common_climatemean.py',
+        'means':     'test_common_climatemean.py',
         'atmos':     'test_atmos_*.py',
         'atmbase':   'test_atmos_base.py',
         'atmutils':  'test_atmos_utils.py',
@@ -97,9 +99,11 @@ Available groups: \n\t{}'''.format('\n\t'.join(subgroups)),
                 discover(os.path.dirname(os.path.realpath(__file__)),
                          pattern=groups[grp])
         except KeyError:
-            print '[ERROR] UnitTest - Unknown group: {}.  See help'.format(grp)
+            sys.stderr.write(
+                '[ERROR] UnitTest - Unknown group: {}.  See help'.format(grp)
+                )
             continue
-        print '[INFO] Running test group: {}'.format(grp)
+        sys.stdout.write('[INFO] Running test group: {}'.format(grp))
         test_rtn = unittest.TextTestRunner(buffer=True).run(test_suite)
         rtn_code += len(test_rtn.failures) + len(test_rtn.errors)
 

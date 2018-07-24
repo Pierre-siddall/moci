@@ -1,7 +1,7 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2017 Met Office. All rights reserved.
+ (C) Crown copyright 2017-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -22,7 +22,12 @@ DESCRIPTION
 import unittest
 import os
 from collections import OrderedDict
-import mock
+try:
+    # mock is integrated into unittest as of Python 3.3
+    import unittest.mock as mock
+except ImportError:
+    # mock is a standalone package (back-ported)
+    import mock
 
 import testing_functions as func
 
@@ -30,8 +35,7 @@ import transfer
 
 class TransferTest(unittest.TestCase):
     '''Unit tests relating to transfer of archived data to JASMIN'''
-    @mock.patch('transfer.Transfer.tidy_up')
-    def setUp(self, mock_tidyup):
+    def setUp(self):
         self.inputnl = OrderedDict([
             ('&pptransfer', None),
             ('verify_chksums=false', None),
@@ -47,7 +51,8 @@ class TransferTest(unittest.TestCase):
 
         self.myfile = 'input.nl'
         open(self.myfile, 'w').write('\n'.join(self.inputnl.keys()))
-        self.inst = transfer.Transfer(self.myfile)
+        with mock.patch('transfer.Transfer.tidy_up'):
+            self.inst = transfer.Transfer(self.myfile)
 
     def tearDown(self):
         for fname in [self.myfile, 'checksums']:
@@ -58,19 +63,19 @@ class TransferTest(unittest.TestCase):
 
 # Tidy up tests
     @mock.patch('transfer.Transfer._clean_up_push')
-    @mock.patch('transfer.os.path.exists', return_value=True)
-    def test_tidy_up_push(self, mock_osexists, mock_cleanup):
+    def test_tidy_up_push(self, mock_cleanup):
         '''Test tidy up'''
         func.logtest('test tidy_up')
-        self.inst.tidy_up()
+        with mock.patch('transfer.os.path.exists', return_value=True):
+            self.inst.tidy_up()
         self.assertEqual(mock_cleanup.call_count, 1)
 
-    @mock.patch('transfer.os.path.exists', return_value=False)
-    def test_tidy_up_push_fail(self, mock_osexists):
+    def test_tidy_up_push_fail(self):
         '''Test tidy up'''
         func.logtest('test tidy_up')
-        with self.assertRaises(SystemExit):
-            self.inst.tidy_up()
+        with mock.patch('transfer.os.path.exists', return_value=False):
+            with self.assertRaises(SystemExit):
+                self.inst.tidy_up()
         self.assertIn('doesn\'t exist', func.capture('err'))
 
     @mock.patch('transfer.Transfer._clean_up_pull')
@@ -81,6 +86,9 @@ class TransferTest(unittest.TestCase):
         self.inst._transfer_type = "pull"
         self.inst.tidy_up()
         self.assertEqual(mock_cleanup.call_count, 1)
+        mock_exec.assert_called_once_with(
+            'ssh RHOST -n ls /ArchiveDir/NAME/20000121T0000Z', verbose=False
+            )
 
     @mock.patch('transfer.utils.exec_subproc', return_value=[2, ''])
     def test_tidy_up_pull_fail(self, mock_exec):
@@ -90,6 +98,9 @@ class TransferTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.inst.tidy_up()
         self.assertIn('doesn\'t exist', func.capture('err'))
+        mock_exec.assert_called_once_with(
+            'ssh RHOST -n ls /ArchiveDir/NAME/20000121T0000Z', verbose=False
+            )
 
 # Clean up tests
     @mock.patch('transfer.os.remove', return_value=[0, ''])
@@ -98,6 +109,9 @@ class TransferTest(unittest.TestCase):
         func.logtest('test _clean_up_push with verify checksums')
         self.inst._clean_up_push()
         self.assertIn('Deleting old checksum file', func.capture())
+        mock_osremove.assert_called_once_with(
+            '/ArchiveDir/NAME/20000121T0000Z/checksums'
+            )
 
     @mock.patch('transfer.utils.exec_subproc')
     def test_clean_up_pull(self, mock_exec):
@@ -106,6 +120,10 @@ class TransferTest(unittest.TestCase):
         mock_exec.side_effect = [[0, ''], [0, '']]
         _ = self.inst._clean_up_pull()
         self.assertEqual(mock_exec.call_count, 2)
+        mock_exec.assert_called_with(
+            'ssh RHOST -n rm /ArchiveDir/NAME/20000121T0000Z/checksums',
+            verbose=False
+            )
 
     @mock.patch('transfer.utils.exec_subproc', return_value=[3, ''])
     def test_clean_up_pull_fail_ls(self, mock_exec):
@@ -132,14 +150,20 @@ class TransferTest(unittest.TestCase):
         self.inst._transfer_type = 'pull'
         rtn = self.inst._generate_checksums()
         self.assertEqual(rtn, True)
+        mock_exec.assert_called_once_with(
+            ['ssh', '-oBatchMode=yes', 'RHOST', '-n', 'cd',
+             '/ArchiveDir/NAME/20000121T0000Z', ';', 'md5sum',
+             '*', '>', 'checksums'],
+            cwd=os.getcwd(), verbose=False
+            )
 
-    @mock.patch('transfer.utils.exec_subproc', return_value=[1, ''])
-    def test_gen_checksums_pull_fail(self, mock_exec):
+    def test_gen_checksums_pull_fail(self):
         '''Test generation of checksums'''
         func.logtest('test _generate_checksums - pull')
         self.inst._transfer_type = 'pull'
-        rtn = self.inst._generate_checksums()
-        self.assertEqual(rtn, False)
+        with mock.patch('transfer.utils.exec_subproc', return_value=[1, '']):
+            rtn = self.inst._generate_checksums()
+            self.assertEqual(rtn, False)
         self.assertIn('Failed to generate checksums', func.capture('err'))
 
     @mock.patch('transfer.utils.exec_subproc')
@@ -180,32 +204,34 @@ class TransferTest(unittest.TestCase):
         rtn = self.inst._do_verify_checksums()
         self.assertIn('Checksum verification succeeded', func.capture())
         self.assertEqual(rtn, True)
+        mock_exec.assert_called_once_with('md5sum -c checksums',
+                                          cwd='/XDIR/NAME/20000121T0000Z')
 
-    @mock.patch('transfer.utils.exec_subproc', return_value=[1, ''])
-    def test_verify_chksums_pull_fail(self, mock_exec):
+    def test_verify_chksums_pull_fail(self):
         '''Test verification of checksums - Pull'''
         func.logtest('test _do_verify_checksums')
         self.inst._transfer_type = "Pull"
-        with self.assertRaises(SystemExit):
-            rtn = self.inst._do_verify_checksums()
-            self.assertEqual(rtn, False)
+        with mock.patch('transfer.utils.exec_subproc', return_value=[1, '']):
+            with self.assertRaises(SystemExit):
+                rtn = self.inst._do_verify_checksums()
+                self.assertEqual(rtn, False)
         self.assertIn('Checksum verification failed', func.capture('err'))
 
-    @mock.patch('transfer.utils.exec_subproc', return_value=[0, ''])
-    def test_do_verify_checksums_push(self, mock_exec):
+    def test_do_verify_checksums_push(self):
         '''Test verification of checksums - Push'''
         func.logtest('test _do_verify_checksums')
-        rtn = self.inst._do_verify_checksums()
-        self.assertIn('Checksum verification succeeded', func.capture())
-        self.assertEqual(rtn, True)
-
-    @mock.patch('transfer.utils.exec_subproc', return_value=[1, ''])
-    def test_verify_chksums_push_fail(self, mock_exec):
-        '''Test verification of checksums - Push'''
-        func.logtest('test _do_verify_checksums')
-        with self.assertRaises(SystemExit):
+        with mock.patch('transfer.utils.exec_subproc', return_value=[0, '']):
             rtn = self.inst._do_verify_checksums()
-            self.assertEqual(rtn, False)
+            self.assertEqual(rtn, True)
+        self.assertIn('Checksum verification succeeded', func.capture())
+
+    def test_verify_chksums_push_fail(self):
+        '''Test verification of checksums - Push'''
+        func.logtest('test _do_verify_checksums')
+        with mock.patch('transfer.utils.exec_subproc', return_value=[1, '']):
+            with self.assertRaises(SystemExit):
+                rtn = self.inst._do_verify_checksums()
+                self.assertEqual(rtn, False)
         self.assertIn('Checksum verification failed', func.capture('err'))
 
 # Transfer Tests
@@ -215,24 +241,27 @@ class TransferTest(unittest.TestCase):
         func.logtest('test do_transfer')
         self.inst.do_transfer()
         self.assertIn('Nothing to transfer', func.capture())
+        mock_exec.assert_called_once_with(
+            'ls -A /ArchiveDir/NAME/20000121T0000Z', verbose=False
+            )
 
-    @mock.patch('transfer.utils.exec_subproc', return_value=[255, ''])
-    def test_do_transfer_ssh_failed(self, mock_exec):
+    def test_do_transfer_ssh_failed(self):
         '''Test transfer of archived files'''
         func.logtest('test do_transfer')
-        with self.assertRaises(SystemExit):
-            self.inst.do_transfer()
+        with mock.patch('transfer.utils.exec_subproc', return_value=[255, '']):
+            with self.assertRaises(SystemExit):
+                self.inst.do_transfer()
         self.assertIn('Failed: ssh failed', func.capture('err'))
 
-    @mock.patch('transfer.utils.exec_subproc', return_value=[10, ''])
-    def test_xfer_error_checking_files(self, mock_exec):
+    def test_xfer_error_checking_files(self):
         '''Test transfer of archived files'''
         func.logtest('test do_transfer')
-        with self.assertRaises(SystemExit):
-            self.inst.do_transfer()
+        with mock.patch('transfer.utils.exec_subproc', return_value=[10, '']):
+            with self.assertRaises(SystemExit):
+                self.inst.do_transfer()
         self.assertIn('Error checking files', func.capture('err'))
 
-    @mock.patch('transfer.Transfer._do_verify_checksums', retrun_value=True)
+    @mock.patch('transfer.Transfer._do_verify_checksums', return_value=True)
     @mock.patch('transfer.Transfer._generate_checksums', return_value=True)
     @mock.patch('transfer.utils.exec_subproc')
     def test_xfer_push_rsync_verify_ok(self, mock_exec,
@@ -249,22 +278,25 @@ class TransferTest(unittest.TestCase):
             '/ArchiveDir/NAME/20000121T0000Z/ ' \
             'RHOST:/XDIR/NAME/20000121T0000Z'
         mock_exec.assert_any_call(transfer_cmd)
+        mock_verify.assert_called_once_with()
+        mock_gen.assert_called_once_with()
         self.assertIn('Transfer command succeeded', func.capture())
         self.assertIn('Checksums verified', func.capture())
         self.assertIn('Transfer OK', func.capture())
         self.assertEqual(rtn, 0)
 
     @mock.patch('transfer.utils.create_dir')
-    @mock.patch('transfer.os.path.exists', return_value=False)
     @mock.patch('transfer.utils.exec_subproc')
-    def test_do_transfer_pull_rsync_ok(self, mock_exec, mock_exists, mock_cdir):
+    def test_do_transfer_pull_rsync_ok(self, mock_exec, mock_cdir):
         '''Test do_transfer using rsync - pull'''
         func.logtest('test do_transfer')
         mock_exec.side_effect = [[0, 'file'], [0, '']]
         self.inst._transfer_type = 'pull'
-        rtn = self.inst.do_transfer()
+        with mock.patch('transfer.os.path.exists', return_value=False):
+            rtn = self.inst.do_transfer()
         self.assertIn('using rsync', func.capture())
         self.assertIn('Creating transfer directory', func.capture())
+        mock_cdir.assert_called_once_with('/XDIR/NAME/20000121T0000Z')
         transfer_cmd = 'rsync -av --stats ' \
             'RHOST:/ArchiveDir/NAME/20000121T0000Z/ ' \
             '/XDIR/NAME/20000121T0000Z'
@@ -273,7 +305,7 @@ class TransferTest(unittest.TestCase):
         self.assertIn('Transfer OK', func.capture())
         self.assertEqual(rtn, 0)
 
-    @mock.patch('transfer.Transfer._do_verify_checksums', retrun_value=True)
+    @mock.patch('transfer.Transfer._do_verify_checksums', return_value=True)
     @mock.patch('transfer.Transfer._generate_checksums', return_value=True)
     @mock.patch('transfer.utils.exec_subproc')
     def test_xfer_push_gftp_verify_ok(self, mock_exec,
@@ -290,6 +322,8 @@ class TransferTest(unittest.TestCase):
             'file:///ArchiveDir/NAME/20000121T0000Z/ '\
             'sshftp://RHOST/XDIR/NAME/20000121T0000Z/'
         mock_exec.assert_any_call(transfer_cmd)
+        mock_verify.assert_called_once_with()
+        mock_gen.assert_called_once_with()
         self.assertIn('Transfer command succeeded', func.capture())
         self.assertIn('Checksums verified', func.capture())
         self.assertIn('Transfer OK', func.capture())
@@ -312,29 +346,33 @@ class TransferTest(unittest.TestCase):
         self.assertIn('Transfer OK', func.capture())
         self.assertEqual(rtn, 0)
 
-    @mock.patch('transfer.Transfer._generate_checksums', return_value=False)
     @mock.patch('transfer.utils.exec_subproc', return_value=[0, 'file'])
-    def test_transfer_checksum_gen_fail(self, mock_exec, mock_gen):
+    def test_transfer_checksum_gen_fail(self, mock_exec):
         '''Test do_transfer with checksum generation fail'''
         func.logtest('test do_transfer checksum gen fail')
         self.inst._verify_chksums = True
-        with self.assertRaises(SystemExit):
-            rtn = self.inst.do_transfer()
-            self.assertEqual(rtn, 3)
+        with mock.patch('transfer.Transfer._generate_checksums',
+                        return_value=False):
+            with self.assertRaises(SystemExit):
+                rtn = self.inst.do_transfer()
+                self.assertEqual(rtn, 3)
+        mock_exec.assert_called_once_with(
+            'ls -A /ArchiveDir/NAME/20000121T0000Z', verbose=False
+            )
         self.assertIn('Checksum generation failed', func.capture('err'))
 
-    @mock.patch('transfer.Transfer._do_verify_checksums', return_value=False)
-    @mock.patch('transfer.Transfer._generate_checksums', return_value=True)
     @mock.patch('transfer.utils.exec_subproc')
-    def test_xfer_checksum_verify_fail(self, mock_exec, mock_gen,
-                                       mock_verify):
+    def test_xfer_checksum_verify_fail(self, mock_exec):
         '''Test do_transfer with checksum verification fail'''
         func.logtest('test do_transfer checksum verify fail')
         self.inst._verify_chksums = True
         mock_exec.side_effect = [[0, 'file'], [0, '']]
-        with self.assertRaises(SystemExit):
-            rtn = self.inst.do_transfer()
-            self.assertEqual(rtn, 4)
+        with mock.patch('transfer.Transfer._do_verify_checksums',
+                        return_value=False):
+            with mock.patch('transfer.Transfer._generate_checksums'):
+                with self.assertRaises(SystemExit):
+                    rtn = self.inst.do_transfer()
+                    self.assertEqual(rtn, 4)
         self.assertIn('Problem with checksum verification', func.capture('err'))
 
     @mock.patch('transfer.utils.exec_subproc')

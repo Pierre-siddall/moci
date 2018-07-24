@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2015-2017 Met Office. All rights reserved.
@@ -53,7 +53,7 @@ class AtmosPostProc(control.RunPostProc):
             Check WORK and SHARE directories exist
             Determine dumpname for final cycle: archived but not deleted
         '''
-        self.naml = nlist.loadNamelist(input_nl)
+        self.naml = nlist.load_namelist(input_nl)
         self.convpp_streams = \
             self._stream_expr(self.naml.atmospp.archive_as_fieldsfiles,
                               inverse=True, default='a-z1-9')

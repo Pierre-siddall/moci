@@ -19,11 +19,26 @@
     [[PPBUILD_RESOURCE]]
         inherit = ARCHER_serial
 
+    [[PYTHON_ENV]]
+        [[[environment]]]
+            PYTHON_ENVIRONMENT = """
+{% if PYTHON3 %}
+module load anaconda/python3 > /dev/null 2>&1 ;
+module swap anaconda anaconda/python3 ;
+echo PLEASE NOTE:  Mule is not compatible with Python3, so is cannot be used. ;
+{% else %}
+export PYTHONPATH=/home/n02/n02/ros/software/lib/python2.7/site-packages:$PYTHONPATH ;
+{% endif %}
+module list ;
+echo ;
+"""
+
     [[POSTPROC_RESOURCE]]
         inherit = ARCHER_serial
-        pre-script = "module load anaconda/2.2.0-python2; module load nco; export PYTHONPATH=/home/n02/n02/ros/software/lib/python2.7/site-packages:$PYTHONPATH; module list"
+        pre-script = "module load anaconda/2.2.0-python2; module load nco"
 
     [[PPTRANSFER]]
+        inherit = PYTHON_ENV
         [[[remote]]]
             host = dtn02.rdf.ac.uk
         [[[environment]]]

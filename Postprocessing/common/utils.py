@@ -1,7 +1,7 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2016 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -153,7 +153,7 @@ def exec_subproc(cmd, verbose=True, cwd=os.getcwd()):
     '''
     import subprocess
     import shlex
-    
+
     cmd_array = [cmd]
     if not isinstance(cmd, list):
         cmd_array = cmd.split(';')
@@ -236,7 +236,7 @@ def add_path(files, path):
     path = check_directory(path)
     files = ensure_list(files)
 
-    return [os.path.join(path, f) for f in files]
+    return [os.path.join(path, str(f)) for f in files]
 
 
 def create_dir(dirname, path=None):
@@ -254,14 +254,14 @@ def create_dir(dirname, path=None):
 
 
 @timer.run_timer
-def remove_files(delfiles, path=None, ignoreNonExist=False):
+def remove_files(delfiles, path=None, ignore_non_exist=False):
     '''
     Delete files.
     Optional arguments:
-      path           - if not provided full path is assumed to have been
-                       provided in the filename.
-      ignoreNonExist - flag to allow a non-existent file to be ignored.
-                       Default behaviour is to provide a warning and continue.
+      path             - if not provided full path is assumed to have been
+                         provided in the filename.
+      ignore_non_exist - flag to allow a non-existent file to be ignored.
+                         Default behaviour is to provide a warning and continue.
     '''
     if path:
         path = check_directory(path)
@@ -272,7 +272,7 @@ def remove_files(delfiles, path=None, ignoreNonExist=False):
         try:
             os.remove(fname)
         except OSError:
-            if not ignoreNonExist:
+            if not ignore_non_exist:
                 log_msg('remove_files: File does not exist: ' + fname,
                         level='WARN')
 
@@ -302,8 +302,6 @@ def move_files(mvfiles, destination, originpath=None, fail_on_err=False):
     for fname in mvfiles:
         try:
             shutil.move(fname, destination)
-        except IOError:
-            log_msg('move_files: File does not exist: ' + fname, level=msglevel)
         except shutil.Error:
             if os.path.dirname(fname) == destination:
                 msg = 'move_files: Attempted to overwrite original file: '
@@ -315,6 +313,12 @@ def move_files(mvfiles, destination, originpath=None, fail_on_err=False):
                     'prior to move: ' + dest_file
                 log_msg(msg, level='WARN')
                 shutil.move(fname, destination)
+        except IOError:
+            # Exception changes in Python 3:
+            #   IOError has been merged into OSError
+            #   shutil.Error is now a child of IOError, therefore exception
+            #   order is important here for compatibility with both 2.7 and 3+
+            log_msg('move_files: File does not exist: ' + fname, level=msglevel)
 
 
 def calendar():
@@ -380,12 +384,22 @@ def _mod_all_calendars_date(indate, delta, cal):
             else:
                 log_msg('add_period_to_date: Invalid date for conversion to '
                         'ISO 8601 date representation: ' + str(outdate),
-                        level='FAIL')
+                        level='ERROR')
 
             if rcode == 0:
                 outdate = [int(x) for x in output.split(',')]
             else:
-                log_msg('`rose date` command failed:\n' + output, level='WARN')
+                if 'SyntaxError: invalid syntax' in output:
+                    # Rose not currently compatible with Python3
+                    # due to "print" statements
+                    log_msg('add_period_to_date: `rose date` command is '
+                            'incompatible with Python 3 libraries. '
+                            'Use of `rose date` is required for Gregorian '
+                            'calendar.\n Please resolve before continuing.',
+                            level='ERROR')
+                else:
+                    log_msg('`rose date` command failed:\n' + output,
+                            level='ERROR')
                 outdate = None
                 break
 
@@ -411,7 +425,7 @@ def _mod_360day_calendar_date(indate, delta):
         if len(outdate) <= i:
             outdate.append(1 if i in [1, 2] else 0)
 
-    for i, elem in enumerate(outdate):
+    for i in range(len(outdate)):
         outdate[i] += diff_hours // multiplier[i]
         diff_hours = diff_hours % multiplier[i]
 
@@ -544,12 +558,12 @@ def set_debugmode(debug):
 
 def get_debugmode():
     '''Get method for the debug_mode global variable'''
-    return debug_mode
+    return globals()['debug_mode']
 
 
 def get_debugok():
     '''Get method for the debug_ok global variable'''
-    return debug_ok
+    return globals()['debug_ok']
 
 
 def catch_failure():

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2016-2018 Met Office. All rights reserved.
@@ -19,6 +19,7 @@ DESCRIPTION
 '''
 
 import re
+import os
 
 import filenames
 import utils
@@ -122,7 +123,7 @@ class ArchivedFiles(object):
             # Special case for atmosphere monthly and seasonal files
             try:
                 # Monthly files
-                month = MONTHS.keys()[MONTHS.values().index(month)]
+                month = list(MONTHS.keys())[list(MONTHS.values()).index(month)]
             except ValueError:
                 # Seasonal files
                 try:
@@ -213,6 +214,8 @@ class RestartFiles(ArchivedFiles):
     '''
     Methods specific to determining restart filenames expected to be present
     in the archive.
+
+    Required environment: CYCLEPERIOD - ISO format period, e.g. "P1M"
     '''
     def __init__(self, startdate, enddate, prefix, model, naml):
         ''' Initialise ArchiveFiles methods '''
@@ -292,7 +295,7 @@ class RestartFiles(ArchivedFiles):
                 if final_rst not in restart_files[coll]:
                     restart_files[coll].append(final_rst)
 
-        for key in restart_files.keys():
+        for key in list(restart_files.keys()):
             # Call to keys() required as we are removing dictionary keys
             if restart_files[key] == []:
                 del restart_files[key]
@@ -307,24 +310,30 @@ class RestartFiles(ArchivedFiles):
         edate = self.edate[:]
         if not self.finalcycle and hasattr(self.naml, 'buffer_restart'):
             # Adjust for mean buffer
-            cycletime = utils.CylcCycle().startcycle['iso']
-            edate_str = [str(x).zfill(2) for x in edate]
-            while len(edate_str) < 5:
-                edate_str.append('00')
-            endtime = '{}{}{}T{}{}Z'.format(*edate_str[:5])
-            cmd = 'rose date {} {} --calendar {}'.format(endtime, cycletime,
-                                                         utils.calendar())
-            rcode, cyclefreq = utils.exec_subproc(cmd, verbose=False)
-            if rcode == 0:
-                rst_buffer = self.naml.buffer_restart
-                while rst_buffer and rst_buffer > 1:
-                    edate = utils.add_period_to_date(edate, cyclefreq)
-                    rst_buffer -= 1
-
+            cyclefreq = os.environ.get('CYCLEPERIOD', None)
+            rst_buffer = self.naml.buffer_restart
+            if isinstance(cyclefreq, str):
+                cyclefreq = '-' + cyclefreq
             else:
-                utils.log_msg('restart buffer - unable to calculate cycling '
-                              'period. Reverting to buffer_restart=1',
-                              level='WARN')
+                # `rose date not currently compatible with Python3 libraries
+                # Use only as a last resort.
+                cycletime = utils.CylcCycle().startcycle['iso']
+                edate_str = [str(x).zfill(2) for x in edate]
+                while len(edate_str) < 5:
+                    edate_str.append('00')
+                endtime = '{}{}{}T{}{}Z'.format(*edate_str[:5])
+                cmd = 'rose date {} {} --calendar {}'.format(endtime, cycletime,
+                                                             utils.calendar())
+                rcode, cyclefreq = utils.exec_subproc(cmd, verbose=False)
+                if rcode != 0:
+                    utils.log_msg('restart buffer - unable to calculate cycling'
+                                  ' period. Reverting to buffer_restart=1',
+                                  level='WARN')
+                    rst_buffer = 1
+
+            while isinstance(rst_buffer, int) and rst_buffer > 1:
+                edate = utils.add_period_to_date(edate, cyclefreq)
+                rst_buffer -= 1
 
         to_remove = []
         for filename in restart_files:
@@ -564,7 +573,7 @@ class DiagnosticFiles(ArchivedFiles):
 
         all_files.update(self.iceberg_trajectory())
 
-        for key in all_files.keys():
+        for key in list(all_files.keys()):
             # Call to keys() required since we are removing dictionary keys
             if all_files[key] == []:
                 del all_files[key]

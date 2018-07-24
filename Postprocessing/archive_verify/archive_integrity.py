@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2016-2017 Met Office. All rights reserved.
@@ -26,6 +26,7 @@ import timer
 import nlist
 import utils
 
+assert sys.version_info >= (2, 7)
 
 def dummy_cylc_environment():
     ''' Load CYLC environment for dummy testing '''
@@ -165,7 +166,7 @@ def main():
 '''
     timer.set_nulltimer()
 
-    load_nl = nlist.loadNamelist('verify.nl')
+    load_nl = nlist.load_namelist('verify.nl')
     startdate = load_nl.commonverify.startdate
     enddate = load_nl.commonverify.enddate
     prefix = load_nl.commonverify.prefix

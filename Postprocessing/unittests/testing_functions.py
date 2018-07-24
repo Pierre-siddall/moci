@@ -1,7 +1,7 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -18,9 +18,9 @@ import sys
 def logtest(msg, err=False):
     '''Print message to standard output stream'''
     if err:
-        print '\n[TEST_ERROR] ' + msg
+        sys.stderr.write('\n[TEST_ERROR] ' + msg)
     else:
-        print '\n[TEST] ' + msg
+        sys.stdout.write('\n[TEST] ' + msg)
 
 
 def capture(direct='out'):

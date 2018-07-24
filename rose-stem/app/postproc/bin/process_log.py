@@ -1,16 +1,17 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 import os
 import re
+import sys
 
 logfile = os.environ['CYLC_TASK_LOG_ROOT'] + '-archive.log'
 cylclog = os.environ['CYLC_SUITE_SHARE_DIR'] + '/cylclog'
 archive_set = os.environ['ARCHIVE_SET']
 
-print '*******************************************************************'
-print '[POST-SCRIPT] Processing the archive logs for verification purposes'
-print '              Processing postproc logfile:', logfile
-print '              Writing to Moose logfile:', cylclog
-print '*******************************************************************'
+sys.stdout.write('*******************************************************************')
+sys.stdout.write('[POST-SCRIPT] Processing the archive logs for verification purposes')
+sys.stdout.write('              Processing postproc logfile: ' + str(logfile))
+sys.stdout.write('              Writing to Moose logfile: ' + str( cylclog))
+sys.stdout.write('*******************************************************************')
 
 dataset = {}
 try:
@@ -55,5 +56,5 @@ try:
                 archive.write('{}/{}/{}\n'.format(archive_set, key, fn))
 
 except IOError:
-    print '[ERROR] Logfile did not exist:', logfile
+    sys.stderr.write( '[ERROR] Logfile did not exist: ' + str(logfile))
     exit(1)

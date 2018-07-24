@@ -1,7 +1,7 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2017 Met Office. All rights reserved.
+ (C) Crown copyright 2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -14,7 +14,12 @@
 '''
 import os
 import unittest
-import mock
+try:
+    # mock is integrated into unittest as of Python 3.3
+    import unittest.mock as mock
+except ImportError:
+    # mock is a standalone package (back-ported)
+    import mock
 
 import testing_functions as func
 import runtime_environment
@@ -22,24 +27,21 @@ import runtime_environment
 try:
     import iris_transform
     IRIS_AVAIL = True
-    try:
-        IRIS_DATA = os.path.isfile(iris_transform.
-                                   iris.sample_data_path('air_temp.pp'))
-    except ValueError:
-        # Requires the "iris_sample_data" package to be installed
-        IRIS_DATA = False
 except ImportError:
-    IRIS_DATA = IRIS_AVAIL = False
+    IRIS_AVAIL = False
+    func.logtest('\n*** Iris is not available.  '
+                 'All 14 IRIS tests (CubesClassTests) will be skipped.\n')
 
 runtime_environment.setup_env()
 
 
 @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
-@unittest.skipUnless(IRIS_DATA, 'Iris sample data is not available')
 class CubesClassTests(unittest.TestCase):
     '''Unit tests for the IrisCubes class methods'''
     def setUp(self):
-        self.testfile = iris_transform.iris.sample_data_path('air_temp.pp')
+        self.testfile = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), 'air_temp.pp'
+            )
         self.fields = {'air_temperature': 'AIR-T'}
         self.transform = iris_transform.IrisCubes(self.testfile, self.fields)
         self.cubefield = self.transform.field_attributes\
@@ -93,7 +95,7 @@ class CubesClassTests(unittest.TestCase):
         func.logtest('Assert composition of load constraints for Iris cube')
         _ = iris_transform.extract_data(self.testfile, self.fields)
         mock_load.assert_called_once_with(self.testfile,
-                                          constraints=self.fields.keys())
+                                          constraints=list(self.fields.keys()))
 
     @mock.patch('iris_transform.iris.load')
     def test_extract_data_stash(self, mock_load):
@@ -112,8 +114,8 @@ class CubesClassTests(unittest.TestCase):
         # mock_load.assert_called_once_with(self.testfile,
         #                                   constraints=constraints)
         self.assertEqual(mock_load.call_args[0], (self.testfile,))
-        for i, arg in enumerate(mock_load.call_args[1]['constraints']):
-            self.assertEqual(repr(arg), repr(constraints[i]))
+        for arg in mock_load.call_args[1]['constraints']:
+            self.assertIn(repr(arg), [repr(c) for c in constraints])
             self.assertIsInstance(arg, iris_transform.iris.AttributeConstraint)
 
     def test_extract_data_error(self):

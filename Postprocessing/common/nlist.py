@@ -1,7 +1,7 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -47,10 +47,7 @@ class ReadNamelist(object):
         Read key-value pairs from an input array of lines of a namelist.
         Initialise the key attribute of the ReadNamelist object with the value.
         '''
-        if not isinstance(line_array, list):
-            line_array = [line_array]
-
-        for line in line_array:
+        for line in utils.ensure_list(line_array):
             # Remove whitespace, newlines, and preceding/trailing comma
             try:
                 key, val = line.split('=')
@@ -63,7 +60,7 @@ class ReadNamelist(object):
 
             val = val.strip(',')
             if ',' in val:
-                val = map(self._test_val, val.split(','))
+                val = [self._test_val(val) for val in val.split(',')]
             else:
                 val = self._test_val(val)
 
@@ -101,7 +98,7 @@ class ReadNamelist(object):
                     return os.path.expandvars(valstring).strip()
 
 
-def loadNamelist(*nl_files):
+def load_namelist(*nl_files):
     '''Load namelist(s) from given file(s)'''
     namelists = utils.Variables()
     for nl_file in nl_files:
@@ -112,7 +109,7 @@ def loadNamelist(*nl_files):
         try:
             infile = open(nl_file, 'r')
         except IOError:
-            msg = 'loadNamelist: Failed to open namelist file for reading: '
+            msg = 'load_namelist: Failed to open namelist file for reading: '
             utils.log_msg(msg + nl_file, level='FAIL')
 
         for line in infile.readlines():

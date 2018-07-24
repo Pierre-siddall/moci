@@ -1,7 +1,7 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -15,7 +15,12 @@
 import unittest
 import os
 import sys
-import mock
+try:
+    # mock is integrated into unittest as of Python 3.3
+    import unittest.mock as mock
+except ImportError:
+    # mock is a standalone package (back-ported)
+    import mock
 
 import testing_functions as func
 import runtime_environment
@@ -53,14 +58,14 @@ multiline_var=1,
         func.logtest('Load single namelist file:')
         with open(self.nlfile, 'w') as handle:
             handle.write(self.testnl)
-        namelists = nlist.loadNamelist(self.nlfile)
+        namelists = nlist.load_namelist(self.nlfile)
         self.assertEqual(namelists.testnl.test_variable, 'Blue')
         self.assertEqual(namelists.testnl.multiline_var, [1, 2, 3, 4, 5, 6])
 
     def test_load_two_files(self):
         '''Test load two namelists - one blank, one non-existent'''
         func.logtest('Load two namelists - one blank, one non-existent:')
-        namelists = nlist.loadNamelist(self.nlfile, self.newnlfile)
+        namelists = nlist.load_namelist(self.nlfile, self.newnlfile)
         self.assertTrue(os.path.exists(self.newnlfile),
                         msg='Failed to create new namelist file: {}'.
                         format(self.newnlfile))
@@ -71,7 +76,7 @@ multiline_var=1,
     def test_load_blank_file(self):
         '''Test load one blank file'''
         func.logtest('Load single blank namelist file:')
-        namelists = nlist.loadNamelist(self.nlfile)
+        namelists = nlist.load_namelist(self.nlfile)
         attributes = [a for a in dir(namelists) if not a.startswith('__')]
         self.assertListEqual(attributes, [])
 
@@ -98,10 +103,10 @@ class ReadNamelistTests(unittest.TestCase):
             msg = 'This test requires buffered mode to run (buffer=True)'
             self.fail(msg)
 
-    def test_read_namlist(self):
+    def test_read_namelist(self):
         '''Test reading suitegen namelist'''
         func.logtest('Read in namelist with defaults available (suitegen):')
-        namelist = nlist.ReadNamelist('suitegen', self.nlvars.keys())
+        namelist = nlist.ReadNamelist('suitegen', list(self.nlvars.keys()))
         for line in self.nlvars:
             var, _ = line.split('=')
             self.assertEqual(getattr(namelist, var), self.nlvars[line])
@@ -110,7 +115,7 @@ class ReadNamelistTests(unittest.TestCase):
     def test_read_no_default_nl(self):
         '''Test reading namelist with no defaults'''
         func.logtest('Attempt to read in namelist with no defaults:')
-        nlist.ReadNamelist('noDefault', self.nlvars.keys())
+        nlist.ReadNamelist('noDefault', list(self.nlvars.keys()))
         self.assertIn('[WARN]', func.capture(direct='err'))
 
     def test_type_casting(self):

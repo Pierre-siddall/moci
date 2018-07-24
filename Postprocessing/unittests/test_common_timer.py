@@ -1,7 +1,7 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -14,7 +14,12 @@
 '''
 import unittest
 import os
-import mock
+try:
+    # mock is integrated into unittest as of Python 3.3
+    import unittest.mock as mock
+except ImportError:
+    # mock is a standalone package (back-ported)
+    import mock
 
 import testing_functions as func
 import runtime_environment
@@ -51,7 +56,7 @@ class PostProcTimerTests(unittest.TestCase):
             self.timer.timing_cache = {'Method1': 2.5,
                                        'Method2': 2.5}
 
-    def teatDown(self):
+    def tearDown(self):
         pass
 
     def test_init_timer(self):
@@ -68,18 +73,18 @@ class PostProcTimerTests(unittest.TestCase):
         self.timer.start_timer('Label')
         self.assertTrue('Label' in self.timer.timing_cache.keys())
 
-    @mock.patch('timer.time.time', return_value=10.0)
-    def test_end_timer_existing_func(self, mock_time):
+    def test_end_timer_existing_func(self):
         '''test end_timer method - existing method'''
         func.logtest('Assert functionality of end_timer - existing method:')
-        self.timer.end_timer('Method1')
+        with mock.patch('timer.time.time', return_value=10.0):
+            self.timer.end_timer('Method1')
         self.assertEqual(self.timer.timings['Method1'], [8.5, 1, 7.5, 2])
 
-    @mock.patch('timer.time.time', return_value=10.0)
-    def test_end_timer_new_func(self, mock_time):
+    def test_end_timer_new_func(self):
         '''test end_timer method - new method'''
         func.logtest('Assert functionality of end_timer - new method:')
-        self.timer.end_timer('Method2')
+        with mock.patch('timer.time.time', return_value=10.0):
+            self.timer.end_timer('Method2')
         self.assertEqual(self.timer.timings['Method2'], [7.5, 7.5, 7.5, 1])
 
     def test_check_timer_ok(self):
@@ -116,7 +121,7 @@ class TimerMethodsTests(unittest.TestCase):
     '''Unit tests for the timer module methods'''
     def setUp(self):
         if 'initialise' not in self.id():
-            with mock.patch('nlist.loadNamelist') as mock_nl:
+            with mock.patch('nlist.load_namelist') as mock_nl:
                 mock_nl.return_value.monitoring.ltimer = True
                 timer.initialise_timer()
 
@@ -133,7 +138,7 @@ class TimerMethodsTests(unittest.TestCase):
         timer.initialise_timer()
         self.assertIsInstance(timer.tim, timer.PostProcTimerNull)
 
-    @mock.patch('nlist.loadNamelist')
+    @mock.patch('nlist.load_namelist')
     def test_initialise_timer(self, mock_nl):
         '''test initialise_timer method'''
         func.logtest('Assert functionality of initialise_timer method:')
@@ -232,7 +237,7 @@ class TimerMethodsTests(unittest.TestCase):
 
     @mock.patch('timer.PostProcTimer.end_timer')
     @mock.patch('timer.PostProcTimer.start_timer')
-    def test_runtimer_classmethod_no_args(self, mock_start, mock_end):
+    def test_runtimer_classmethod_arg0(self, mock_start, mock_end):
         '''test run_timer method - class method, no args'''
         func.logtest('Assert functionality of run_timer - class method:')
         rtn = MyClass().decorated_class_method()
