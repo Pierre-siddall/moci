@@ -1,0 +1,7 @@
+#!/bin/bash
+
+rm -f mean_nemo.exe
+
+module unload cray-netcdf
+module load cray-netcdf
+ftn -O0 mean_nemo.f90 -o mean_nemo.exe
