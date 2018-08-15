@@ -12,13 +12,13 @@ Created on 20 August 2015
 Utility functions for use in test scripts.
 """
 import itertools
+import functools
 
 import numpy
 
 import iris
 
 import test_common
-import cf_units
 
 iris.FUTURE.netcdf_promote = True
 
@@ -27,6 +27,12 @@ CF_TIME_UNIT = 'seconds since 1900-01-01 00:00:00'
 CF_CALENDAR = 'noleap'
 
 NEMO_TIME_COORD_NAME = 'time'
+
+def cube_name_comp(ref_var_name, cube_in):
+    '''
+    Function for constraint callback to select a cube by name.
+    '''
+    return cube_in.var_name == ref_var_name
 
 def compare_cube_list_files(file_path1,
                             file_path2,
@@ -89,6 +95,7 @@ def compare_cube_list_files(file_path1,
                          for cix1, c1 in enumerate(cube_list1)]
     error_list = []
 
+
     for cix1, name1, var_name in variable_list:
         msg1 = 'comparing cube {currentCube} of {totalCubes}'
         msg1 += ' - variable {name} ({vname})'
@@ -102,7 +109,7 @@ def compare_cube_list_files(file_path1,
             # load cubes here, to ensure that only the data for the current
             # variable is loaded into memory, reducing memory required
             if save_memory:
-                cube_func1 = lambda cube_in: cube_in.var_name == var_name
+                cube_func1 = functools.partial(cube_name_comp, var_name)
                 constraint1 = iris.Constraint(cube_func=cube_func1)
                 cube1 = iris.load_cube(file_path1, constraint1)
                 cube2 = iris.load_cube(file_path2, constraint1)
@@ -166,7 +173,7 @@ def compare_cubes(cube1, cube2, ignore_halos, halo_size):
     max_error = 0.0
     # In some cases we want to ignore halos
     if ignore_halos:
-        if len(cube1.shape) == 1:
+        if len(cube1.shape) < 2:
             num_mismatches = \
                 numpy.sum(numpy.abs(cube1.data-cube2.data)
                           > ERROR_TOLERANCE)
@@ -219,6 +226,8 @@ def compare_cubes(cube1, cube2, ignore_halos, halo_size):
                                                        :,
                                                        halo_size:-halo_size,
                                                        halo_size:-halo_size]))
+        else:
+            raise test_common.DataSizeMismatchError()
     else:
         num_mismatches = \
             numpy.sum(numpy.abs(cube1.data-cube2.data) > ERROR_TOLERANCE)
@@ -267,12 +276,13 @@ def find_matching_timesteps(cube1, cube2):
                 contain 3 elements: the time value, and the indices of that
                 time in each cube.
     """
-    timesteps1 = cube1.coords(NEMO_TIME_COORD_NAME)[0].points
-    timesteps2 = cube2.coords(NEMO_TIME_COORD_NAME)[0].points
+    timesteps1 = list(cube1.coord(NEMO_TIME_COORD_NAME).cells())
+    timesteps2 = list(cube2.coord(NEMO_TIME_COORD_NAME).cells())
 
     ts_list = [ts for ts in timesteps1 if ts in timesteps2]
-    ix1_list = [ix1 for ix1, ts in enumerate(timesteps1) if ts in timesteps2]
-    ix2_list = [ix2 for ix2, ts in enumerate(timesteps2) if ts in timesteps1]
+    ix1_list = [ix1 for ix1, ts in enumerate(timesteps1) if ts in ts_list]
+    ix2_list = [ix2 for ix2, ts in enumerate(timesteps2) if ts in ts_list]
+
     ts_tuples = \
         [(ts, ix1, ix2)
          for ts, ix1, ix2 in itertools.izip(ts_list, ix1_list, ix2_list)]
@@ -330,11 +340,20 @@ def compare_cubes_at_timesteps(diag_path1,
     ignore_halos = True
     halo_size = 1
 
+    def ts_comp_func(ts_ref, ts_in):
+        '''
+        Function for iris constraint callback to select a cube by
+        timestamp. Both the ts_ref and ts_in are iris cells, containing
+        datetime points.
+        '''
+        return ts_in.point == ts_ref.point
+
     for cix1, (cube1, cube2) \
         in enumerate(itertools.izip(cube_list1, cube_list2)):
         name1 = cube1.name()
         var_name = cube1.var_name
 
+        cube_func1 = functools.partial(cube_name_comp, var_name)
 
 
         msg1 = 'comparing cube {0} of {1}\n   name: {2}\n   var_name: {3}'
@@ -345,12 +364,12 @@ def compare_cubes_at_timesteps(diag_path1,
         io_manager.write_out(msg1)
 
 
-        ts_comp_func = lambda ts_in: ts_in == timestamp
+
+
         for timestamp, ix1, ix2 in timestep_tuples:
 
-            ts_cf = cf_units.num2date(timestamp, CF_TIME_UNIT, CF_CALENDAR)
             io_manager.write_out('comparing matching timesteps '
-                                 'at {0}'.format(ts_cf))
+                                 'at {0}'.format(timestamp))
 
             # load cubes here, to ensure that only the data for the current
             # variable is loaded into memory, reducing memory required
@@ -358,9 +377,10 @@ def compare_cubes_at_timesteps(diag_path1,
                 if save_memory:
 
 
-                    cube_func1 = \
-                        lambda cube_in: cube_in.var_name == var_name
-                    coord_dict1 = {NEMO_TIME_COORD_NAME: ts_comp_func}
+                    coord_dict1 = {
+                        NEMO_TIME_COORD_NAME: functools.partial(ts_comp_func,
+                                                                timestamp)
+                        }
 
                     current_constraint = \
                         iris.Constraint(cube_func=cube_func1,
