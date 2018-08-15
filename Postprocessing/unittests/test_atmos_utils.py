@@ -15,6 +15,7 @@
 import unittest
 import os
 import re
+
 try:
     # mock is integrated into unittest as of Python 3.3
     import unittest.mock as mock
@@ -43,7 +44,12 @@ if not housekeeping.MULE_AVAIL:
 
 
 class HousekeepTests(unittest.TestCase):
-    '''Unit tests relating to the atmosphere housekeeping utilities'''
+    """
+    Unit tests relating to the atmosphere housekeeping utilities
+    """
+
+    MULE_CUTOUT_CHECK_CMD = 'mule-cutout --help'
+
     def setUp(self):
         self.umutils = 'UMDIR/../utilities'
         self.atmos = atmos.AtmosPostProc()
@@ -897,14 +903,13 @@ class TransformTests(unittest.TestCase):
         func.logtest('Assert call to cutout_subdomain:')
         housekeeping.MULE_AVAIL = True
         with mock.patch('housekeeping.os.path.exists',
-                        side_effect=[False, True]):
+                        side_effect=[True, False]):
             icode = housekeeping.cutout_subdomain('path/to/file/FNAME',
                                                   'MULEDIR',
                                                   '-CTYPE',
                                                   [1, 2, 3, 4])
             self.assertEqual(icode, 0)
-
-        mock_exec.assert_called_once_with(
+        mock_exec.assert_called_with(
             'MULEDIR/mule-cutout -CTYPE path/to/file/FNAME ' +
             'path/to/file/FNAME.cut 1 2 3 4'
             )
@@ -920,7 +925,7 @@ class TransformTests(unittest.TestCase):
         func.logtest('Assert call to cutout_subdomain - pre-existing cutout:')
         housekeeping.MULE_AVAIL = True
         with mock.patch('housekeeping.os.path.exists',
-                        side_effect=[True]):
+                        side_effect=[True, True]):
             icode = housekeeping.cutout_subdomain('FNAME',
                                                   'MULEDIR',
                                                   '-CTYPE',
@@ -939,7 +944,7 @@ class TransformTests(unittest.TestCase):
         func.logtest('Assert call to cutout_subdomain - failure:')
         housekeeping.MULE_AVAIL = True
         with mock.patch('housekeeping.os.path.exists',
-                        side_effect=[False, True]):
+                        side_effect=[True, False]):
             with self.assertRaises(SystemExit):
                 icode = housekeeping.cutout_subdomain('path/to/file/FNAME',
                                                       'MULEDIR',
@@ -955,7 +960,7 @@ class TransformTests(unittest.TestCase):
         self.assertIn('OUTPUT', func.capture('err'))
 
     @mock.patch('housekeeping.utils.exec_subproc',
-                return_value=(1, 'Source grid is NXxNY points'))
+                side_effect=[(0, ''), (1, 'Source grid is NXxNY points')])
     def test_cutout_same_gridbox(self, mock_exec):
         '''Test call to cutout_subdomain - source file already cutout'''
         func.logtest('Assert call to cutout_subdomain - same gridbox:')
@@ -963,15 +968,19 @@ class TransformTests(unittest.TestCase):
         open('FNAME', 'w').close()
         open('FNAME.cut', 'w').close()
         with mock.patch('housekeeping.os.path.exists',
-                        side_effect=[False, True]):
-            icode = housekeeping.cutout_subdomain('FNAME', 'UMDIR', 'indices',
+                        side_effect=[False]):
+            icode = housekeeping.cutout_subdomain('FNAME',
+                                                  None,
+                                                  'indices',
                                                   ['ZX', 'ZY', 'NX', 'NY'])
             self.assertEqual(icode, 1)
         self.assertIn('contains the required gridbox', func.capture())
         self.assertNotIn('Source grid is NXxNY', func.capture())
-        mock_exec.assert_called_once_with(
-            'UMDIR/mule-cutout indices FNAME FNAME.cut ZX ZY NX NY'
-            )
+        call_list1 = \
+            [mock.call(HousekeepTests.MULE_CUTOUT_CHECK_CMD),
+             mock.call('mule-cutout indices FNAME FNAME.cut ZX ZY NX NY')]
+        mock_exec.assert_has_calls(call_list1)
+
 
     @mock.patch('housekeeping.utils.exec_subproc', return_value=(0, 'OUTPUT'))
     def test_cutout_rename(self, mock_exec):
@@ -986,10 +995,11 @@ class TransformTests(unittest.TestCase):
                                                   [1, 2, 3, 4])
             self.assertEqual(icode, 0)
 
-        mock_exec.assert_called_once_with(
-            os.environ['UMDIR'] +
-            '/mule_utils/mule-cutout -CTYPE FNAME FNAME.cut 1 2 3 4'
-            )
+        expected_cmd_str = 'mule-cutout -CTYPE FNAME FNAME.cut 1 2 3 4'
+        call_list1 = [mock.call(HousekeepTests.MULE_CUTOUT_CHECK_CMD),
+                      mock.call(expected_cmd_str)]
+        mock_exec.assert_has_calls(call_list1)
+
         self.assertTrue(os.path.exists('FNAME'))
         self.assertFalse(os.path.exists('FNAME.cut'))
         self.assertIn('Successfully extracted sub-domain', func.capture())
@@ -1000,7 +1010,7 @@ class TransformTests(unittest.TestCase):
         func.logtest('Assert call to cutout_subdomain - failure:')
         housekeeping.MULE_AVAIL = True
         with mock.patch('housekeeping.os.path.exists',
-                        side_effect=[False, True]):
+                        side_effect=[True, False]):
             with self.assertRaises(SystemExit):
                 icode = housekeeping.cutout_subdomain('FNAME',
                                                       'MULEDIR',

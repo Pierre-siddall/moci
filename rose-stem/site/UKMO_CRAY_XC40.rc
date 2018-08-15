@@ -282,8 +282,6 @@ module load scitools/experimental-current > /dev/null 2>&1 ;
 module swap scitools scitools/experimental-current ;
 module list ;
 echo PLEASE NOTE:  Mule is not compatible with Python3, so is cannot be used. ;
-{% else %}
-export PYTHONPATH=$PYTHONPATH:$UMDIR/mule/mule-next/python2.7/lib ;
 {% endif %}
 echo ;
 """

@@ -291,25 +291,34 @@ def cutout_subdomain(full_fname, mule_utils, coord_type, coords):
     Arguments:
       full_fname - <type str> Filename including full path
       mule_utils - Path to mule-cutout.
-                   If <type NoneType> then use default: $UMDIR/mule_utils
+                   If <type NoneType> then mule-cutout is assumed to be on
+                   the system $PATH variable.
       coord_type - Coordinate system argument for mule-cutout.  One of:
                      ['indices', 'coords', 'coords --native-grid']
       coords     - Integer coordinates to cut out:
                      indices: zx,zy,nz,ny
                      coords : SW_lon,SW_lat,NE_lon,NE_lat
     '''
-    if mule_utils is None:
-        mule_utils = os.path.join('$UMDIR', 'mule_utils')
+    cutout_exec_present = False
+    if mule_utils:
+        # if a path is passed in, create a full path to the cutout executable
+        cutout = os.path.expandvars(os.path.join(mule_utils, 'mule-cutout'))
+        cutout_exec_present = os.path.exists(cutout)
+    else:
+        # if no path is passed in, we expect mule-cutout to be on the system $PATH
+        ret_val, _ = utils.exec_subproc('mule-cutout --help')
+        cutout = 'mule-cutout'
+        cutout_exec_present = ret_val == 0
+
 
     outfile = full_fname + '.cut'
-    cutout = os.path.expandvars(os.path.join(mule_utils, 'mule-cutout'))
 
     mlevel = 'ERROR'
     if os.path.exists(full_fname + '.cut'):
         # Cut out file already exists - skip to rename
         icode = 0
 
-    elif os.path.exists(cutout) and MULE_AVAIL:
+    elif cutout_exec_present and MULE_AVAIL:
         # mule-cutout requires the mule Python module to be available
         cmd = ' '.join([cutout, coord_type, full_fname, outfile] +
                        [str(x) for x in coords])
