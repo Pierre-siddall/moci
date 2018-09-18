@@ -1,0 +1,572 @@
+#!/usr/bin/env python2.7
+# -*- mode: Python -*-
+
+# * Compute & report on rates for rose/cylc suites.
+# The right toolset for this would be NumPy, but it's not worth it
+# here.
+#
+# The approach is to compute rates for each cycle, which then need to
+# be averaged in various way.  To do this it interpolates everything
+# onto a regular set of times, and then processes the interpolated
+# values.  This means you don't have to think about the irregular
+# timesteps in the original data, but it's also just copping out
+# because I found it too hard to think about computing averages across
+# them.  So, really, it would be better to actually bite that bullet,
+# perhaps.
+#
+# The four rates computed are
+# - effective rate which is just based on the time between successive
+#   submit points -- this is what the suite actually is doing;
+# - coupled rate which is based on the time from the coupled job
+#   actually starting and it ending -- this is the fastest rate the
+#   suite could manage;
+# - coupled & queuing rate (cq in the code), which is based on the
+#   time from the coupled job being submitted & it ending -- this is
+#   intermediate between coupled & effective;
+# - coupled & waiting rate (cw in the code), which is the time between
+#   successive cycle points with the queuing time subtracted from it,
+#   and accounts for any other tasks which eat time in the suite --
+#   this is also intermediate between coupled & effective.
+#
+# the cq & cw rates help you to work out where the difference between
+# the coupled & effective rate is coming from: usually one or the
+# other is dominant.
+#
+# You can get various sorts of output with the -r / --report-type option:
+# - summary shows a summary of the rates;
+# - interpolated prints the interpolated rates (lots of output);
+# - raw prints the raw rates from the suite database (less output but
+#   still a lot)
+# - plot runs gnuplot to produce a plot of the interpolated output in
+# - a window.
+#
+# plot really exists for sanity checking the program: it's not really
+# general purpose.  If you want serious plots then dump the output and
+# run gnuplot manually.  If you use plot you can also specify -t to
+# select a gnuplot output type, with the current options being screen,
+# svg, png.
+#
+#
+# All elapsed times are in days, all rates are in years/day.  The
+# program needs to know the cycle length in 'months' (default 1), the
+# 'month' length in days (default 30) and the year length in days
+# (default 360).  Months are assumed all to be the same length (so
+# there's a fairly strong assumption of a 360-day calendar).
+#
+# Lots of things (including column titles) know the main job is
+# "coupled", although in fact it may not be.
+#
+
+from __future__ import print_function
+from sys import exit, stdout, stderr
+from os import _exit, EX_IOERR
+from math import floor
+from re import match
+from subprocess import Popen, PIPE
+from collections import namedtuple
+from os.path import split, join, normpath
+from tempfile import NamedTemporaryFile
+from os import fsync
+from subprocess import Popen, PIPE
+from argparse import ArgumentParser
+
+# Default values for things
+MLEN = 30.0                 # month length in days
+CLEN = 1.0                  # cycle length in months
+YLEN = 360.0                # year length in days
+ALPHA = 0.05                # decay constant (seems reasonable)
+INTERVAL = 1.0 / (24 * 3)   # interpolation in days (every 20 minutes)
+
+class Doom(Exception):
+    pass
+
+def doom(message):
+    raise Doom(message)
+
+# A class for objects representing event times in days.  I don't know
+# how the efficiency of this compares to the previous thing of just
+# knowing the indices, but it is much clearer.
+#
+Days = namedtuple('Days', ('submit', 'start', 'end'))
+
+def dbdays(db, job="coupled"):
+    # return a tuple of Days (see above) of successful coupled (or
+    # other jobs ordered by submission in db, which should be a
+    # cylc database.  Note that the days are floats, so they're really
+    # universal times.
+    if not match(r"^[A-Za-z][A-Za-z0-9_]*$", job):
+        # let's not allow SQL injection attacks
+        doom("dubious job name")
+    proc = Popen(("sqlite3", db,
+                  """
+select julianday(time_submit),
+       julianday(time_run),
+       julianday(time_run_exit)
+       from task_jobs
+       where name == "{}"
+       and submit_status == 0
+       and run_status == 0
+       order by julianday(time_submit)
+""".format(job)),
+                 stdout=PIPE, shell=False, universal_newlines=True)
+
+    days =  tuple(Days._make(float(e)
+                             for e in line.strip().split("|"))
+                  for line in proc.stdout)
+    # there's no very strong reason that this should not hang if
+    # sqlite3 never terminates
+    if proc.wait() != 0:
+        doom("sqlite failed?")
+    if len(days) == 0:
+        doom("got no records (wrong job name?)")
+    return days
+
+def relativize(times):
+    # given a tuple of Days, and assuming the submit field of the
+    # first row is the base data, simply subtract that time from all
+    # the other entries to get something based at zero.
+    t0 = times[0].submit
+    return tuple(Days(submit = times[i].submit - t0,
+                      start = times[i].start - t0,
+                      end = times[i].end - t0)
+                 for i in range(len(times)))
+
+# A class for rates associated with a time
+# Fields are day, & then effective, coupled, coupled & queuing,
+# coupled & waiting rates
+#
+Rates = namedtuple('Rates', ('day', 'effective', 'coupled', 'cq', 'cw'))
+
+def rateify(times, clen=CLEN, mlen=MLEN, ylen=YLEN):
+    # This associates the rate with the start (submit time) of the
+    # cycle based on it and the cycle after it (so there's a rate for
+    # the submit time of the first cycle but none for the submit time
+    # of the last cycle). This means it simply ignores everything
+    # other than the start time of the most recent cycle.  Previously
+    # it associated the rate with the submit time of the following
+    # cycle: I think this is just an arbitrary choice, really.
+    #
+    # I keep getting this wrong, so here's how the calculation is done
+    # now: for cycle $n$ there are three points: $s_n$ is the submit
+    # time, $r_n$ is when the task starts, and $e_n$ is when it ends.
+    # Given a function $R$ which computes a rate from a time, then the
+    # effective rate at $s_n$ is $R(s_{n + 1} - s_n)$, the coupled
+    # rate is $R(e_n - r_n)$, the coupled and queueing rate is
+    # $R(e_n - s_n)$ and the coupled and waiting rate is $R(s_{n + 1}
+    # - r_n)$.  For rate set $n$ the points you need to compute the
+    # set are $\left\{s_n, r_n, e_n, s_{n + 1}\right\}$.  Draw a
+    # picture!
+    #
+    # clen is the cycle length in months, mlen is the month length in
+    # days.  ylen is the length of a year in days
+    #
+    # Returns a tuple of Rates objects
+    def rate(t):
+        # return a rate in years per day corresponding to an interval
+        # of length t days.
+        return (mlen * clen)/(1.0 * ylen * t)
+
+    if len(times) < 2:
+        doom("need a completed cycle to compute a rate")
+    return tuple(Rates(day=times[i].submit,
+                       effective=rate(times[i + 1].submit - times[i].submit),
+                       coupled=rate(times[i].end - times[i].start),
+                       cq=rate(times[i].end - times[i].submit),
+                       cw=rate(times[i + 1].submit - times[i].start))
+                 for i in range(0, len(times) - 1))
+
+def make_window_filter(start=None, end=None):
+    # make a filter function which will pick a range from a tuple of
+    # 'ratelike' objects: these are simply objects which have a day
+    # field.  This probably ought to use functools.partial, but why?
+    def window_filter(ratelikes):
+        s = (ratelikes[0].day if start is None
+             else (start if start >= 0.0 else ratelikes[-1].day + start))
+        e = (ratelikes[-1].day if end is None
+             else (end if end >= 0.0 else ratelikes[-1].day + end))
+        return tuple(r for r in ratelikes
+                     if s <= r.day <= e)
+    if (start is not None) or (end is not None):
+        # there's some pruning to do
+        return window_filter
+    else:
+        # there isn't
+        return lambda e: e
+
+def interpolate(rates, interval):
+    # resample rates at intervals of interval, using linear interpolation
+    # Return tuples of Rates objects again.
+
+    if len(rates) < 2:
+        doom("need two completed cycles to interpolate rates")
+
+    t0 = rates[0].day           # start time
+    tn = rates[-1].day          # end time
+
+    # These get stepped when we move between segments
+    #
+    ri = 0                      # index into rates
+    ts = rates[ri].day          # time at start of current segment
+    te = rates[ri + 1].day      # time at end of current segment
+    dt = te - ts                # length of segment (delta t)
+    es = rates[ri].effective    # effective rate at start of segment
+    eg = ((rates[ri + 1].effective
+           - es)/dt)            # slope of effective rate in current segment
+    cs = rates[ri].coupled      # coupled rate at start of segment
+    cg = ((rates[ri + 1].coupled
+           - cs)/dt)            # slope of coupled rate in segment
+    qs = rates[ri].cq           # coupled + queuing at start of segment
+    qg = ((rates[ri + 1].cq
+           - qs)/dt)            # slope of cq in segment
+    ws = rates[ri].cw           # coupled & waiting at start of segment
+    wg = ((rates[ri + 1].cw
+           - ws)/dt)            # slope of cw in segment
+
+    n = int(floor((tn - t0)/interval))
+    resampled = [None] * n
+    for i in range(n):
+        t = i * interval + t0
+        # walk along until we are in a segment
+        while t >= te:
+            ri += 1
+            ts = rates[ri].day
+            te = rates[ri + 1].day
+            dt = te - ts
+            es = rates[ri].effective
+            eg = (rates[ri + 1].effective - es)/dt
+            cs = rates[ri].coupled
+            cg = (rates[ri + 1].coupled - cs)/dt
+            qs = rates[ri].cq
+            qg = ((rates[ri + 1].cq - qs)/dt)
+            ws = rates[ri].cw
+            wg = ((rates[ri + 1].cw - ws)/dt)
+        # and record time, interpolated effective & coupled rates in a
+        # new Rates object.
+        resampled[i] = Rates(day=t,
+                             effective=(t - ts) * eg + es,
+                             coupled=(t - ts) * cg + cs,
+                             cq = (t - ts) * qg + qs,
+                             cw = (t - ts) * wg + ws)
+
+    return resampled
+
+def decay(resampled, alpha):
+    # compute decaying averages (properly now)
+    # use a list to avoid Python scope braindeath
+    decayed = [resampled[0].effective, resampled[0].coupled,
+               resampled[0].cq, resampled[0].cw]
+
+    def next(rate):
+        decayed[0] = (alpha * rate.effective
+                      + (1 - alpha) * decayed[0])
+        decayed[1] = (alpha * rate.coupled
+                      + (1 - alpha) * decayed[1])
+        decayed[2] = alpha * rate.cq + (1 - alpha) * decayed[2]
+        decayed[3] = alpha * rate.cw + (1 - alpha) * decayed[2]
+        return Rates(day=rate.day, effective=decayed[0], coupled=decayed[1],
+                     cq=decayed[2], cw=decayed[3])
+
+    return tuple(next(rate) for rate in resampled)
+
+# A class for integrated rates
+Integrals = namedtuple('Integrals', ('interval', 'n',
+                                     'effective', 'coupled',
+                                     'cq', 'cw'))
+
+def integrate(resampled, interval=INTERVAL):
+    # integrate to get the total time
+    return Integrals(interval=interval, n=len(resampled),
+                     effective=sum(e.effective * interval for e in resampled),
+                     coupled=sum(e.coupled * interval for e in resampled),
+                     cq=sum(e.cq * interval for e in resampled),
+                     cw=sum(e.cw * interval for e in resampled))
+
+def print_summaries(rates, suite, interval=INTERVAL, alpha=ALPHA,
+                    job="coupled", porcelain=False, detailed=False,
+                    window_filter=lambda e: e, first=True, file=stdout):
+    # Print summaries of rates for suite: this is the default
+    interpolated = window_filter(interpolate(rates, interval))
+    windowed_rates = window_filter(rates) # needed to report last real rates
+    intp_int = integrate(interpolated, interval=interval)
+    decayed = decay(interpolated, alpha)
+    decd_int = integrate(decayed, interval=interval)
+    runtime = intp_int.n * intp_int.interval
+
+    # This is much too complicated now because of all the detailed /
+    # porcelain stuff, but it's still better than repeating the code
+    # in lots of functions I think
+
+    def print_summary(what, title=None, porcelain=False):
+        if what not in {'effective', 'coupled', 'cq', 'cw'}:
+            doom("what?")
+
+        def val(r):
+            return getattr(r, what)
+
+        if detailed:
+            print((("{:20s} " if not porcelain else "{}")
+                   + ("{:8.1f} {:8.2f} {:8.2f} {:8.2f} {:8.2f} {:8.2f}"
+                      if not porcelain
+                      else "{} {} {} {} {} {}"))
+                  .format((title or what) if not porcelain else "",
+                          interpolated[-1].day - interpolated[0].day,
+                          val(windowed_rates[-1]),
+                          val(interpolated[-1]), val(intp_int)/runtime,
+                          val(decayed[-1]), val(decd_int)/runtime),
+                  file=file)
+        else:
+            print((("{:20s} " if not porcelain else "{}")
+                   + ("{:8.1f} {:8.2f} {:8.2f} {:8.2f}" if not porcelain
+                      else "{} {} {} {}"))
+                  .format((title or what) if not porcelain else "",
+                          interpolated[-1].day - interpolated[0].day,
+                          val(windowed_rates[-1]),
+                          val(intp_int)/runtime,
+                          val(decayed[-1])),
+                  file=file)
+
+    if not porcelain:
+        if not first:
+            print("", file=file)
+        if detailed:
+            print("{:20s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s}"
+                  .format(suite, "days", "last", "intp", "iavg",
+                          "decd", "davg"),
+                  file=file)
+        else:
+            print("{:20s} {:>8s} {:>8s} {:>8s} {:>8s}"
+                  .format(suite, "days", "last", "ravg",
+                          "davg"),
+                  file=file)
+        print_summary('effective')
+        print_summary('coupled', title="{} only".format(job))
+        print_summary('cq', title="{} & queuing".format(job))
+        print_summary('cw', title="{} & waiting".format(job))
+    else:
+        print_summary('effective', porcelain=True)
+        print_summary('coupled', porcelain=True)
+        print_summary('cq', porcelain=True)
+        print_summary('cw', porcelain=True)
+
+def print_raw_rates(rates, porcelain=False, window_filter=lambda e: e,
+                    file=stdout):
+    # print lines with day, effective and coupled rates for raw rates
+    control = ("{:8.1f} {:8.2f} {:8.2f} {:8.2f} {:8.2f}" if not porcelain
+               else "{} {} {} {} {}")
+    if not porcelain:
+        print("{:>8s} {:>8s} {:>8s} {:>8s} {:>8s}"
+              .format("days", "effr", "cplr", "cpqr", "cpwr"),
+              file=file)
+    for rate in window_filter(rates):
+        print(control.format(rate.day, rate.effective, rate.coupled,
+                             rate.cq, rate.cw),
+              file=file)
+
+def print_interpolated_rates(rates, interval=INTERVAL, alpha=ALPHA,
+                             porcelain=False, window_filter=lambda e: e,
+                             file=stdout):
+    # print lines with day, effective, decayed effective, coupled &
+    # decayed coupled for interpolated rates
+    control = ("{:8.1f}" + " {:8.2f} {:8.2f}" * 4 if not porcelain
+               else "{} {} {} {} {} {} {} {} {}")
+    interpolated = window_filter(interpolate(rates, interval))
+    decayed = decay(interpolated, alpha)
+    if not porcelain:
+        print("{:>8s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s} {:>8s}"
+              .format("days", "effr", "deff", "cplr", "dcpl",
+                      "cpqr", "dcpq", "cpwr", "dcpw"),
+              file=file)
+    for i in range(len(interpolated)):
+        print(control.format(interpolated[i].day,
+                             interpolated[i].effective,
+                             decayed[i].effective,
+                             interpolated[i].coupled,
+                             decayed[i].coupled,
+                             interpolated[i].cq,
+                             decayed[i].cq,
+                             interpolated[i].cw,
+                             decayed[i].cw),
+              file=file)
+
+# gnuplot terminal type map
+GP_TTYPE_MAP = {None: "",
+                'screen': "",
+                'svg': "set terminal svg",
+                'png': "set terminal png transparent size 1024,768"}
+
+def plot_interpolated_rates(rates, ttype=None, **kwargs):
+    # Print interpolated rates into a temporary file & then call
+    # gnuplot on that file to show them.  This is a hack.  I am not
+    # sure of the yrange is right: I find it nicer to see the whole
+    # range.
+    if ttype not in GP_TTYPE_MAP:
+        doom("unknown plot output type {}".format(ttype))
+    terminal = GP_TTYPE_MAP[ttype]
+    with NamedTemporaryFile() as tmp:
+        print_interpolated_rates(rates, file=tmp, **kwargs)
+        tmp.flush()
+        fsync(tmp.fileno())
+        gnuplot = Popen(("gnuplot",), stdin=PIPE)
+        gnuplot.communicate("""
+{}
+set xlabel "run time (days)"
+set ylabel "rate (years/day)"
+set yrange [0:*]
+plot "{}" using 1:2:4 with filledcurves fs solid 0.1 \
+          title "effective / coupled", \
+     "" using 1:6 with lines title "coupled & queuing", \
+     "" using 1:8 with lines title "coupled & waiting", \
+     "" using 1:3 with lines lc rgb "gray" title "decayed effective"
+pause mouse any
+""".format(terminal, tmp.name))
+        gnuplot.wait()
+
+def main():
+    # entry point
+    parser = ArgumentParser(description="report suite rates")
+    parser.add_argument("-c", "--cycle-length",
+                        action='store', type=float,
+                        dest='clen', default=CLEN,
+                        help=("the suite cycle length in months, default {}"
+                              .format(CLEN)))
+    parser.add_argument("-m", "--month-length",
+                        action='store', type=float,
+                        dest='mlen', default=MLEN,
+                        help=("the length or a month in days, default {}"
+                              .format(MLEN)))
+    parser.add_argument("-y", "--year-length",
+                        action='store', type=float,
+                        dest='ylen', default=YLEN,
+                        help=("the length or a year in days, default {}"
+                              .format(YLEN)))
+    parser.add_argument("-a", "--alpha",
+                        action='store', type=float,
+                        dest='alpha', default=ALPHA,
+                        help=("alpha for decaying average, default {}"
+                              .format(ALPHA)))
+    parser.add_argument("-i", "--interpolation-interval",
+                        action='store', type=float,
+                        dest='interval', default=INTERVAL,
+                        help=("interpolation interval, in days, default {}"
+                              .format(INTERVAL)))
+    parser.add_argument("-j", "--job-name",
+                        action='store',
+                        dest='job', default="coupled",
+                        help="UM job name (default 'coupled')")
+    parser.add_argument("-s", "--start-day",
+                        action='store', type=float,
+                        dest='start', default=None,
+                        help="starting day for data dumps (-ve means from end)")
+    parser.add_argument("-e", "--end-day",
+                        action='store', type=float,
+                        dest='end', default=None,
+                        help="ending day for data dumps (-ve means from end)")
+    parser.add_argument("-p", "--porcelain",
+                        action='store_true',
+                        dest='porcelain',
+                        help="produce porcelain output with no headers &c")
+    parser.add_argument("-d", "--debugging",
+                        action='store_true',
+                        dest='debugging', default=False,
+                        help="debugging (backtraces &c)")
+    parser.add_argument("-r", "--report-type",
+                        choices=('summary', 'detailed',
+                                 'raw', 'interpolated', 'plot'),
+                        dest='rtype', default='summary',
+                        help="report type to produce (default is summary)")
+    parser.add_argument("-t", "--terminal-type",
+                        choices=('svg', 'png', 'screen'),
+                        dest='ttype', default='screen',
+                        help="plot output type (default is screen)")
+    parser.add_argument("logtops",
+                        action='store', nargs='+',
+                        metavar='LOGTOP',
+                        help="log directories for the suite (in cylc-run)")
+    debugging = True
+    try:
+        args = parser.parse_args()
+        debugging = args.debugging
+        if args.clen <= 0:
+            doom("insane cycle length")
+        if args.interval <= 0.0:
+            doom("insane interpolation interval")
+        if not (0.0 < args.alpha < 1.0):
+            doom("insane alpha")
+        if len(args.logtops) > 1 and args.rtype not in {'summary', 'detailed'}:
+            doom("you can only dump data for one suite")
+        if debugging:
+            print("""
+  logtops = {}
+     clen = {}
+     mlen = {}
+     ylen = {}
+    alpha = {}
+ interval = {}
+      job = {}
+porcelain = {}
+    rtype = {}
+    ttype = {}
+    start = {}
+      end = {}
+"""
+                  .format(args.logtops, args.clen, args.mlen, args.ylen,
+                          args.alpha, args.interval,
+                          args.job, args.porcelain, args.rtype, args.ttype,
+                          args.start, args.end),
+                  file=stderr)
+        rtype = args.rtype
+        first = True
+        window_filter = make_window_filter(start=args.start, end=args.end)
+        for logtop in (normpath(d) for d in args.logtops):
+            rates = rateify(relativize(dbdays(join(logtop, "log", "db"),
+                                              job=args.job)),
+                            clen=args.clen, mlen=args.mlen,
+                            ylen=args.ylen)
+            if rtype in {'summary', 'detailed'}:
+                print_summaries(rates, split(logtop)[1],
+                                interval=args.interval, alpha=args.alpha,
+                                job=args.job, porcelain=args.porcelain,
+                                detailed=(rtype == 'detailed'),
+                                window_filter=window_filter, first=first)
+            elif rtype == 'raw':
+                print_raw_rates(rates, porcelain=args.porcelain,
+                                window_filter=window_filter)
+            elif rtype == 'interpolated':
+                print_interpolated_rates(rates,
+                                         interval=args.interval,
+                                         alpha=args.alpha,
+                                         porcelain=args.porcelain,
+                                         window_filter=window_filter)
+            elif rtype == 'plot':
+                plot_interpolated_rates(rates,
+                                        ttype=args.ttype,
+                                        interval=args.interval,
+                                        alpha=args.alpha,
+                                        porcelain=True,
+                                        window_filter=window_filter)
+            else:
+                doom("what?")
+            first = False
+    except Exception as e:
+        if debugging:
+            raise
+        else:
+            exit(e)
+
+    # Try and evade the 'lost stderr' spurions by just bottling out
+    #
+    try:
+        if not stdout.closed:
+            stdout.flush()
+            stdout.close()
+        if not stderr.closed:
+            stderr.flush()
+            stderr.close()
+    except:
+        if not debugging:
+            _exit(EX_IOERR)
+        else:
+            raise
+
+if __name__ == '__main__':
+    main()
