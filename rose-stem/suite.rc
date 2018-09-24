@@ -95,6 +95,12 @@
     "ALL"               : ["XBS_ALL","postproc"]
     }
 %}
+[cylc]
+    UTC mode = True
+    [[events]]
+        timeout handler = "rose suite-hook --shutdown"
+        mail events = timeout
+        timeout = PT6H
 
 [scheduling]
     [[dependencies]]
