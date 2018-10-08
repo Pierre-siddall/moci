@@ -1,14 +1,17 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 """
 Unit test module to test XIOS build scripts.
 """
 import unittest
+try:
+    import unittest.mock as mock
+except ImportError:
+    import mock
 import os
 import filecmp
 import abc
 import copy
 
-import mock
 
 # this must be imported before the other local imports as it sets up the path
 # to import the main scripts
@@ -31,7 +34,7 @@ class XiosBuildTests(unittest.TestCase):
         """
         Setup XIOS build tests
         """
-        print 'Setting up tests'
+        print('Setting up tests')
         self.config_list = XiosBuildTests.CONFIG_LIST
         self.system_name = self.get_system_name()
         self.settings_dir = unit_test_common.get_settings_dir()

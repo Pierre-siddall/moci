@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 # *****************************COPYRIGHT******************************
 # (C) Crown copyright Met Office. All rights reserved.
 # For further details please refer to the file COPYRIGHT.txt
@@ -25,22 +25,22 @@ def main():
     nemo_kgo_dir = os.environ['NEMO_KGO_DIR']
     nemo_result_dir = os.environ['NEMO_RESULT_DIR']
 
-    print 'comparing NEMO output files'
+    print('comparing NEMO output files')
     for file_name1 in NemoTestSystem.NemoTestSystem.OUTPUT_FILE_LIST:
-        print 'evaluating file {filename}'.format(filename=file_name1)
+        print('evaluating file {filename}'.format(filename=file_name1))
         try:
             file_path1 = os.path.join(nemo_kgo_dir, file_name1)
             file_path2 = os.path.join(nemo_result_dir, file_name1)
             msg1 = 'comparing files {0} and {1}'
             msg1 = msg1.format(file_path1, file_path2)
-            print msg1
+            print(msg1)
             compare_utils.compare_cube_list_files(file_path1,
                                                   file_path2)
         except Exception as except1:
             sys.stderr.write(str(except1))
             raise except1
 
-    print 'NEMO output data match successful'
+    print('NEMO output data match successful')
 
 if __name__ == '__main__':
     main()

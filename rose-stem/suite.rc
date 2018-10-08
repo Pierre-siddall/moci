@@ -183,7 +183,7 @@ export FCM_VERSION={{FCM_VERSION}}
             
     [[XBS]]
         env-script = "eval $(rose task-env)"
-        
+        inherit = PYTHON_ENV
         [[[environment]]]
             SYSTEM_NAME={{SYSTEM_NAME}} 
             {% if VERBOSE %}

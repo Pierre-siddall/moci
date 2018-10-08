@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 # *****************************COPYRIGHT******************************
 # (C) Crown copyright Met Office. All rights reserved.
 # For further details please refer to the file COPYRIGHT.txt
@@ -24,10 +24,10 @@ def main():
     xios_kgo_dir = os.environ['XIOS_KGO_DIR']
     xios_result_dir = os.environ['XIOS_RESULT_DIR']
 
-    print 'comparing XIOS output files'
+    print('comparing XIOS output files')
 
     for file_name1 in XiosTestSystem.XiosTestSystem.OUTPUT_FILE_LIST:
-        print 'evaluating file {filename}'.format(filename=file_name1)
+        print('evaluating file {filename}'.format(filename=file_name1))
         try:
             file_path1 = os.path.join(xios_kgo_dir, file_name1)
             file_path2 = os.path.join(xios_result_dir, file_name1)
@@ -37,7 +37,7 @@ def main():
             sys.stderr.write(str(except1))
             raise except1
 
-    print 'xios output data match successful'
+    print('xios output data match successful')
     sys.exit(0)
 
 if __name__ == '__main__':

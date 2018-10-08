@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 # *****************************COPYRIGHT******************************
 # (C) Crown copyright Met Office. All rights reserved.
 # For further details please refer to the file COPYRIGHT.txt
@@ -15,7 +15,7 @@
 import os
 import sys
 import subprocess
-from abc import ABCMeta, abstractmethod
+import abc
 
 import common
 
@@ -30,7 +30,6 @@ class NemoTestSystem(common.XbsBase):
     # factory method
     SYSTEM_NAME = 'BASE_NEMO_TEST_SYSTEM'
     XIOS_SERVER_LINK_NAME = 'xios_server.exe'
-    __metaclass__ = ABCMeta
 
     OUTPUT_FILE_LIST = ['GYRE_1d_00010101_00010103_grid_T.nc',
                         'GYRE_1d_00010101_00010103_grid_V.nc',
@@ -53,11 +52,11 @@ class NemoTestSystem(common.XbsBase):
         self.xios_tasks = int(settings_dict['XIOS_TASKS'])
         self.nemo_experiment_rel_path = settings_dict['NEMO_EXP_REL_PATH']
         self.launch_directory = os.getcwd()
-        self.suite_mode = settings_dict.has_key('ROSE_DATA')
+        self.suite_mode = 'ROSE_DATA' in settings_dict
         self.tasks_per_node = int(settings_dict['TASKS_PER_NODE'])
         self.xios_tasks_per_node = int(settings_dict['XIOS_TASKS_PER_NODE'])
         self.nemo_exec_name = 'opa'
-
+        
         self.xios_version = settings_dict['XIOS_VERSION']
         if self.xios_version == '2.0':
             self.nemo_config = 'GYRE_XIOS'
@@ -65,11 +64,8 @@ class NemoTestSystem(common.XbsBase):
         elif self.xios_version == '1.0':
             self.nemo_config = 'GYRE'
             self.jpcfg = '1'
-
-        try:
-            self.xios_use_server = settings_dict['XIOS_USE_SERVER'] == 'true'
-        except KeyError:
-            self.xios_use_server = False
+        
+        self.xios_use_server = settings_dict.get('XIOS_USE_SERVER', 'false') == 'true'
 
         if self.xios_use_server:
             self.xios_server_exec = settings_dict['XIOS_EXEC']
@@ -129,8 +125,8 @@ class NemoTestSystem(common.XbsBase):
         """
         # Change Directory
         os.chdir(self.path_to_nemo_experiment)
-        print 'launch directory is {0}'.format(self.launch_directory)
-        print 'current directory is {0}'.format(os.getcwd())
+        print('launch directory is {0}'.format(self.launch_directory))
+        print('current directory is {0}'.format(os.getcwd()))
 
         if self.xios_use_server:
             # Create symbolic link to IO server
@@ -139,21 +135,21 @@ class NemoTestSystem(common.XbsBase):
             msg_1 = '''creating symbolic link to XIOS server:
         target: {0}
         link: {1}'''.format(self.xios_server_exec, xios_binary_link)
-            print msg_1
+            print(msg_1)
 
             if os.path.islink(xios_binary_link):
                 os.remove(xios_binary_link)
             os.symlink(self.xios_server_exec,
                        xios_binary_link)
 
-        print 'writing test script'
+        print('writing test script')
         self.write_script()
-        print 'running test script'
+        print('running test script')
         self.run_test_script()
 
         self.copy_output()
 
-    @abstractmethod
+    @abc.abstractmethod
     def write_script(self):
         """
         Create the test script to run. The script is written to disk as it may
@@ -161,7 +157,7 @@ class NemoTestSystem(common.XbsBase):
         """
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def run_test_script(self):
         """
         Run the test script. This may be submitted to queue or
@@ -176,7 +172,7 @@ class NemoTestSystem(common.XbsBase):
         the NEMO test results.
         """
         if not self.do_result_copy:
-            print 'output not being copied'
+            print('output not being copied')
             return
 
         if not os.path.exists(self.result_dest_dir):
@@ -185,8 +181,8 @@ class NemoTestSystem(common.XbsBase):
         for file_name1 in self.OUTPUT_FILE_LIST:
             path1 = os.path.join(self.path_to_nemo_experiment,
                                  file_name1)
-            print 'copying {src} to {dest}/'.format(src=path1,
-                                                    dest=self.result_dest_dir)
+            print('copying {src} to {dest}/'.format(src=path1,
+                                                    dest=self.result_dest_dir))
             copy_cmd1 = 'cp {src} {dest}/'.format(src=path1,
                                                   dest=self.result_dest_dir)
             subprocess.call(copy_cmd1,
@@ -205,7 +201,7 @@ class NemoCrayXc40TestSystem(NemoTestSystem):
         Constructor for class to run the NEMO Gyre test configuration on
         the UK Met Office Cray XC40 platform.
         """
-        print 'creating Cray XC40 test system'
+        print('creating Cray XC40 test system')
         NemoTestSystem.__init__(self, settings_dict)
         self.script_name = 'opa.pbs'
         self.script_path = '{0}/{1}'.format(self.path_to_nemo_experiment,
@@ -274,10 +270,10 @@ class NemoCrayXc40TestSystem(NemoTestSystem):
         Run the test script. This may be submitted to queue or
         executed directly.
         """
-        print 'running test script at location {0}'.format(self.script_path)
+        print('running test script at location {0}'.format(self.script_path))
         if not os.path.exists(self.script_path) \
                 or not os.path.isfile(self.script_path):
-            print 'ERROR: test script not found    !'
+            print('ERROR: test script not found    !')
             sys.stderr.write('Test script creation failed, aborting test.')
             err_msg1 = 'Test script creation failed, aborting test.'
             raise common.TestError(err_msg1)
@@ -308,7 +304,7 @@ class NemoLinuxIntelTestSystem(NemoTestSystem):
         Constructor for class to run the NEMO Gyre test configuration on
         the UK Met OfficeLinux Desktop system with Intel Compiler environment.
         """
-        print 'creating Linux Intel test system'
+        print('creating Linux Intel test system')
         NemoTestSystem.__init__(self, settings_dict)
         self.script_name = 'opa.sh'
         self.script_path = '{0}/{1}'.format(self.path_to_nemo_experiment,
@@ -354,10 +350,10 @@ class NemoLinuxIntelTestSystem(NemoTestSystem):
         Run the test script. This may be submitted to queue or
         executed directly.
         """
-        print 'running test script at location {0}'.format(self.script_path)
+        print('running test script at location {0}'.format(self.script_path))
         if not os.path.exists(self.script_path) \
            or not os.path.isfile(self.script_path):
-            print 'ERROR: test script not found    !'
+            print('ERROR: test script not found    !')
             err_msg1 = 'Test script creation failed, aborting test.'
             sys.stderr.write(err_msg1)
             raise common.TestError(err_msg1)

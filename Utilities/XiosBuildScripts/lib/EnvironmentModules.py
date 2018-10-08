@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 # *****************************COPYRIGHT******************************
 # (C) Crown copyright Met Office. All rights reserved.
 # For further details please refer to the file COPYRIGHT.txt
@@ -27,8 +27,10 @@ compatible versions are used.
 
 '''
 
-from abc import ABCMeta, abstractmethod
+import abc
+
 import os
+import common
 
 
 class ModuleMissingInformationError(Exception):
@@ -40,12 +42,11 @@ class ModuleMissingInformationError(Exception):
     pass
 
 
-class ModuleWriterBase(object):
+class ModuleWriterBase(common.XbsAbstractClass):
 
     '''
     Abstract Base class for all Environment Module writing classes.
     '''
-    __metaclass__ = ABCMeta
 
     def __init__(self):
         '''
@@ -71,8 +72,9 @@ class ModuleWriterBase(object):
 
         self.module_relative_path = None
         self.module_file_path = None
+        self.compiler_module = None
 
-    @abstractmethod
+    @abc.abstractmethod
     def write_module(self):
         '''
         Function that actually writes the module file. This function calls

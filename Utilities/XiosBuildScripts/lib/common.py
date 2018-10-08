@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 """
 *****************************COPYRIGHT******************************
  (C) Crown copyright Met Office. All rights reserved.
@@ -18,6 +18,8 @@ build and test scripts
 """
 
 import os
+import abc
+import sys
 import textwrap
 
 SYSTEM_NAME_EXTERNAL = 'external'
@@ -40,7 +42,17 @@ def formatted_write(output, text):
     output.write('\n'.join(textwrap.wrap(text)))
 
 
-class XbsBase(object):
+# defining an abstract base class is handled differently in
+# python 2 vs python 3, necessitating this kludge so the code works 2.7 or 3.
+if sys.version_info.major < 3:
+    class XbsAbstractClass(object):
+        __metaclass__ = abc.ABCMeta
+else:
+    class XbsAbstractClass(abc.ABC):
+        pass
+
+
+class XbsBase(XbsAbstractClass):
     """
     Base class for all the XIOS/Oasis3-mct
     """

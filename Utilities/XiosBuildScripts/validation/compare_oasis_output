@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 # *****************************COPYRIGHT******************************
 # (C) Crown copyright Met Office. All rights reserved.
 # For further details please refer to the file COPYRIGHT.txt
@@ -26,10 +26,10 @@ def main():
     oasis_kgo_dir = os.environ['OASIS_KGO_DIR']
     oasis_result_dir = os.environ['OASIS_RESULT_DIR']
 
-    print 'comparing Oasis3-mct output files'
+    print('comparing Oasis3-mct output files')
 
     for file_name1 in OasisTestSystem.OasisTestSystem.OUTPUT_FILE_NAMES:
-        print 'evaluating file {filename}'.format(filename=file_name1)
+        print('evaluating file {filename}'.format(filename=file_name1))
         try:
             file_path1 = os.path.join(oasis_kgo_dir, file_name1)
             file_path2 = os.path.join(oasis_result_dir, file_name1)
@@ -40,7 +40,7 @@ def main():
             sys.stderr.write(str(except1))
             raise except1
 
-    print 'Oasis3-mct output data match successful'
+    print('Oasis3-mct output data match successful')
     sys.exit(0)
 
 if __name__ == '__main__':

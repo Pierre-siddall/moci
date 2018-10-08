@@ -50,7 +50,6 @@ class OasisBuildSystem(common.XbsBuild):
     platforms will have a class that inherits from this to implement
     platform-specific build elements.
     """
-    __metaclass__ = abc.ABCMeta
 
     SUB_DIRECTORY_LIST = ['lib',
                           'build']
@@ -270,9 +269,9 @@ class OasisBuildSystem(common.XbsBuild):
         if os.path.exists(self.oasis_src_dir):
             os.rmdir(self.oasis_src_dir)
 
-        print 'copying source code from {SRC} to {DEST}'.format(
+        print('copying source code from {SRC} to {DEST}'.format(
             SRC=self.oasis_src_code_dir,
-            DEST=self.oasis_src_dir)
+            DEST=self.oasis_src_dir))
 
         shutil.copytree(self.oasis_src_code_dir,
                         self.oasis_src_dir)

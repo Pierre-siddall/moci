@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 """
  *****************************COPYRIGHT******************************
  (C) Crown copyright Met Office. All rights reserved.
@@ -18,7 +18,8 @@
 """
 import os
 import sys
-import ConfigParser
+
+import configparser
 import shutil
 import unittest
 import datetime
@@ -81,7 +82,8 @@ Note that the command line options take precedence over the environment variable
                                  dest='system_name',
                                  help=help_msg,
                                  default=common.SYSTEM_NAME_EXTERNAL,
-                                 choices=SYSTEM_NAME_OPTIONS)
+                                 choices=SYSTEM_NAME_OPTIONS,
+                                 required=True,)
 
         help_msg = 'working directory to use for temporary files'
         self.parser.add_argument('--working-dir',
@@ -117,14 +119,10 @@ def run_tests(test_list_dict):
     date_time_str = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
     working_dir = os.path.join(cmd_args.working_dir,
                                SCRATCH_DIR_NAME + '_' + date_time_str)
-    print('working directory: {testDir}'.format(testDir=working_dir))
     if not (os.path.exists(working_dir) and os.path.isdir(working_dir)):
-        print('creating working directory')
         os.mkdir(working_dir)
-        if os.path.isdir(working_dir):
-            print('working directory created')
     os.chdir(working_dir)
-    print 'test files will be created in {testDir}'.format(testDir=os.getcwd())
+    print('test files will be created in {testDir}'.format(testDir=os.getcwd()))
 
     module_suites = []
     for test_class in test_list:
@@ -136,7 +134,7 @@ def run_tests(test_list_dict):
 
     if not cmd_args.keep_output:
         #delete temporary test directory
-        print 'tests complete, removing temp directory'
+        print('tests complete, removing temp directory')
         shutil.rmtree(working_dir)
 
     if len(test_results.errors) > 0 or len(test_results.failures) > 0:
@@ -150,7 +148,7 @@ def get_settings(config_list, settings_dir, system_name):
     we will use the settings provided. If not in a rose suite, we can use
     the settings provided in .conf files in the local copy.
     """
-    if os.environ.has_key('ROSE_SUITE_NAME'):
+    if 'ROSE_SUITE_NAME' in os.environ:
         settings_dict = os.environ
     else:
         settings_dict = get_settings_from_conf(config_list,
@@ -183,7 +181,7 @@ def get_settings_from_conf(config_list, settings_dir, system_name):
 
     settings_dict['WORKING_DIR'] = os.getcwd()
 
-    for key1, value1 in settings_dict.iteritems():
+    for key1, value1 in settings_dict.items():
         settings_dict[key1] = string.Template(value1).substitute(settings_dict)
 
     return settings_dict
@@ -202,7 +200,7 @@ def read_settings(config_filename):
     """
     Read the settings from a config file.
     """
-    parser1 = ConfigParser.RawConfigParser()
+    parser1 = configparser.RawConfigParser()
     parser1.optionxform = str
     parser1.read(config_filename)
 

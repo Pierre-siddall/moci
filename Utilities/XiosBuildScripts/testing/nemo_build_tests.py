@@ -1,12 +1,18 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 """
 Unit test module to test Nemo build scripts.
 """
+import sys
 import unittest
+
+try:
+    import unittest.mock as mock
+except ImportError:
+    import mock
+
 import os
 import filecmp
 import abc
-import mock
 
 # this must be imported before the other local imports as it sets up the path
 # to import the main scripts

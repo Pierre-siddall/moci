@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 # *****************************COPYRIGHT******************************
 # (C) Crown copyright Met Office. All rights reserved.
 # For further details please refer to the file COPYRIGHT.txt
@@ -19,7 +19,7 @@
 import os
 import shutil
 import subprocess
-from abc import ABCMeta, abstractmethod
+import abc
 
 import common
 
@@ -30,7 +30,6 @@ class XiosTestSystem(common.XbsBase):
     Abstract base class for running XIOS test case.
     """
     SYSTEM_NAME = 'Base'
-    __metaclass__ = ABCMeta
 
     OUTPUT_FILE_LIST = ['output_atmosphere_0.nc',
                         'output_atmosphere_zoom_0.nc',
@@ -57,7 +56,7 @@ class XiosTestSystem(common.XbsBase):
                 os.remove(self.test_dir)
         os.mkdir(self.test_dir)
 
-        self.suite_mode = settings_dict.has_key('ROSE_DATA')
+        self.suite_mode = 'ROSE_DATA' in settings_dict
         self.xios_root_dir = settings_dict['XIOS_PATH']
         self.xios_server_location = settings_dict['XIOS_EXEC']
         self.xios_server_link_name = 'xios_server.exe'
@@ -108,7 +107,7 @@ class XiosTestSystem(common.XbsBase):
             self.result_dest_dir = ''
             self.do_result_copy = False
 
-    @abstractmethod
+    @abc.abstractmethod
     def __str__(self):
         pass
 
@@ -120,7 +119,7 @@ class XiosTestSystem(common.XbsBase):
         self.execute_test_script()
         self.copy_output()
 
-    @abstractmethod
+    @abc.abstractmethod
     def write_test_file(self):
         """
         Write out script to run the XIOS test case. The script will then be
@@ -128,7 +127,7 @@ class XiosTestSystem(common.XbsBase):
         """
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def execute_test_script(self):
         """
         Execute test script either directly or by submitting to the queue.
@@ -141,7 +140,7 @@ class XiosTestSystem(common.XbsBase):
         self.result_dest_dir.
         """
         if not self.do_result_copy:
-            print 'output not being copied'
+            print('output not being copied')
             return
 
         if not os.path.exists(self.result_dest_dir):
@@ -153,7 +152,7 @@ class XiosTestSystem(common.XbsBase):
             msg1 = 'copying from {src} to {dest}/'
             msg1 = msg1.format(src=path1,
                                dest=self.result_dest_dir)
-            print msg1
+            print(msg1)
             cmd1 = 'cp {src} {dest}/'.format(src=path1,
                                              dest=self.result_dest_dir)
             subprocess.call(cmd1,
@@ -210,7 +209,7 @@ aprun -n 28 ./{xios_test_exec_name} : -n 4 ./{xios_server_link_name}
         """
         Execute test script either directly or by submitting to the queue.
         """
-        print '\nExecuting xios test configuration'
+        print('\nExecuting xios test configuration')
         if self.suite_mode:
             result1 = subprocess.call(self.test_script_file_name)
         else:
@@ -267,7 +266,7 @@ mpirun -n 3 ./{xios_test_exec_name} : -n 1 ./{xios_server_link_name}
         """
         Execute test script either directly or by submitting to the queue.
         """
-        print '\nExecuting xios test configuration'
+        print('\nExecuting xios test configuration')
         result1 = subprocess.call(self.test_script_file_name)
         if result1 != 0:
             raise common.TestError('Error executing XIOS test')

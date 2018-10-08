@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 # *****************************COPYRIGHT******************************
 # (C) Crown copyright Met Office. All rights reserved.
 # For further details please refer to the file COPYRIGHT.txt
@@ -39,7 +39,6 @@ class NemoBuildSystem(common.XbsBuild):
     """
     Base class for building the NEMO executable.
     """
-    __metaclass__ = abc.ABCMeta
     SYSTEM_NAME = 'BASE_CLASS'
 
     def __init__(self, settings_dict):
@@ -159,7 +158,7 @@ fcm co {repository_url}@{revision_number} {destination_dir}
                 extract_script.write('#!/bin/sh\n')
                 extract_script.write(extract_cmd1)
 
-        print '\nexecuting fcm check-out command\n'
+        print('\nexecuting fcm check-out command\n')
         result1 = subprocess.call(extract_cmd1, shell=True)
         if result1 != 0:
             err_msg1 = \
@@ -176,9 +175,9 @@ fcm co {repository_url}@{revision_number} {destination_dir}
         if os.path.exists(self.source_directory):
             os.rmdir(self.source_directory)
 
-        print 'copying source code from {SRC} to {DEST}'\
+        print('copying source code from {SRC} to {DEST}'\
               .format(SRC=self.source_code_dir,
-                      DEST=self.source_directory)
+                      DEST=self.source_directory))
 
         shutil.copytree(self.source_code_dir,
                         self.source_directory)
@@ -204,7 +203,7 @@ fcm co {repository_url}@{revision_number} {destination_dir}
         Execute the command given by the build_command argument. The
         build_command should be created by create_build_command.
         """
-        print 'executing build command'
+        print('executing build command')
         return_code = subprocess.call(build_command, shell=True)
         if return_code != 0:
             raise common.BuildError('Error compiling NEMO: build failed!')
@@ -232,9 +231,9 @@ fcm co {repository_url}@{revision_number} {destination_dir}
         """
         dest_base = os.path.join(self.build_path,
                                  self.library_name)
-        print 'copying output files'
+        print('copying output files')
         if os.path.exists(dest_base) and os.path.isdir(dest_base):
-            print 'removing dir {0}'.format(dest_base)
+            print('removing dir {0}'.format(dest_base))
             shutil.rmtree(dest_base)
 
         source_dir = os.path.join(self.working_dir,
@@ -248,7 +247,7 @@ fcm co {repository_url}@{revision_number} {destination_dir}
         msg1 = msg1.format(source_dir,
                            dest_dir,
                            self.nemo_config_build_name)
-        print msg1
+        print(msg1)
         shutil.copytree(source_dir, dest_dir)
 
         source_shared_dir = os.path.join(self.working_dir,
@@ -257,8 +256,8 @@ fcm co {repository_url}@{revision_number} {destination_dir}
                                          'SHARED')
         dest_shared_dir = os.path.join(dest_base,
                                        'SHARED')
-        print 'copying SHARED directory from  {0} to {1}'\
-              .format(source_shared_dir, dest_shared_dir)
+        print('copying SHARED directory from  {0} to {1}'\
+              .format(source_shared_dir, dest_shared_dir))
 
         shutil.copytree(source_shared_dir, dest_shared_dir)
 
@@ -267,8 +266,8 @@ fcm co {repository_url}@{revision_number} {destination_dir}
         If do_post_build_cleanup flag is true, remove the build directory
         """
         if self.do_post_build_cleanup:
-            print 'removing build working directory {0}'\
-                  .format(self.source_directory)
+            print('removing build working directory {0}'\
+                  .format(self.source_directory))
             shutil.rmtree(self.source_directory)
 
 
@@ -354,7 +353,6 @@ class NemoCrayXC40BuildSystem(NemoBuildSystem):
 
         arch_str1 = arch_str1.format(**self.__dict__)
 
-        print('source_directory={0}'.format(self.source_directory))
         arch_file_path = os.path.join(self.source_directory,
                                       'ARCH',
                                       self.arch_file_name)
@@ -392,7 +390,7 @@ class NemoCrayXC40BuildSystem(NemoBuildSystem):
 
             msg1 = 'build command written to {0}'
             msg1 = msg1.format(build_script_file_name)
-            print msg1
+            print(msg1)
 
         return build_str1
 

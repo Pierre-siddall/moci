@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 #
 #*****************************COPYRIGHT******************************
 #(C) Crown copyright Met Office. All rights reserved.
@@ -44,7 +44,6 @@ class OasisTestSystem(common.XbsBase):
     """
     Class to test basic functionality of the Oasis3-MCT library.
     """
-    __metaclass__ = abc.ABCMeta
     # Class (static) variable definitions
     SYSTEM_NAME = "BASE_CLASS"
     TEST_SCRIPT_FILENAME = 'oasisRunTutorialScript.sh'
@@ -84,7 +83,7 @@ class OasisTestSystem(common.XbsBase):
                                                  self.test_name)
         self.tutorial_output_dir = os.path.join(self.tutorial_working_dir,
                                                 'runDir')
-        self.suite_mode = settings_dict.has_key('ROSE_DATA')
+        self.suite_mode = 'ROSE_DATA' in settings_dict
         if self.suite_mode:
             self.run_tut_cmd = 'run_tutorial_ukmo_cray_xc40_rose'
         else:
@@ -176,7 +175,7 @@ class OasisTestSystem(common.XbsBase):
             msg1 = 'copying from {src} to {dest} \n'
             msg1 = msg1.format(src=path1,
                                dest=self.result_dest_dir)
-            print msg1
+            print(msg1)
             result_dest_file_name = os.path.join(self.result_dest_dir,
                                                  file_name1)
             shutil.copyfile(path1,

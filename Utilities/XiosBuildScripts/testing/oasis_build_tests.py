@@ -1,14 +1,16 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 """
 Unit test module to test Oasis-3mct build scripts.
 """
 import unittest
+try:
+    import unittest.mock as mock
+except ImportError:
+    import mock
 import os
 import filecmp
 import abc
 import copy
-
-import mock
 
 # this must be imported before the other local imports as it sets up the path
 # to import the main scripts
@@ -226,8 +228,8 @@ class OasisBuildCrayTests(OasisBuildTests):
     Class for testing functions in the Oasis Cray build class.
     """
     def get_system_name(self):
-        print 'retrieving system name: {0}'.format(
-            OasisBuildSystem.OasisCrayBuildSystem.SYSTEM_NAME)
+        print('retrieving system name: {0}'.format(
+            OasisBuildSystem.OasisCrayBuildSystem.SYSTEM_NAME))
         return OasisBuildSystem.OasisCrayBuildSystem.SYSTEM_NAME
 
     def create_module_writer(self):
@@ -352,8 +354,8 @@ class OasisBuildMonsoonTests(OasisBuildCrayTests):
     Unit test class for running Oasis Build tests on Monsoon
     """
     def get_system_name(self):
-        print 'retrieving system name: {0}'.\
-            format(unit_test_common.SYSTEM_NAME_MONSOON)
+        print('retrieving system name: {0}'.\
+            format(unit_test_common.SYSTEM_NAME_MONSOON))
         return unit_test_common.SYSTEM_NAME_MONSOON
 
 class OasisBuildExternalTests(OasisBuildCrayTests):
@@ -361,7 +363,7 @@ class OasisBuildExternalTests(OasisBuildCrayTests):
     Unit test class for running Oasis Build tests on an external system
     """
     def get_system_name(self):
-        print 'retrieving system name: {0}'.format(common.SYSTEM_NAME_EXTERNAL)
+        print('retrieving system name: {0}'.format(common.SYSTEM_NAME_EXTERNAL))
         return common.SYSTEM_NAME_EXTERNAL
 
 def suite():

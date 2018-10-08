@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 """ *****************************COPYRIGHT******************************
  (C) Crown copyright Met Office. All rights reserved.
  For further details please refer to the file COPYRIGHT.txt
@@ -29,7 +29,7 @@ import os
 import subprocess
 import shutil
 import sys
-import ConfigParser
+import configparser
 import abc
 
 import common
@@ -60,7 +60,6 @@ class XiosBuildSystem(common.XbsBuild):
     system, e.g. linux desktop or Cray XC-40, the subclasses will implement
     system specific functions.
     """
-    __metaclass__ = abc.ABCMeta
     SYSTEM_NAME = 'XIOS_BASE_SYSTEM'
     XiosSubDirList = ['bin', 'inc', 'lib', 'inputs']
 
@@ -117,11 +116,11 @@ class XiosBuildSystem(common.XbsBuild):
         except KeyError:
             self.use_oasis = False
         if self.use_oasis:
-            if settings_dict.has_key('OASIS_ROOT'):
+            if 'OASIS_ROOT' in settings_dict:
                 self.oasis_root = settings_dict['OASIS_ROOT']
-                print 'OASIS found at {0}'.format(self.oasis_root)
+                print('OASIS found at {0}'.format(self.oasis_root))
             else:
-                print 'OASIS not found'
+                print('OASIS not found')
                 raise common.ConfigError('OASIS not found')
         else:
             self.oasis_root = ''
@@ -174,7 +173,7 @@ class XiosBuildSystem(common.XbsBuild):
         Usage:
         system.run_build()
         """
-        print "working directory is {0}".format(self.working_dir)
+        print("working directory is {0}".format(self.working_dir))
         if self.copy_prebuild:
             self.setup_prebuild()
             return
@@ -211,7 +210,7 @@ class XiosBuildSystem(common.XbsBuild):
         build is executed the old conf can be comapred with the new one
         to determine if a build is requried.
         """
-        conf1 = ConfigParser.RawConfigParser()
+        conf1 = configparser.RawConfigParser()
         conf1.add_section(REPOSITORY_SECTION_TITLE)
         conf1.set(REPOSITORY_SECTION_TITLE, 'URL', self.xios_repository_url)
         conf1.set(REPOSITORY_SECTION_TITLE,
@@ -264,7 +263,7 @@ class XiosBuildSystem(common.XbsBuild):
             # scratch
             self.pre_build_clean = True
 
-        conf1 = ConfigParser.RawConfigParser()
+        conf1 = configparser.RawConfigParser()
         conf1.read(conf_file_name1)
 
         # compare with current settings
@@ -302,9 +301,9 @@ class XiosBuildSystem(common.XbsBuild):
                 self.build_required = True
                 self.pre_build_clean = True
 
-        except (ConfigParser.NoOptionError,
-                ConfigParser.MissingSectionHeaderError,
-                ConfigParser.NoSectionError):
+        except (configparser.NoOptionError,
+                configparser.MissingSectionHeaderError,
+                configparser.NoSectionError):
             # an exception will generated if any of the settings are missing
             # from the conf file, in which case rebuild
             sys.stderr.write('Error reading conf file, triggering clean build')
@@ -358,7 +357,7 @@ fcm update --non-interactive -r {rev_no}
 
             os.chmod(script_file_name, 477)
 
-        print '\nExecuting fcm update command\n'
+        print('\nExecuting fcm update command\n')
         result1 = subprocess.call(extract_cmd, shell=True)
         if result1 != 0:
             err_msg1 = 'Error updating XIOS source code'
@@ -393,7 +392,7 @@ for i in tools/archive/*.tar.gz; do  {tar_cmd} -xzf $i; done
                 extract_script.write('#!/bin/sh')
                 extract_script.write(extract_cmd)
 
-        print '\nexecuting fcm check-out command\n'
+        print('\nexecuting fcm check-out command\n')
         result1 = subprocess.call(extract_cmd, shell=True)
         if result1 != 0:
             err_msg1 = 'Error extracting XIOS source code'
@@ -409,9 +408,9 @@ for i in tools/archive/*.tar.gz; do  {tar_cmd} -xzf $i; done
         if os.path.exists(destination_dir):
             os.rmdir(destination_dir)
 
-        print 'copying source code from {SRC} to {DEST}'.format(
+        print('copying source code from {SRC} to {DEST}'.format(
             SRC=self.xios_source_code_dir,
-            DEST=destination_dir)
+            DEST=destination_dir))
 
         shutil.copytree(self.xios_source_code_dir,
                         destination_dir)
@@ -456,27 +455,27 @@ for i in tools/archive/*.tar.gz; do  {tar_cmd} -xzf $i; done
         """
         Copy XIOS build output files from source_base to dest_base.
         """
-        print '''
+        print('''
 copying XIOS output files:
 working directory: {work_dir}
 source directory: {source_base}
 destination directory: {dest_base}
 '''.format(source_base=source_base,
            dest_base=dest_base,
-           work_dir=self.working_dir)
+           work_dir=self.working_dir))
 
         sub_dir_list = self.XiosSubDirList
         source_dirs = [os.path.join(source_base,
                                     dir1) for dir1 in sub_dir_list]
-        print 'copying output files'
+        print('copying output files')
         if os.path.exists(dest_base) and os.path.isdir(dest_base):
-            print 'removing dir {0}'.format(dest_base)
+            print('removing dir {0}'.format(dest_base))
             shutil.rmtree(dest_base)
         destination_dirs = \
             [os.path.join(dest_base, dir1) for dir1 in sub_dir_list]
         for source_dir, dest_dir in zip(source_dirs, destination_dirs):
-            print 'copying directory from  {0} to {1}'.format(source_dir,
-                                                              dest_dir)
+            print('copying directory from  {0} to {1}'.format(source_dir,
+                                                              dest_dir))
             shutil.copytree(source_dir, dest_dir)
 
     def clean_up(self):
@@ -485,7 +484,7 @@ destination directory: {dest_base}
         """
         if self.post_build_cleanup:
             src_dir = os.path.join(self.working_dir, self.library_name)
-            print 'removing build working directory {0}'.format(src_dir)
+            print('removing build working directory {0}'.format(src_dir))
             shutil.rmtree(src_dir)
 
     def setup_arch_files(self):
@@ -511,20 +510,20 @@ destination directory: {dest_base}
         if os.path.isfile(file_name_env):
             os.remove(file_name_env)
         self.setup_arch_env_file(file_name_env, oasis_root_path)
-        print 'writing out arch file {0}'.format(file_name_env)
+        print('writing out arch file {0}'.format(file_name_env))
 
         file_name_path = os.path.join(arch_path,
                                       self.file_name_base + '.path')
         if os.path.isfile(file_name_path):
             os.remove(file_name_path)
         self.setup_arch_path_file(file_name_path)
-        print 'writing out arch file {0}'.format(file_name_path)
+        print('writing out arch file {0}'.format(file_name_path))
 
         file_name_fcm = os.path.join(arch_path, self.file_name_base + '.fcm')
         if os.path.isfile(file_name_fcm):
             os.remove(file_name_fcm)
         self.setup_arch_fcm_file(file_name_fcm)
-        print 'writing out arch file {0}'.format(file_name_fcm)
+        print('writing out arch file {0}'.format(file_name_fcm))
 
     @abc.abstractmethod
     def setup_arch_fcm_file(self, file_name_fcm):
@@ -558,7 +557,7 @@ destination directory: {dest_base}
         """
         Execute the build command.
         """
-        print 'executing build command'
+        print('executing build command')
         return_code = subprocess.call(build_cmd, shell=True)
         if return_code != 0:
             raise common.BuildError('Error compiling XIOS: build failed!')
@@ -722,7 +721,7 @@ export NETCDF_LIB_DIR=""
         """
         Create a module file and associated package files for XIOS.
         """
-        print 'creating modules with root {0}'.format(self.module_root_dir)
+        print('creating modules with root {0}'.format(self.module_root_dir))
         if not os.path.exists(self.module_root_dir):
             os.makedirs(self.module_root_dir)
         elif not os.path.isdir(self.module_root_dir):
@@ -775,7 +774,7 @@ export NETCDF_LIB_DIR=""
         """
         Create the module files that will be used on this platform.
         """
-        print 'Creating XIOS module'
+        print('Creating XIOS module')
         mod_writer1 = \
             XiosModuleWriter.XiosCrayModuleWriter(self.library_name,
                                                   self.module_version,
@@ -796,7 +795,7 @@ export NETCDF_LIB_DIR=""
                          'packages',
                          mod_writer1.module_relative_path)
 
-        print 'Copying files {0}'.format(module_package_directory)
+        print('Copying files {0}'.format(module_package_directory))
         self.copy_files_to_dir(module_package_directory)
 
         # XIOS Prg-Env module

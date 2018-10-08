@@ -148,9 +148,9 @@ module load {{OASIS3_MCT}}/{{OASIS_MODULE_VERSION}}/{{ROSE_SUITE_REV_NO}}/{{OASI
     {% else %}
             -l ncpus=1
     {% endif %}
-            -l mem=24GB
+            -l mem=32GB
 {% if USE_RAMDISK %}
-            -l tmpsize=16gb
+            -l tmpsize=24gb
 {% endif %}            
 
     [[BUILD_PRGENV_USER]]
@@ -280,8 +280,10 @@ module load {{XIOS}}-PrgEnv/{{XIOS_PRGENV_VERSION}}-nooasis/{{ROSE_SUITE_REV_NO}
 {% if PYTHON3 %}
 module load scitools/experimental-current > /dev/null 2>&1 ;
 module swap scitools scitools/experimental-current ;
-module list ;
+module list;
 echo PLEASE NOTE:  Mule is not compatible with Python3, so is cannot be used. ;
+{% else %}
+module load scitools/default-current
 {% endif %}
 echo ;
 """
