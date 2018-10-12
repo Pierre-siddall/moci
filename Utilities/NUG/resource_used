@@ -42,9 +42,10 @@ ENVIRONMENT VARIABLES
 NUG_LIMITS_FILE points to the file on the Cray XC40 system holding allocations
 '''
 
+import argparse
+import itertools
 import os
 import os.path
-from src.init_time import init_program_time
 from src.remove_continuation_lines import remove_continuation_lines
 from src.joblist import JobList
 from src.limits import LimitSets, ResourceSet
@@ -96,7 +97,6 @@ def cluster_analysis(host_list, limits_file):
         for cluster in host_list:
             header = header +' '+cluster
 
-        init_program_time()
         file_name = fetch_data(host_list)
         print header
 
@@ -115,16 +115,41 @@ def cluster_analysis(host_list, limits_file):
 def main():
     ''' main funtion for script resource_used '''
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--no_xce",
+                        dest='xce',
+                        help="Do not produce results for the XCE",
+                        action="store_false")
+    parser.add_argument("--no_xcf",
+                        dest='xcf',
+                        help="Do not produce results for the XCF",
+                        action="store_false")
+    parser.add_argument("--no_xcs",
+                        dest='xcs',
+                        help="Do not produce results for the XCS",
+                        action="store_false")
+    args = parser.parse_args()
+
+    xc_list = list(itertools.compress(['xce', 'xcf'], [args.xce, args.xcf]))
+    xcs_list = ([], ['xcs'])[args.xcs]
+    if xc_list and xcs_list:
+        combined_list = xc_list + xcs_list
+    else:
+        combined_list = []
+    
     limits_file = os.path.expandvars('$NUG_LIMITS_FILE')
 
     if os.path.isfile(limits_file):
-        cluster_analysis(['xce', 'xcf'], limits_file)
-        print
-        cluster_analysis(['xcs'], limits_file)
-        print
-        cluster_analysis(['xce', 'xcf', 'xcs'], limits_file)
-        print
+        if xc_list:
+            cluster_analysis(xc_list, limits_file)
+            print
+        if xcs_list:
+            cluster_analysis(xcs_list, limits_file)
+            print
+        if combined_list:
+            cluster_analysis(combined_list, limits_file)
+            print
     else:
-        print 'Limit file:'+limits_file+' do not exist'
+        print 'Limit file:'+limits_file+' does not exist'
 
 main()

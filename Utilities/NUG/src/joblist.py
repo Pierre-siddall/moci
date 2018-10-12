@@ -23,6 +23,7 @@ ENVIRONMENT VARIABLES
 import src.jobs
 import os
 import os.path
+import re
 
 class JobList(object):
     ''' Class encapsulates a list of job objects.
@@ -60,10 +61,13 @@ class JobList(object):
                         self.job_list[-1].submission_time = \
                            line.split('=')[1].strip('\n')
                     elif 'Resource_List.walltime' in line:
-                        time_string = line.split('=')[1].strip('\n')
-                        hours, minutes, seconds = time_string.split(':')
+                        time_match = re.search(r'(\d+):(\d+):(\d+)',
+                                               line)
+                        hours = time_match.group(1)
+                        minutes = time_match.group(2)
+                        seconds = time_match.group(3)
                         self.job_list[-1].requested_time = \
-                           int(hours)*3600+int(minutes)*60+int(seconds)
+                            int(hours)*3600+int(minutes)*60+int(seconds)
                     elif 'Resource_List.nodect' in line:
                         self.job_list[-1].nodes = \
                         int(line.split('=')[1].strip())
