@@ -40,6 +40,7 @@ my $dir;               # directory for I/O
 my $iproc;             # NEMO iproc 
 my $jproc;             # NEMO jproc 
 my $ijproc;            # NEMO ijproc (= NEMO_NPROC)
+my $cpl_river_count;   # Number of rivers to couple
 my $help;
 
 # Process arguments:
@@ -56,6 +57,7 @@ if (@ARGV > 0) {
              'p|ijproc=s'            => \$ijproc,
              'r|runid=s'             => \$runid,
              's|start_date=s'        => \$n_date0,
+             'crc|cpl_river_count=s'   => \$cpl_river_count,
              'v|verbose'             => \$verbose,
              'help|?'                => \$help) or pod2usage(1);
              
@@ -81,6 +83,7 @@ if ($verbose) {
   print "  iproc = $iproc\n" if ($iproc); 
   print "  jproc = $jproc\n" if ($jproc);
   print "  ijproc = $ijproc\n" if ($ijproc);
+  print "  cpl_river_count = $cpl_river_count\n" if ($cpl_river_count);
 }
 
 $file = "$dir/$file" if ($dir);
@@ -113,6 +116,7 @@ foreach my $line (@lines) {
   
   $line =~ s/^(nn_leapy)=.*/$1=$l_leapyear,/ ;
 
+  $line =~ s/^(nn_cpl_river)=.*/$1=$cpl_river_count,/ if ($cpl_river_count) ;
 }
 
 write_file($file,@lines);
@@ -161,6 +165,7 @@ update_nemo_nl -f <file> [OPTIONS]
     --ijproc, -p <int>                NEMO processors (total = NEMO_NPROC)
     --runid, -r <string>              Job name
     --start_date, -s <int>            Start date
+    --cpl_river_count, -crc <int>     Number of rivers for atm-ocn coupling
     --verbose, -v                     Verbose output
     --help, -?                        Display help
 

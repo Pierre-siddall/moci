@@ -197,7 +197,8 @@ def _load_environment_variables(nemo_envar):
         sys.exit(error.MISSING_EVAR_ERROR)
     _ = nemo_envar.load_envar('NEMO_START', '')
     _ = nemo_envar.load_envar('NEMO_ICEBERGS_START', '')
-    _ = nemo_envar.load_envar('CONTINUE', '')
+    _ = nemo_envar.load_envar('CONTINUE', '')    
+    _ = nemo_envar.load_envar('CPL_RIVER_COUNT', '0')
 
 
     # Check switch to see if TOP/MEDUSA is switched on. Default to OFF.
@@ -578,7 +579,7 @@ def _setup_executable(common_envar):
     #of commands
     update_nl_cmd = '--file %s --runid %so --restart %s --restart_ctl %s' \
         ' --next_step %i --final_step %s --start_date %s --leapyear %i' \
-        ' --iproc %s --jproc %s --ijproc %s --verbose' % \
+        ' --iproc %s --jproc %s --ijproc %s --cpl_river_count %s --verbose' % \
         (nemo_envar['NEMO_NL'], \
              common_envar['RUNID'], \
              ln_restart, \
@@ -589,9 +590,11 @@ def _setup_executable(common_envar):
              nleapy, \
              nemo_envar['NEMO_IPROC'], \
              nemo_envar['NEMO_JPROC'], \
-             nemo_envar['NEMO_NPROC'])
+             nemo_envar['NEMO_NPROC'], \
+	     nemo_envar['CPL_RIVER_COUNT'])
 
     update_nl_cmd = './update_nemo_nl %s' % update_nl_cmd
+
     # REFACTOR TO USE THE SAFE EXEC SUBPROC
     update_nl_rcode, _ = common.__exec_subproc_true_shell([ \
             update_nl_cmd])
