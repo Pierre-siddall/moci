@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -33,10 +33,18 @@ import utils
 import nlist
 import validation
 import housekeeping
+import atmos_transform as transform
 import suite
+import climatemean
 import timer
 
 from netcdf_filenames import NCF_TEMPLATE
+
+MONTHS = tuple(m[:3].lower() for m in climatemean.MONTHS)
+SEASONS = tuple(''.join([c[0] for c in [MONTHS[m],
+                                        MONTHS[(m + 1) % 12],
+                                        MONTHS[(m + 2) % 12]]])
+                for m in range(12))
 
 
 class AtmosPostProc(control.RunPostProc):
@@ -56,20 +64,18 @@ class AtmosPostProc(control.RunPostProc):
         self.naml = nlist.load_namelist(input_nl)
         self.convpp_streams = \
             self._stream_expr(self.naml.atmospp.archive_as_fieldsfiles,
-                              inverse=True, default='a-z1-9')
+                              inverse=True, default=['^a-z', '^1-9'])
         self.netcdf_streams = \
             self._stream_expr(self.naml.atmospp.streams_to_netcdf)
         self.cutout_streams = \
             self._stream_expr(self.naml.atmospp.streams_to_cutout)
+        self.requested_means = self._requested_means()
 
         if self.runpp:
             self.share = self._directory(self.naml.atmospp.share_directory,
                                          'ATMOS SHARE')
             self.suite = suite.SuiteEnvironment(self.share, input_nl)
             self.work = self._directory(self._work, 'ATMOS WORK')
-
-            self.ff_pattern = r'^{}a\.[pm][{{}}]'.format(self.suite.prefix) + \
-                r'\d{{4}}(\d{{4}}|\w{{3}})(_\d{{2}})?(\.pp)?(\.arch)?$'
 
             if self.suite.finalcycle is True:
                 self.final_dumpname = self.dumpname(
@@ -98,7 +104,8 @@ class AtmosPostProc(control.RunPostProc):
         process = self.suite.naml.process_toplevel is True
         archive = self.suite.naml.archive_toplevel is True
         return OrderedDict(
-            [('do_transform', process and
+            [('do_meaning', self.naml.atmospp.create_means),
+             ('do_transform', process and
               (self.naml.atmospp.convert_pp or
                self.naml.atmospp.streams_to_netcdf)),
              ('do_archive', archive and self.naml.archiving.archive_switch),
@@ -123,13 +130,14 @@ class AtmosPostProc(control.RunPostProc):
         Returns a regular expression for the fieldsfile
         instantaneous streams to process'''
         return self._stream_expr(self.naml.atmospp.process_streams,
-                                 nullstring=True, default='1-9a-ln-rt-xz')
+                                 nullstring=True,
+                                 default=['1-9', 'a-l', 'n-r', 't-x', 'z'])
 
     @property
     def means(self):
         'Returns a regular expression for the fieldsfile means to process'
         return self._stream_expr(self.naml.atmospp.process_means,
-                                 nullstring=True, default='msy')
+                                 nullstring=True, default=['m', 's', 'y'])
 
     @property
     def archive_tstamps(self):
@@ -141,6 +149,32 @@ class AtmosPostProc(control.RunPostProc):
         if not isinstance(tstamps, list):
             tstamps = [tstamps]
         return [ts for ts in tstamps if ts]
+
+    def _requested_means(self):
+        '''
+        Return a dictionary of climatemean.MeanFiles with reference
+        to the means requested in the namelist.
+        '''
+        if self.naml.atmospp.create_means:
+            base_component = None
+            if isinstance(self.naml.atmospp.meanbase_period, str):
+                base_component = self.naml.atmospp.meanbase_period
+            else:
+                basestream = self.naml.atmospp.meanbase_stream
+                for key in climatemean.MEANPERIODS:
+                    if key[-1] == basestream[-1]:
+                        base_component = key
+                        break
+
+            if base_component:
+                self.naml.atmospp.base_component = base_component
+            else:
+                utils.log_msg('atmos requested means: cannot determine mean '
+                              'base component reinitialisation period.  \n'
+                              '\t Please set &atmospp/meanbase_period.',
+                              level='ERROR')
+
+        return climatemean.available_means(self.naml.atmospp)
 
     @property
     def netcdf_fields(self):
@@ -187,13 +221,51 @@ class AtmosPostProc(control.RunPostProc):
         if streams is None or (streams == '' and not nullstring):
             streams = default
 
-        else:
-            join_char = '^' if inverse else ''
-            if isinstance(streams, list):
-                streams = join_char.join([str(x) for x in streams])
-            streams = join_char + str(streams)
+        if streams:
+            streams = utils.ensure_list(streams[:])
+            if inverse != any([str(s).startswith('^') for s in streams]):
+                inv = ('?!', validation.VALID_STR)
 
+            else:
+                inv = ('', '')
+            range_expr = '[{ID}]'
+            for i, elem in enumerate(streams):
+                idpm, id1, id2 = re.match(r'^\^?(\w?)(\w)-?(\w?)',
+                                          str(elem)).groups()
+                idpm = idpm if idpm else 'pm'
+                elem = range_expr.format(ID=idpm)
+                idstream = '-'.join([id1, id2]) if id2 else id1
+                elem += range_expr.format(ID=idstream)
+                streams[i] = elem
+
+            streams = '({I}{S}){A}'.format(I=inv[0], S='|'.join(streams),
+                                           A=inv[1])
         return streams
+
+    def ff_match(self, stream_expr, filename=None, date_regex=None):
+        '''
+        Return a regular expression representing a fieldsfile filename.
+        Arguments:
+            stream_expr - Regular expression for required stream-ID(s)
+        Optional Arguments:
+            filename    - Where provided return the regular expression if the
+                          given filename matches.  Otherwise return None
+        '''
+        try:
+            prefix = self.suite.prefix
+        except AttributeError:
+            # Default to $RUNID
+            prefix = utils.load_env('RUNID', required=True)
+
+        if date_regex is None:
+            date_regex = r'\d{4}(\d{4}|\w{3})(_\d{2})?'
+
+        ff_pattern = r'^{}a\.{}{}$'.format(prefix, str(stream_expr), date_regex)
+        try:
+            return re.match(ff_pattern, filename) is not None
+        except TypeError:
+            # Filename string not provided.  Return the pattern
+            return ff_pattern
 
     def dumpname(self, dumpdate=None):
         '''
@@ -238,13 +310,17 @@ class AtmosPostProc(control.RunPostProc):
         Filenames returned will always incude full path.
         '''
         datadir = self.share if finalcycle else self.work
-        suffix = '' if finalcycle else '.arch'
-        all_ppstreams = self.streams + self.means
-        if all_ppstreams:
-            patt = self.ff_pattern.format(self.streams + self.means)
-            markedfiles = housekeeping.get_marked_files(datadir, patt, suffix)
-        else:
-            markedfiles = []
+        suffix = r'(\.pp)?' if finalcycle else '.arch'
+
+        markedfiles = []
+        if self.streams:
+            # Get instantaneous pp/fieldsfiles to be processed
+            patt = self.ff_match(self.streams)
+            markedfiles += housekeeping.get_marked_files(datadir, patt, suffix)
+        if self.means:
+            # Get mean pp/fieldsfiles to be processed
+            patt = self.ff_match(self.means)
+            markedfiles += housekeeping.get_marked_files(datadir, patt, suffix)
 
         process_files = []
         for fname in markedfiles:
@@ -281,6 +357,130 @@ class AtmosPostProc(control.RunPostProc):
         return process_files
 
     @timer.run_timer
+    def update_meanfile(self, meanfile, setend_fname):
+        '''
+        Update the periodend, component files and mean filename attributes
+        of the meanfile input object before calling Mule to create the
+        relevant mean file.
+        Arguments:
+            meanfile <type climatemean.MeanFile>
+            setend_fname <type str> - Filename, excluding path, of the
+                                      end-of-set component
+        '''
+        key0_id = list(self.requested_means.keys())[0]
+        if meanfile == self.requested_means[key0_id]:
+            basestream = self._stream_expr(self.naml.atmospp.meanbase_stream)
+        else:
+            basestream = 'p' + meanfile.component[-1]
+
+        # Calculate the end date of the mean period
+        setend_filedate = validation.identify_dates(setend_fname)[0]
+
+        meanfile.periodend = setend_filedate[:]
+        if meanfile.component[-1] in 'hdms':
+            # Update periodend where end-of-set regex does not represent the
+            # END date of the file.
+            meanfile.periodend = climatemean.calc_enddate(setend_filedate,
+                                                          meanfile.component)
+
+        # Get the component files for the mean
+        setdate = climatemean.set_date_regex(
+            meanfile.period, meanfile.component, meanfile.periodend,
+            rtnend=(meanfile.component[-1] in 'yx')
+            )
+        setregex = []
+        for date in validation.identify_dates(setdate):
+            setregex.append(validation.get_filedate(date, meanfile.component))
+        regex = '({})'.format('|'.join([''.join(d) for d in setregex]))
+        modyr = re.search(r'(\d{4})(ndj|djf)', regex)
+        if modyr:
+            # for the seasonal mean: update the year to end of period
+            regex = regex.replace(
+                ''.join(modyr.groups()),
+                ''.join([str(int(modyr.group(1)) + 1), modyr.group(2)])
+                )
+
+        setpatt = self.ff_match(basestream, date_regex=regex)
+        meanfile.component_files = utils.add_path(
+            utils.get_subset(self.share, setpatt), self.share
+            )
+
+        filedate = validation.get_filedate(
+            meanfile.periodend, meanfile.period,
+            end_of_period=(meanfile.period[-1] in 'ms')
+            )
+        meanfile.set_filename('{}a.p{}{}'.format(self.suite.prefix,
+                                                 meanfile.period[-1],
+                                                 ''.join(filedate)),
+                              self.share)
+
+        # Create the mean file
+        if meanfile.fname['file'] == setend_fname:
+            utils.log_msg('The requested mean is a direct UM output: ' +
+                          setend_fname, level='INFO')
+            rcode = 1
+        else:
+            rcode = climatemean.create_mean(meanfile,
+                                            transform.create_um_mean,
+                                            self.suite.initpoint)
+
+        return rcode
+
+    @timer.run_timer
+    def do_meaning(self):
+        '''
+        Perform the creation of climate means as requested.
+        '''
+        if int(self.suite.meanref[2]) > 1:
+            utils.log_msg('Creation of UM Atmosphere means requires a '
+                          '&suitegen/mean_reference_date with the 1st of the '
+                          'month. Means cannot be created.', level='WARN')
+            return
+
+        flagdir = os.path.join(self.share, 'mean_archflags')
+        utils.create_dir(flagdir)
+
+        basestream = self._stream_expr(self.naml.atmospp.meanbase_stream)
+
+        match_base = self.ff_match(basestream)
+        # Save any archiving flags for base component file
+        markedfiles = housekeeping.get_marked_files(self.work, match_base,
+                                                    '.arch')
+        for archflag in markedfiles:
+            utils.move_files(archflag + '.arch', flagdir, originpath=self.work)
+
+        # Loop over requested mean periods
+        for meanp in self.requested_means:
+            meanfile = self.requested_means[meanp]
+            match_end = climatemean.end_date_regex(meanp, self.suite.meanref)
+            end_filedates = validation.get_filedate(match_end,
+                                                    meanfile.component,
+                                                    end_of_period=True)
+            endpatt = self.ff_match(basestream, date_regex=end_filedates)
+            for setend in housekeeping.get_marked_files(flagdir, endpatt,
+                                                        '.arch'):
+                # Attempt to create mean with `setend` as the end-of-period file
+                icode = self.update_meanfile(meanfile, setend)
+                if icode == 0:
+                    if meanp == list(self.requested_means.keys())[-1]:
+                        flag_destination = self.work
+                    else:
+                        flag_destination = flagdir
+                    # Touch archiving flag for the new meanfile
+                    open(os.path.join(flag_destination,
+                                      meanfile.fname['file'] + '.arch'),
+                         'w').close()
+
+                    # Return component archiving flags to the work directory
+                    for cmpt in meanfile.component_files:
+                        arch = os.path.join(flagdir,
+                                            os.path.basename(cmpt) + '.arch')
+                        if os.path.exists(arch):
+                            utils.move_files(arch, self.work)
+
+            basestream = 'p' + meanfile.period[-1]
+
+    @timer.run_timer
     def do_transform(self, finalcycle=False):
         '''
         Function to perform requested transformation of fieldsfiles.
@@ -290,29 +490,26 @@ class AtmosPostProc(control.RunPostProc):
         for fname in self.diags_to_process(finalcycle):
             # fname returned by diags_to_process always includes the full path
             basename = os.path.basename(fname)
-            if self.cutout_streams and re.match(
-                    self.ff_pattern.format(self.cutout_streams), basename
-                ):
-                _ = housekeeping.cutout_subdomain(
-                    fname,
-                    self.naml.atmospp.mule_utils,
-                    self.naml.atmospp.cutout_coords_type,
-                    self.naml.atmospp.cutout_coords
-                    )
 
-            if self.naml.atmospp.convert_pp and not fname.endswith('.pp'):
-                if re.match(self.ff_pattern.format(self.convpp_streams),
-                            basename):
-                    fname = housekeeping.convert_to_pp(
+            if not fname.endswith('.pp'):
+                if self.ff_match(self.cutout_streams, filename=basename):
+                    _ = transform.cutout_subdomain(
                         fname,
-                        self.naml.atmospp.um_utils,
-                        finalcycle is True
+                        self.naml.atmospp.mule_utils,
+                        self.naml.atmospp.cutout_coords_type,
+                        self.naml.atmospp.cutout_coords
                         )
 
-            if self.netcdf_streams and re.match(
-                    self.ff_pattern.format(self.netcdf_streams), basename
-                ):
-                icode = housekeeping.extract_to_netcdf(
+                if self.naml.atmospp.convert_pp:
+                    if self.ff_match(self.convpp_streams, filename=basename):
+                        fname = transform.convert_to_pp(
+                            fname,
+                            self.naml.atmospp.um_utils,
+                            finalcycle is True
+                            )
+
+            if self.ff_match(self.netcdf_streams, filename=basename):
+                icode = transform.extract_to_netcdf(
                     fname, self.netcdf_fields,
                     self.naml.atmospp.netcdf_filetype,
                     self.naml.atmospp.netcdf_compression
@@ -356,10 +553,14 @@ class AtmosPostProc(control.RunPostProc):
             utils.log_msg(msg)
 
             for fname in files_to_archive:
+                fname_only = os.path.basename(fname)
+                if fname_only.endswith('.pp'):
+                    fname_only = fname_only[:-3]
                 # convpp should be True when the ffile is to be archived as pp
-                convpp = re.match(self.ff_pattern.format(self.convpp_streams),
-                                  os.path.basename(fname)) or \
-                                  not self.naml.atmospp.convert_pp
+                convpp = (
+                    self.ff_match(self.convpp_streams, filename=fname_only)
+                    or not self.naml.atmospp.convert_pp
+                    )
                 rcode = self.suite.archive_file(fname, preproc=bool(convpp))
                 if finalcycle and rcode == 0 and fname[-3:] in ['.pp', '.nc']:
                     if utils.get_debugmode():

@@ -339,7 +339,7 @@ class PeriodTests(unittest.TestCase):
         _ = self.model.periodfiles(ncf, 'end')
         mock_subset.assert_called_once_with(
             'ShareDir',
-            r'^model_runidx_10d_\d{8,10}-\d{4}(\d{2}01)(00)?_FIELD\.nc$'
+            r'^model_runidx_10d_\d{8,10}-\d{4}\d{2}01(00)?_FIELD\.nc$'
             )
 
     @mock.patch('modeltemplate.utils.get_subset')
@@ -351,7 +351,7 @@ class PeriodTests(unittest.TestCase):
         _ = self.model.periodfiles(ncf, 'end')
         mock_subset.assert_called_once_with(
             'ShareDir',
-            r'^model_runidx_1m_\d{8,10}-\d{4}(0301|0601|0901|1201)(00)'
+            r'^model_runidx_1m_\d{8,10}-\d{4}(12|03|06|09)01(00)'
             r'?_FIELD\.nc$'
             )
 
@@ -363,7 +363,7 @@ class PeriodTests(unittest.TestCase):
             _ = self.model.periodfiles(ncf, 'end')
         mock_subset.assert_called_with(
             'ShareDir',
-            r'^model_runidx_1m_\d{8,10}-\d{4}(0101|0401|0701|1001)(00)'
+            r'^model_runidx_1m_\d{8,10}-\d{4}(01|04|07|10)01(00)'
             r'?_FIELD\.nc$'
             )
 
@@ -376,7 +376,7 @@ class PeriodTests(unittest.TestCase):
         _ = self.model.periodfiles(ncf, 'end')
         mock_subset.assert_called_once_with(
             'ShareDir',
-            r'^model_runidx_1s_\d{8,10}-\d{4}(1201)(00)?_FIELD\.nc$'
+            r'^model_runidx_1s_\d{8,10}-\d{4}1201(00)?_FIELD\.nc$'
             )
 
         ncf = copy.copy(self.ncf)
@@ -387,7 +387,7 @@ class PeriodTests(unittest.TestCase):
             _ = self.model.periodfiles(ncf, 'end')
         mock_subset.assert_called_with(
             'ShareDir',
-            r'^model_runidx_1s_\d{8,10}-\d{4}(0101)(00)?_FIELD\.nc$'
+            r'^model_runidx_1s_\d{8,10}-\d{4}0101(00)?_FIELD\.nc$'
             )
 
     @mock.patch('modeltemplate.utils.get_subset')
@@ -399,7 +399,7 @@ class PeriodTests(unittest.TestCase):
         _ = self.model.periodfiles(ncf, 'end')
         mock_subset.assert_called_once_with(
             'ShareDir',
-            r'^model_runidx_1y_\d{8,10}-\d{3}0(1201)(00)?_FIELD\.nc$'
+            r'^model_runidx_1y_\d{8,10}-\d{3}01201(00)?_FIELD\.nc$'
             )
 
         ncf = copy.copy(self.ncf)
@@ -410,7 +410,7 @@ class PeriodTests(unittest.TestCase):
             _ = self.model.periodfiles(ncf, 'end')
         mock_subset.assert_called_with(
             'ShareDir',
-            r'^model_runidx_1y_\d{8,10}-\d{3}8(0101)(00)?_FIELD\.nc$'
+            r'^model_runidx_1y_\d{8,10}-\d{3}80101(00)?_FIELD\.nc$'
             )
 
     @mock.patch('modeltemplate.utils.get_subset')
@@ -421,7 +421,7 @@ class PeriodTests(unittest.TestCase):
         _ = self.model.periodfiles(ncf, 'end', datadir='MyDir')
         mock_subset.assert_called_once_with(
             'MyDir',
-            r'^model_runidx_10d_\d{8,10}-\d{4}(\d{2}01)(00)?_FIELD\.nc$'
+            r'^model_runidx_10d_\d{8,10}-\d{4}\d{2}01(00)?_FIELD\.nc$'
             )
 
     @mock.patch('modeltemplate.utils.get_subset')
@@ -433,7 +433,7 @@ class PeriodTests(unittest.TestCase):
         _ = self.model.periodfiles(ncf, 'end', archive_mean=True)
         mock_subset.assert_called_once_with(
             'ShareDir',
-            r'^model_runidx_1m_\d{8,10}-\d{4}(0301|0601|0901|1201)(00)'
+            r'^model_runidx_1m_\d{8,10}-\d{4}(12|03|06|09)01(00)'
             r'?_FIELD\.nc$'
             )
 
@@ -446,7 +446,7 @@ class PeriodTests(unittest.TestCase):
         _ = self.model.periodfiles(ncf, 'end', archive_mean=True)
         mock_subset.assert_called_once_with(
             'ShareDir',
-            r'^model_runidx_1s_\d{8,10}-\d{4}(1201)(00)?_FIELD\.nc$'
+            r'^model_runidx_1s_\d{8,10}-\d{4}1201(00)?_FIELD\.nc$'
             )
 
     @mock.patch('modeltemplate.utils.get_subset')
@@ -459,7 +459,7 @@ class PeriodTests(unittest.TestCase):
         _ = self.model.periodfiles(ncf, 'end', archive_mean=True)
         mock_subset.assert_called_with(
             'ShareDir',
-            r'^model_runidx_1y_\d{8,10}-\d{3}4(0567)(00)?_FIELD\.nc$'
+            r'^model_runidx_1y_\d{8,10}-\d{3}40567(00)?_FIELD\.nc$'
             )
 
     @mock.patch('modeltemplate.utils.get_subset')
@@ -550,7 +550,7 @@ class MeansTests(unittest.TestCase):
 
     @mock.patch('modeltemplate.os.path')
     @mock.patch('modeltemplate.utils.move_files')
-    @mock.patch('modeltemplate.climatemean.create_mean')
+    @mock.patch('modeltemplate.climatemean.create_mean', return_value=0)
     def test_create_means_mv_cmpts(self, mock_create, mock_mv, mock_path):
         '''Test successful creation of means - move components'''
         func.logtest('Assert successful creation of a mean - move components:')
@@ -586,7 +586,7 @@ class MeansTests(unittest.TestCase):
 
     @mock.patch('modeltemplate.os.path')
     @mock.patch('modeltemplate.utils.remove_files')
-    @mock.patch('modeltemplate.climatemean.create_mean')
+    @mock.patch('modeltemplate.climatemean.create_mean', return_value=0)
     def test_create_means_del_cmpts(self, mock_create, mock_rm, mock_path):
         '''Test successful creation of means - delete base components'''
         func.logtest('Assert deletion of base components after means creation:')
@@ -621,7 +621,7 @@ class MeansTests(unittest.TestCase):
     @mock.patch('modeltemplate.os.path')
     @mock.patch('modeltemplate.utils.move_files')
     @mock.patch('modeltemplate.utils.remove_files')
-    @mock.patch('modeltemplate.climatemean.create_mean')
+    @mock.patch('modeltemplate.climatemean.create_mean', return_value=0)
     def test_create_means_leave_cmpts(self, mock_create, mock_rm, mock_mv,
                                       mock_path):
         '''Test successful creation of means - leave base components'''

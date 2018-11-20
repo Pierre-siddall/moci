@@ -129,11 +129,6 @@
 
 [runtime]
     [[root]]
-        init-script = """
-export CYLC_VERSION={{CYLC_VERSION}}
-export ROSE_VERSION={{ROSE_VERSION}}
-export FCM_VERSION={{FCM_VERSION}}
-"""
         script = "{{TASK_RUN}}"
         [[[events]]]
             submission timeout = PT12H # 12 hours
@@ -141,6 +136,7 @@ export FCM_VERSION={{FCM_VERSION}}
         [[[environment]]]
             SOURCE_MOCI_BASE = {{ SOURCE_MOCI_BASE }}
             SOURCE_MOCI_REV = {{ SOURCE_MOCI_REV }}
+
     [[LINUX]]
 {% if USE_LINUX_SERVER %}
         inherit=LINUX_SERVER
@@ -556,7 +552,8 @@ rm -rf {{dir1}}
 
     [[{{'pp_atmos_198%s01' % (cycle)}}]]
         inherit = {{'postproc_198%s01' % (cycle)}}
-        script = """{{TASK_RUN}} --command-key=pp_atmos \
+        script = """
+{{TASK_RUN}} --command-key=pp_atmos \
 --define='[namelist:ciceverify]verify_model=false' \
 --define='[namelist:nemoverify]verify_model=false' """
         [[[environment]]]

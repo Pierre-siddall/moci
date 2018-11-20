@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -34,49 +34,139 @@ except ImportError:
                   level='WARN')
     MULE_AVAIL = False
 
+VALID_STR = '[pm][a-z1-9]'
+MONTHS = [None, 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug',
+          'sep', 'oct', 'nov', 'dec']
+SEASONS = [None] + [''.join([c[0] for c in (MONTHS + MONTHS[1:])[m:m+3]])
+                    for m in range(1, 13)]
 
-def identify_filedate(fname):
+
+def get_filedate(indate, reinit, end_of_period=False):
     '''
-    The pp files may be instantaneous, a monthly, seasonal, or annual mean.
-    This function will return the date expected in the header.
-    Remember there are also p1234 means.
-    Dump files will have an 8 digit date
+    Return an appropriate datestring for a UM filename.
+    For monthly or seasonal component files the period will be represented by a
+    3-character string.
+
+    Arguments:
+       startdate list(<type str/int>)
+          - Input date.
+            Elements may either be a regular expression or an integer value.
+            A list of integers is also acceptable for the 2nd element,
+            indicating a list of options for the period.
+       reinit <type str>
+          - Reinitialisation period
+
+    Optional arguments:
+       end_of_period <type bool>
+           - Flag to indicate the indate represents the end of the period.
     '''
-    # Regular expression construction for seasonal means, monthly means, and
-    # monthly instantaneous pp files. All other files (yearly means, dumps,
-    # period n means, and instantenous pp files can be caught with the
-    # 8/9digit regex.
-    # We do this one first as it is likely to be the most common,
-    # as it catches the dumps
-    # The expression starting with the letter m is a STASH time processed
-    # PP file, as opposed to one produced by the climate meaning system.
-    patterns = [re.compile(r'\d?(\d{4})(\d{2})(\d{2})'),
-                re.compile(r'[pm][a-z1-9](\d{4})([a-z]{3})')]
+    character = {'1m': MONTHS[:], '1s': SEASONS[:]}
+    getchar = character.get(reinit, range(13))
 
-    months = {'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4,
-              'may': 5, 'jun': 6, 'jul': 7, 'aug': 8,
-              'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
-              'djf': 3, 'mam': 6, 'jja': 9, 'son': 12}
-
-    filedate = None
-    for patt in patterns:
-        if patt.search(fname):
-            filedate = patt.search(fname).groups()
-            if filedate[1] in months:
-                month = months[filedate[1]]
-                year = filedate[0]
-                if '.pm' in fname:
-                    month += 1
-                    if month == 13:
-                        month = 1
-                        year = str(int(filedate[0])+1)
-                filedate = (year, str(month).zfill(2), '01')
-            break
-    if filedate:
-        return filedate
+    if isinstance(indate, str):
+        # Regular expression
+        outdate = identify_dates(indate)[0]
     else:
-        msg = 'Unable to retrieve a valid date from the filename: ' + fname
-        utils.log_msg(msg, level='ERROR')
+        outdate = [(int(d) if str(d).isdigit() else d) for d in indate]
+    while reinit[-1] == 'h' and len(outdate) < 4:
+        outdate.append(0)
+
+    if end_of_period:
+        # Rewind the date to the beginning of the reinit period
+        delta = [(int(d) if str(d).isdigit() else 1) for d in outdate]
+
+        if isinstance(outdate[1], list):
+            options = outdate[1]
+        elif not str(outdate[1]).isdigit():
+            options = re.findall(r'\d{2}', outdate[1])
+        else:
+            options = None
+        if options:
+            offset = {'1m': 2, '1s': 4}
+            offset = offset.get(reinit, 1)
+            outdate[1] = [range(1, 13)[(int(i) - offset) % 12]
+                          for i in options]
+
+        adjusted = utils.add_period_to_date(delta, '-' + reinit)
+        for i in range(len(delta)):
+            if str(outdate[i]).isdigit():
+                outdate[i] = adjusted[i]
+    # Convert to character representation as required
+    if isinstance(outdate[1], int):
+        elem1 = str(getchar[outdate[1]])
+        outdate[1] = elem1
+    else:
+        if isinstance(outdate[1], list):
+            elem1 = [str(getchar[i]).zfill(2) for i in outdate[1]]
+        else:
+            # Regular expression for any month
+            elem1 = [str(i).zfill(2) for i in getchar[1:]]
+        outdate[1] = '({})'.format('|'.join(elem1))
+
+    if not elem1[-1].isdigit():
+        # Day/Hour not required with character representation
+        outdate[2:] = ''
+        if outdate[1] in 'ondec' and r'\d' in str(outdate[0]):
+            # Rewind the year regex for seasonal files ending in December
+            year = str(outdate[0]).split('}')
+            if year[-1].isdigit():
+                year[-1] = str(int(year[-1]) - 1)
+            outdate[0] = '}'.join(year)
+
+        elif outdate[1] in 'ndjf' and str(outdate[0]).isdigit():
+            # Use the end of season year, unless it's a regular expression
+            outdate[0] = indate[0]
+
+    elif len(outdate) > 3:
+        # Files reinitialised on an hourly basis
+        outdate[3] = '_' + str(outdate[3]).zfill(2)
+
+    return ''.join([str(d).zfill(2) for d in outdate])
+
+
+def identify_dates(inputstring):
+    '''
+    Return a list of lists of <type str> representing date(s) extracted
+    from the inputstring.
+    '''
+    patterns = [
+        # Examples below are based on the mean reference date [1978, 9, 1]
+
+        # Regex to match a regular expression from climatemean.end_date_regex:
+        #    Example input: "\d{4}\d{2}01", "\d{4}(01|04|07|10)01", "\d{3}01201"
+        re.compile(r'(\\d\{[34]\}\d?)(\d{2}|\\d\{2\}|\([\d|]+\))(\d{2})'),
+        # Regex to match a regular expression from climatemean.set_date_regex:
+        #    Example input: "(19801201)", "(19950901|19951001|19961101)"
+        re.compile(r'[|(](\d{4})(\d{2})(\d{2})(\d{2})?'),
+        # Regex to match a filename after the period (.) of dump or fieldsfile:
+        #    Examples input: "RUNIDa.da20041201_00", "RUNIDa.pb19990721"
+        re.compile(r'[dpm][a-z1-9](\d{4})(\d{2})(\d{2})(_\d{2})?'),
+        # Regex to match datestring of files with character representation:
+        #    Examples input: "RUNIDa.pm1980jan", "RUNIDa.ps1996son"
+        re.compile(r'(\d{4})([a-z]{3})'),
+        ]
+
+    alldates = []
+    for patt in patterns:
+        for date in patt.findall(inputstring):
+            date = [(int(d) if str(d).isdigit() else d.strip('_'))
+                    for d in date]
+            try:
+                date[1:] = [MONTHS.index(date[1]), 1]
+            except ValueError:
+                try:
+                    date[1:] = [SEASONS.index(date[1]), 1]
+                    if date[1] > 10:
+                        date[0] -= 1
+                except ValueError:
+                    pass
+
+            date = [str(d).zfill(2) for d in date if d != '']
+
+            alldates.append(date)
+
+        if len(alldates) > 0:
+            return alldates
 
 
 @timer.run_timer
@@ -90,15 +180,29 @@ def verify_header(atmospp, fname, logdir, logfile=None):
         # Mule not available, or else failed to extract the headers. Try pumf
         pumfout = logdir + '-pumfhead.out'
         pumfexe = os.path.join(atmospp.um_utils, 'um-pumf')
-        headers = {int(k): str(v).zfill(2) for k, v in genlist(fname, pumfout,
-                                                               pumfexe)}
+        headers = {int(k): int(v) for k, v in genlist(fname, pumfout, pumfexe)}
     try:
-        valid_date = tuple([headers[hd] for hd in range(28, 34)])
+        valid_date = [headers[hd] for hd in range(28, 34)]
     except KeyError:
         utils.log_msg('No header information available', level='WARN')
-        valid_date = ('',)*6
+        valid_date = ['',]*6
 
-    filedate = identify_filedate(fname)
+    try:
+        filedate = [int(i) for i in identify_dates(fname)[0]]
+    except TypeError:
+        msg = 'Unable to retrieve a valid date from the filename: ' + fname
+        utils.log_msg(msg, level='ERROR')
+
+    adjust_date = re.match(r'.*a\.[dpm]([ms])', fname)
+    if adjust_date:
+        periods = {'m': 'monthly', 's': 'seasonal'}
+        if atmospp.create_means == \
+                getattr(atmospp,
+                        'create_{}_mean'.format(periods[adjust_date.group(1)])):
+            # Adjust to the end of the period for the climate mean file
+            filedate = utils.add_period_to_date(
+                filedate, adjust_date.group(1)
+                )[:len(filedate)]
 
     validfile = (filedate == valid_date[:len(filedate)] and not empty_file)
     if validfile:
@@ -111,6 +215,7 @@ def verify_header(atmospp, fname, logdir, logfile=None):
         utils.log_msg(msg, level='INFO')
     else:
         msg = 'Validity time mismatch in file {} to be archived'.format(fname)
+        msg += '\n\t--> Expected {} and got {}'.format(valid_date, filedate)
         if logfile:
             logfile.write(fname + ' ARCHIVE FAILED. Validity mismatch \n')
         utils.log_msg(msg, level='ERROR')
@@ -178,8 +283,7 @@ def mule_headers(filename):
         umfile = mule.UMFile.from_file(filename, remove_empty_lookups=True)
 
         # Extract first 40 values only
-        headers = {h: str(umfile.fixed_length_header.raw[h]).zfill(2)
-                   for h in range(1, 40)}
+        headers = {h: umfile.fixed_length_header.raw[h] for h in range(1, 40)}
         empty_file = len(umfile.fields) == 0
 
     else:
@@ -221,7 +325,9 @@ def make_dump_name(atmos):
     month_range = {
         'Yearly': (months.index(atmos.naml.archiving.arch_year_month),
                    months.index(atmos.naml.archiving.arch_year_month) + 1),
-        'Seasonal': (3, 13, 3),
+        # Mean reference date required for "Seasonal" dumping
+        'Seasonal': (range(1, 4)[int(atmos.suite.meanref[1]) % 3 - 1],
+                     range(1, 4)[int(atmos.suite.meanref[1]) % 3 - 1] + 12, 3),
         'Monthly': (1, 13),
         }
 

@@ -193,81 +193,6 @@ class ModelTemplate(control.RunPostProc):
         utils.log_msg(msg, level='WARN')
         raise NotImplementedError
 
-    def _mean_bases(self):
-        '''
-        Return a dictionary of base periods for each mean:
-           { <PERIOD>: tuple(<PERIOD BASE>, <SET LENGTH> }
-             <PERIOD>      = MM,SS,AA,DD
-             <PERIOD BASE> = Base component used to create the mean
-             <SET LENGTH>  = Number of base component files to create the mean
-        '''
-        basecmpt = self.base_component
-        multiplier = float(basecmpt[:-1])
-
-        if utils.calendar() == '360day':
-            cal_hd = 'hd'
-        else:
-            cal_hd = ''
-
-        all_periods = {
-            '1m': [None, 1 if (basecmpt == '1m') else
-                   (30 if (basecmpt[-1] == 'd' and cal_hd) else
-                    (720 if (basecmpt[-1] == 'h' and cal_hd) else 0))],
-            '1s': [None, 1 if (basecmpt == '1s') else
-                   (3 if (basecmpt[-1] in cal_hd + 'm') else 0)],
-            '1y': [None, 1 if (basecmpt == '1y') else
-                   (4 if (basecmpt[-1] in cal_hd + 'ms') else 0)],
-            '1x': [None, 1 if (basecmpt == '10y') else
-                   (10 if (basecmpt[-1] in cal_hd + 'msy') else 0)],
-            }
-
-        base_mean = None
-        for i, period in enumerate(MEANPERIODS):
-            if all_periods[period][1] == 0:
-                # This period mean has already been assessed as not possible
-                continue
-
-            try:
-                nextp = MEANPERIODS[i + 1]
-                all_periods[nextp][0] = period
-            except IndexError:
-                # No further means possible
-                nextp = None
-
-            if base_mean:
-                all_periods[period][0] = basecmpt
-            else:
-                if all_periods[period][1] % multiplier == 0 and \
-                        all_periods[period][1] >= multiplier:
-                    all_periods[period] = [
-                        basecmpt, int(all_periods[period][1] / multiplier)
-                        ]
-                    base_mean = period
-                else:
-                    # mean is not possible on the given base
-                    if nextp:
-                        all_periods[nextp][0] = basecmpt
-                        all_periods[nextp][1] *= \
-                            all_periods[period][1]
-                    all_periods[period] = [None, 0]
-                    continue
-
-            meantitles = {'1m': 'monthly',
-                          '1s': 'seasonal',
-                          '1y': 'annual',
-                          '1x': 'decadal'}
-            if getattr(self.naml.processing,
-                       'create_{}_mean'.format(meantitles[period])):
-                # Update the base component for the next mean
-                basecmpt = period
-            else:
-                if nextp:
-                    all_periods[nextp][0] = period
-                    all_periods[nextp][1] *= all_periods[period][1]
-                all_periods[period] = [None, 0]
-
-        return all_periods
-
     def set_stencil(self, period, fn_vars):
         '''
         Return the regular expression for matching a set of files
@@ -306,7 +231,7 @@ class ModelTemplate(control.RunPostProc):
         created/archived as sufficient components must logically exist.
 
         Arguments:
-            period  - <type str> - One of climatemen.MEANPERIODS.keys()
+            period  - <type str> - One of climatemean.MEANPERIODS.keys()
             fn_vars - <type netcdf_filename.NCFilename>
         '''
         return netcdf_filenames.period_end(period, fn_vars, self.suite.meanref)
@@ -678,12 +603,14 @@ class ModelTemplate(control.RunPostProc):
                 cmd = ' '.join([self.means_cmd,
                                 ' '.join(meanset),
                                 pmean.fname['file']])
-                climatemean.create_mean(pmean, cmd, self.suite.initpoint)
-                if os.path.isfile(pmean.fname['full']):
-                    # Meaning gets the time_bounds variables wrong
-                    # so correct them here
-                    self.fix_mean_time(utils.add_path(meanset, self.share),
-                                       pmean.fname['full'])
+                rcode = climatemean.create_mean(pmean, cmd,
+                                                self.suite.initpoint)
+                if rcode == 0:
+                    if os.path.exists(pmean.fname['full']):
+                        # Meaning gets the time_bounds variables wrong
+                        # so correct them here
+                        self.fix_mean_time(utils.add_path(meanset, self.share),
+                                           pmean.fname['full'])
 
                     if period != pmean.component:
                         # Either archive or delete base mean components

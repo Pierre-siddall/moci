@@ -15,7 +15,6 @@
 import unittest
 import os
 import re
-
 try:
     # mock is integrated into unittest as of Python 3.3
     import unittest.mock as mock
@@ -29,18 +28,20 @@ import runtime_environment
 import atmos_namelist
 import validation
 import housekeeping
+import atmos_transform
 
 # Import of atmos requires RUNID from runtime_environment
 runtime_environment.setup_env()
 import atmos
 
-IRIS_AVAIL = hasattr(housekeeping, 'iris_transform')
+IRIS_AVAIL = hasattr(atmos_transform, 'iris_transform')
 if not IRIS_AVAIL:
     func.logtest('\n*** Iris is not available.  '
                  '4 ATMOS_UTILS tests (TransformTests) will be skipped.\n')
-if not housekeeping.MULE_AVAIL:
-    func.logtest('\n*** Mule is not available.  '
-                 '3 ATMOS_UTILS tests (HeaderTests) will be skipped.\n')
+if not atmos_transform.MULE_AVAIL:
+    func.logtest('\n*** Mule is not available.\n'
+                 '3 ATMOS_UTILS tests (HeaderTests) will be skipped.\n'
+                 '3 ATMOS_UTILS tests (MeaningTests) will be skipped.\n')
 
 
 class HousekeepTests(unittest.TestCase):
@@ -159,8 +160,6 @@ class HousekeepTests(unittest.TestCase):
         '''Test delete_ppfiles functionality - mean files'''
         func.logtest('Assert successful deletion of mean ppfiles:')
         self.atmos.naml.delete_sc.gcmdel = True
-        self.atmos.ff_pattern = 'MEAN1{}'
-        self.atmos.convpp_streams = ''
         mock_ft.__getitem__().__getitem__().return_value = 'MEAN'
         mock_mark.return_value = [f[0] for f in self.del_inst_pp +
                                   self.del_mean_pp]
@@ -168,9 +167,8 @@ class HousekeepTests(unittest.TestCase):
                                     self.del_mean_pp, self.del_ncfiles, False)
         self.assertEqual(
             mock_rm.mock_calls,
-            [mock.call(['MEAN1.pp', 'MEAN1', 'MEAN2', 'MEAN3'],
-                       path='ShareDir'),
-             mock.call(['MEAN1.arch', 'MEAN1.arch', 'MEAN2.arch', 'MEAN3.arch'],
+            [mock.call(['MEAN1', 'MEAN2', 'MEAN3'], path='ShareDir'),
+             mock.call(['MEAN1.arch', 'MEAN2.arch', 'MEAN3.arch'],
                        path='WorkDir', ignore_non_exist=True)]
             )
         arch_regex = \
@@ -181,58 +179,6 @@ class HousekeepTests(unittest.TestCase):
         for fname in ppfiles:
             self.assertIsNotNone(re.match(arch_regex, fname))
         self.assertIsNone(re.match(arch_regex, 'GARBAGE'))
-
-    def test_convert_convpp(self):
-        '''Test convert_to_pp functionality with um-convpp'''
-        func.logtest('Assert functionality of the convert_to_pp method:')
-        um_utils_path = 'UMDIR/vn10.4/machine/utilities'
-        with mock.patch('housekeeping.utils.exec_subproc') as mock_exec:
-            with mock.patch('housekeeping.utils.remove_files') as mock_rm:
-                mock_exec.return_value = (0, '')
-                ppfile = housekeeping.convert_to_pp('Filename', um_utils_path,
-                                                    False)
-                mock_rm.assert_called_with('Filename', path='')
-            cmd = um_utils_path + '/um-convpp Filename Filename.pp'
-            mock_exec.assert_called_with(cmd, cwd='')
-        self.assertEqual(ppfile, 'Filename.pp')
-
-    def test_convert_to_pp(self):
-        '''Test convert_to_pp functionality - default utility, keeping ffile'''
-        func.logtest('Assert functionality of the convert_to_pp method:')
-        with mock.patch('housekeeping.utils.exec_subproc') as mock_exec:
-            with mock.patch('housekeeping.utils.remove_files') as mock_rm:
-                mock_exec.return_value = (0, '')
-                ppfile = housekeeping.convert_to_pp('Here/Filename',
-                                                    self.umutils, True)
-                self.assertListEqual(mock_rm.mock_calls, [])
-            cmd = self.umutils + '/um-convpp Here/Filename Here/Filename.pp'
-            mock_exec.assert_called_with(cmd, cwd='Here')
-        self.assertEqual(ppfile, 'Here/Filename.pp')
-
-    def test_convert_ff2pp(self):
-        '''Test convert_to_pp functionality with um-ff2pp'''
-        func.logtest('Assert functionality of the convert_to_pp method:')
-        um_utils_path = 'UMDIR/vn10.3/machine/utilities'
-        with mock.patch('housekeeping.utils.exec_subproc') as mock_exec:
-            with mock.patch('housekeeping.utils.remove_files') as mock_rm:
-                mock_exec.return_value = (0, '')
-                ppfile = housekeeping.convert_to_pp('Here/Filename',
-                                                    um_utils_path, False)
-                mock_rm.assert_called_with('Here/Filename', path='Here')
-            cmd = um_utils_path + '/um-ff2pp Here/Filename Here/Filename.pp'
-            mock_exec.assert_called_with(cmd, cwd='Here')
-        self.assertEqual(ppfile, 'Here/Filename.pp')
-
-    def test_convert_to_pp_fail(self):
-        '''Test convert_to_pp failure capture'''
-        func.logtest('Assert failure capture of the convert_to_pp method:')
-        with mock.patch('housekeeping.utils.exec_subproc') as mock_exec:
-            mock_exec.return_value = (1, 'I failed')
-            with self.assertRaises(SystemExit):
-                housekeeping.convert_to_pp('Filename', 'TestDir',
-                                           self.umutils)
-        self.assertIn('Conversion to pp format failed', func.capture('err'))
-        self.assertIn('I failed', func.capture('err'))
 
     @mock.patch('housekeeping.utils.get_subset')
     @mock.patch('housekeeping.re.search')
@@ -297,9 +243,9 @@ class HousekeepTests(unittest.TestCase):
     def test_get_marked_files(self, mock_getfiles):
         '''Test list created by get_marked_files'''
         func.logtest('Assert creation of marked files list:')
-        marked = housekeeping.get_marked_files('TestDir', 'pattern', '.sfx')
+        marked = housekeeping.get_marked_files('TestDir', 'pattern$', '.sfx')
         self.assertListEqual(marked, ['File1', 'File2'])
-        mock_getfiles.assert_called_once_with('TestDir', 'pattern')
+        mock_getfiles.assert_called_once_with('TestDir', 'pattern.sfx$')
 
     @mock.patch('housekeeping.utils.get_subset',
                 return_value=['File1.sfx', 'File2.sfx'])
@@ -314,9 +260,9 @@ class HousekeepTests(unittest.TestCase):
     def test_get_marked_files_none(self, mock_getfiles):
         '''Test list created by get_marked_files - empty list'''
         func.logtest('Assert creation of marked files list - empty list:')
-        marked = housekeeping.get_marked_files('TestDir', 'pattern', '.sfx')
+        marked = housekeeping.get_marked_files('TestDir', 'pattern$', '.sfx')
         self.assertListEqual(marked, [])
-        mock_getfiles.assert_called_once_with('TestDir', 'pattern')
+        mock_getfiles.assert_called_once_with('TestDir', 'pattern.sfx$')
 
 
 class HeaderTests(unittest.TestCase):
@@ -324,12 +270,11 @@ class HeaderTests(unittest.TestCase):
     def setUp(self):
         self.umutils = atmos_namelist.AtmosNamelist().um_utils
         self.atmos = atmos.AtmosPostProc()
-        self.fixhd = [('27', 'xx'), ('28', 'YY'), ('29', 'MM'),
-                      ('30', 'DD'), ('31', 'xx'), ('32', 'xx'),
-                      ('33', 'xx'), ('34', 'xx'), ('35', 'xx')]
-        self.headers = {int(k): str(v).zfill(2) for k, v in self.fixhd}
+        self.fixhd = [('27', 0), ('28', 1111), ('29', 22),
+                      ('30', 33), ('31', 0), ('32', 0),
+                      ('33', 0), ('34', 0), ('35', 0)]
+        self.headers = {int(k): int(v) for k, v in self.fixhd}
         self.logfile = open('logfile', 'w')
-        self.mule_avail = validation.MULE_AVAIL
 
     def tearDown(self):
         for fname in ['logfile'] + runtime_environment.RUNTIME_FILES:
@@ -337,11 +282,10 @@ class HeaderTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
-        validation.MULE_AVAIL = self.mule_avail
 
     @mock.patch('validation.mule_headers')
     @mock.patch('validation.genlist')
-    @mock.patch('validation.identify_filedate', return_value=('YY', 'MM', 'DD'))
+    @mock.patch('validation.identify_dates', return_value=[(1111, 22, 33)])
     def test_verify_header(self, mock_date, mock_pumf, mock_mule):
         '''Test verify_header functionality'''
         func.logtest('Assert functinality of the verify_header method:')
@@ -359,7 +303,7 @@ class HeaderTests(unittest.TestCase):
         self.assertEqual('', open('logfile', 'r').read())
 
     @mock.patch('validation.mule_headers')
-    @mock.patch('validation.identify_filedate', return_value=('YY', 'MM', 'DD'))
+    @mock.patch('validation.identify_dates', return_value=[(1111, 22, 33)])
     def test_verify_header_empty(self, mock_date, mock_mule):
         '''Test verify_header functionality - no valid fields'''
         func.logtest('Assert functinality of the verify_header method:')
@@ -377,18 +321,18 @@ class HeaderTests(unittest.TestCase):
                       open('logfile', 'r').read())
 
     @mock.patch('validation.genlist')
-    @mock.patch('validation.identify_filedate', return_value=('YY', 'MM', 'DD'))
+    @mock.patch('validation.identify_dates', return_value=[(1111, 22, 33)])
     def test_verify_header_pumf(self, mock_date, mock_gen):
         '''Test verify_header functionality - pumf'''
         func.logtest('Assert functionality of the verify_header method:')
         mock_gen.return_value = self.fixhd
         with mock.patch('validation.mule_headers', return_value=(None, False)):
             valid = validation.verify_header(self.atmos.naml.atmospp,
-                                             'Filename', 'LogDir/job',
+                                             'a.pa1234', 'LogDir/job',
                                              logfile=self.logfile)
         self.assertTrue(valid)
-        mock_date.assert_called_with('Filename')
-        mock_gen.assert_called_with('Filename', 'LogDir/job-pumfhead.out',
+        mock_date.assert_called_with('a.pa1234')
+        mock_gen.assert_called_with('a.pa1234', 'LogDir/job-pumfhead.out',
                                     self.umutils + '/um-pumf')
         self.logfile.close()
         self.assertEqual('', open('logfile', 'r').read())
@@ -445,8 +389,8 @@ class HeaderTests(unittest.TestCase):
         '''Test verify_header functionality - pumf ismatch'''
         func.logtest('Assert mismatch date in the verify_header method:')
         mock_mule.return_value = (self.headers, False)
-        with mock.patch('validation.identify_filedate',
-                        return_value=('YY', 'MM', 'D1')):
+        with mock.patch('validation.identify_dates',
+                        return_value=[(1111, 22, 44)]):
             with self.assertRaises(SystemExit):
                 _ = validation.verify_header(self.atmos.naml.atmospp,
                                              'Filename', 'LogDir/job',
@@ -461,8 +405,8 @@ class HeaderTests(unittest.TestCase):
         func.logtest('Assert mismatch date in the verify_header method:')
         mock_mule.return_value = (self.headers, False)
         with mock.patch('validation.utils.get_debugmode', return_value=True):
-            with mock.patch('validation.identify_filedate',
-                            return_value=('YY', 'MM', 'D1')):
+            with mock.patch('validation.identify_dates',
+                            return_value=[(1111, 22, 44)]):
                 valid = validation.verify_header(self.atmos.naml.atmospp,
                                                  'Filename', 'LogDir/job',
                                                  logfile=self.logfile)
@@ -476,8 +420,8 @@ class HeaderTests(unittest.TestCase):
         func.logtest('Assert verify_header finding no header information:')
         with mock.patch('validation.mule_headers',
                         return_value=({1: 'a'}, False)):
-            with mock.patch('validation.identify_filedate',
-                            return_value=('YY', 'MM', 'DD')):
+            with mock.patch('validation.identify_dates',
+                            return_value=[(1111, 22, 33)]):
                 with self.assertRaises(SystemExit):
                     _ = validation.verify_header(self.atmos.naml.atmospp,
                                                  'Filename', 'LogDir/job',
@@ -496,8 +440,7 @@ class HeaderTests(unittest.TestCase):
         mock_mule.UMFile.from_file().fields = ['f1', 'f2', 'f3']
         headers, empty_file = validation.mule_headers('Filename')
         self.assertListEqual(list(headers.keys()), list(range(1, 40)))
-        self.assertListEqual(list(headers.values()),
-                             [str(x).zfill(2) for x in range(1, 40)])
+        self.assertListEqual(list(headers.values()), [x for x in range(1, 40)])
         self.assertFalse(empty_file)
 
     @unittest.skipUnless(validation.MULE_AVAIL,
@@ -510,17 +453,16 @@ class HeaderTests(unittest.TestCase):
         mock_mule.UMFile.from_file().fields = []
         headers, empty_file = validation.mule_headers('Filename')
         self.assertListEqual(list(headers.keys()), list(range(1, 40)))
-        self.assertListEqual(list(headers.values()),
-                             [str(x).zfill(2) for x in range(1, 40)])
+        self.assertListEqual(list(headers.values()), [x for x in range(1, 40)])
         self.assertTrue(empty_file)
 
     @unittest.skipUnless(validation.MULE_AVAIL,
                          'Python module "Mule" is not available')
+    @mock.patch('validation.MULE_AVAIL', False)
     @mock.patch('validation.mule')
     def test_mule_headers_not_avail(self, mock_mule):
         ''' Test mule_headers - Mule not available'''
         func.logtest('Assert no headers using Mule - not available:')
-        validation.MULE_AVAIL = False
         headers, empty_file = validation.mule_headers('Filename')
         self.assertListEqual(mock_mule.mock_calls, [])
         self.assertFalse(empty_file)
@@ -535,6 +477,7 @@ class DumpnameTests(unittest.TestCase):
         self.atmos.suite = mock.Mock()
         self.atmos.suite.initpoint = [1980, 9, 1, 0, 0]
         self.atmos.suite.prefix = 'PREFIX'
+        self.atmos.suite.meanref = ('1978', '12', '01')
         self.atmos.final_dumpname = None
         if 'monthly' in self.id():
             self.atmos.naml.archiving.arch_dump_freq = 'Monthly'
@@ -607,16 +550,19 @@ class DumpnameTests(unittest.TestCase):
         func.logtest('Assert creation of one dumpname for seasonal archive')
         self.atmos.suite.cyclepoint = \
             atmos.utils.CylcCycle(cyclepoint='19801201T0000Z')
+
         dumps = validation.make_dump_name(self.atmos)
         self.assertListEqual(dumps, ['PREFIXa.da19801201_00'])
 
+        self.atmos.suite.initpoint = [1980, 11, 1, 0, 0]
+        self.atmos.suite.meanref = [1978, 10, 1]
         for month in range(1, 3):
             func.logtest('testing date (1 seasonal dump): {}'.
                          format([1981, month, 1, 0, 0, 0]))
             self.atmos.suite.cyclepoint = \
                 atmos.utils.CylcCycle(cyclepoint=[1981, month, 1, 0, 0, 0])
             dumps = validation.make_dump_name(self.atmos)
-            self.assertListEqual(dumps, ['PREFIXa.da19801201_00'])
+            self.assertListEqual(dumps, ['PREFIXa.da19810101_00'])
 
     def test_seasonal_dumpnames_two(self):
         '''Test creation of two dumpnames for seasonal archive'''
@@ -750,14 +696,12 @@ class DumpnameTests(unittest.TestCase):
                       func.capture('err'))
 
 
-class TransformTests(unittest.TestCase):
-    '''Unit tests relating to transformation of fieldsfiles'''
+class AtmosTransformTests(unittest.TestCase):
+    '''Unit tests relating to atmos_transformation of fieldsfiles'''
     def setUp(self):
         self.umutils = 'UMDIR/../utilities'
         self.ppfile = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                    'air_temp.pp')
-        self.mule_avail = housekeeping.MULE_AVAIL
-
 
     def tearDown(self):
         for fname in ['FNAME', 'FNAME.cut']:
@@ -765,7 +709,6 @@ class TransformTests(unittest.TestCase):
                 os.remove(fname)
             except OSError:
                 pass
-        housekeeping.MULE_AVAIL = self.mule_avail
 
     def test_convert_convpp(self):
         '''Test convert_to_pp functionality with um-convpp'''
@@ -774,8 +717,9 @@ class TransformTests(unittest.TestCase):
         with mock.patch('utils.exec_subproc') as mock_exec:
             with mock.patch('utils.remove_files') as mock_rm:
                 mock_exec.return_value = (0, '')
-                ppfile = housekeeping.convert_to_pp('Filename', um_utils_path,
-                                                    False)
+                ppfile = atmos_transform.convert_to_pp('Filename',
+                                                       um_utils_path,
+                                                       False)
                 mock_rm.assert_called_with('Filename', path='')
             cmd = um_utils_path + '/um-convpp Filename Filename.pp'
             mock_exec.assert_called_with(cmd, cwd='')
@@ -787,8 +731,8 @@ class TransformTests(unittest.TestCase):
         with mock.patch('utils.exec_subproc') as mock_exec:
             with mock.patch('utils.remove_files') as mock_rm:
                 mock_exec.return_value = (0, '')
-                ppfile = housekeeping.convert_to_pp('Here/Filename',
-                                                    self.umutils, True)
+                ppfile = atmos_transform.convert_to_pp('Here/Filename',
+                                                       self.umutils, True)
                 self.assertListEqual(mock_rm.mock_calls, [])
             cmd = self.umutils + '/um-convpp Here/Filename Here/Filename.pp'
             mock_exec.assert_called_with(cmd, cwd='Here')
@@ -801,8 +745,8 @@ class TransformTests(unittest.TestCase):
         with mock.patch('utils.exec_subproc') as mock_exec:
             with mock.patch('utils.remove_files') as mock_rm:
                 mock_exec.return_value = (0, '')
-                ppfile = housekeeping.convert_to_pp('Here/Filename',
-                                                    um_utils_path, False)
+                ppfile = atmos_transform.convert_to_pp('Here/Filename',
+                                                       um_utils_path, False)
                 mock_rm.assert_called_with('Here/Filename', path='Here')
             cmd = um_utils_path + '/um-ff2pp Here/Filename Here/Filename.pp'
             mock_exec.assert_called_with(cmd, cwd='Here')
@@ -814,37 +758,37 @@ class TransformTests(unittest.TestCase):
         with mock.patch('utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (1, 'I failed')
             with self.assertRaises(SystemExit):
-                housekeeping.convert_to_pp('Filename', 'TestDir',
-                                           self.umutils)
+                atmos_transform.convert_to_pp('Filename', 'TestDir',
+                                              self.umutils)
         self.assertIn('Conversion to pp format failed', func.capture('err'))
         self.assertIn('I failed', func.capture('err'))
 
     @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
-    @mock.patch('housekeeping.iris_transform.save_format', return_value=0)
+    @mock.patch('atmos_transform.iris_transform.save_format', return_value=0)
     def test_extract_to_netcdf(self, mock_save):
         '''Test extraction of single field from single fieldsfile'''
         func.logtest('Assert extract to netCDF - single fieldsfile and field:')
-        icode = housekeeping.extract_to_netcdf(self.ppfile,
-                                               {'air_temperature': 'F1'},
-                                               'NETCDF4', None)
+        icode = atmos_transform.extract_to_netcdf(self.ppfile,
+                                                  {'air_temperature': 'F1'},
+                                                  'NETCDF4', None)
         outfile = os.path.join(os.path.dirname(self.ppfile),
                                'atmos_suiteIDa_4y_19941201-19981201_p9-F1.nc')
         mock_save.assert_called_once_with(mock.ANY, outfile, 'netcdf',
                                           kwargs={'ncftype': 'NETCDF4',
                                                   'complevel': None})
         self.assertIsInstance(mock_save.call_args[0][0],
-                              housekeeping.iris_transform.iris.cube.Cube)
+                              atmos_transform.iris_transform.iris.cube.Cube)
         self.assertEqual(icode, 0)
         self.assertIn('Fieldsfile name does not match', func.capture('err'))
 
     @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
-    @mock.patch('housekeeping.iris_transform.save_format', return_value=10)
+    @mock.patch('atmos_transform.iris_transform.save_format', return_value=10)
     def test_extract_to_netcdf_failsave(self, mock_save):
         '''Test failure to save netCDF file'''
         func.logtest('Assert extract to netCDF - failed save:')
-        icode = housekeeping.extract_to_netcdf(self.ppfile,
-                                               {'air_temperature': 'F1'},
-                                               'NETCDF', 5)
+        icode = atmos_transform.extract_to_netcdf(self.ppfile,
+                                                  {'air_temperature': 'F1'},
+                                                  'NETCDF', 5)
         outfile = os.path.join(os.path.dirname(self.ppfile),
                                'atmos_suiteIDa_4y_19941201-19981201_p9-F1.nc')
         mock_save.assert_called_once_with(mock.ANY, outfile, 'netcdf',
@@ -854,8 +798,8 @@ class TransformTests(unittest.TestCase):
         self.assertEqual(icode, 10)
 
     @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
-    @mock.patch('housekeeping.iris_transform.IrisCubes')
-    @mock.patch('housekeeping.iris_transform.save_format')
+    @mock.patch('atmos_transform.iris_transform.IrisCubes')
+    @mock.patch('atmos_transform.iris_transform.save_format')
     def test_extract_to_netcdf_suiteid(self, mock_save, mock_load):
         '''Test identification of suite and stream IDs'''
         func.logtest('Assert identification of suite and stream IDs:')
@@ -871,8 +815,7 @@ class TransformTests(unittest.TestCase):
                 }
 
         mock_load.return_value = DummyLoad()
-        _ = housekeeping.extract_to_netcdf('RUNIDa.mf2000',
-                                           {}, 'TYPE', None)
+        _ = atmos_transform.extract_to_netcdf('RUNIDa.mf2000', {}, 'TYPE', None)
 
         outfile = 'atmos_RUNIDa_1d_YYYYMMDD-YYYYMMDD_mf-F1.nc'
         mock_save.assert_called_once_with('CUBE', outfile, 'netcdf',
@@ -881,33 +824,34 @@ class TransformTests(unittest.TestCase):
         mock_load.assert_called_once_with('RUNIDa.mf2000', {})
 
     @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
-    @mock.patch('housekeeping.iris_transform')
+    @mock.patch('atmos_transform.iris_transform')
     def test_iris_load_fail(self, mock_iris):
         '''Test failed import of iris_transform module'''
         func.logtest('Assert handling of failed import:')
         del mock_iris.IrisCubes
         with self.assertRaises(SystemExit):
-            _ = housekeeping.extract_to_netcdf('RUNIDa.mf2000',
-                                               {}, 'TYPE', None)
+            _ = atmos_transform.extract_to_netcdf('RUNIDa.mf2000', {},
+                                                  'TYPE', None)
 
-        with mock.patch('housekeeping.utils.get_debugmode', return_value=True):
-            rtnval = housekeeping.extract_to_netcdf('RUNIDa.mf2000',
-                                                    {}, 'TYPE', None)
+        with mock.patch('atmos_transform.utils.get_debugmode',
+                        return_value=True):
+            rtnval = atmos_transform.extract_to_netcdf('RUNIDa.mf2000',
+                                                       {}, 'TYPE', None)
             self.assertEqual(rtnval, -1)
         self.assertIn('Iris module is not available', func.capture('err'))
 
-    @mock.patch('housekeeping.utils.exec_subproc', return_value=(0, 'OUTPUT'))
-    @mock.patch('housekeeping.os.rename')
+    @mock.patch('atmos_transform.MULE_AVAIL', True)
+    @mock.patch('atmos_transform.utils.exec_subproc',
+                return_value=(0, 'OUTPUT'))
+    @mock.patch('atmos_transform.os.rename')
     def test_cutout_subdomain(self, mock_rename, mock_exec):
         '''Test call to cutout_subdomain'''
         func.logtest('Assert call to cutout_subdomain:')
-        housekeeping.MULE_AVAIL = True
-        with mock.patch('housekeeping.os.path.exists',
+        with mock.patch('atmos_transform.os.path.exists',
                         side_effect=[True, False]):
-            icode = housekeeping.cutout_subdomain('path/to/file/FNAME',
-                                                  'MULEDIR',
-                                                  '-CTYPE',
-                                                  [1, 2, 3, 4])
+            icode = atmos_transform.cutout_subdomain(
+                'path/to/file/FNAME', 'MULEDIR', '-CTYPE', [1, 2, 3, 4]
+                )
             self.assertEqual(icode, 0)
         mock_exec.assert_called_with(
             'MULEDIR/mule-cutout -CTYPE path/to/file/FNAME ' +
@@ -918,18 +862,18 @@ class TransformTests(unittest.TestCase):
         self.assertNotIn('OUTPUT', func.capture())
         self.assertNotIn('OUTPUT', func.capture('err'))
 
-    @mock.patch('housekeeping.utils.exec_subproc', return_value=(0, 'OUTPUT'))
-    @mock.patch('housekeeping.os.rename')
+    @mock.patch('atmos_transform.MULE_AVAIL', True)
+    @mock.patch('atmos_transform.utils.exec_subproc',
+                return_value=(0, 'OUTPUT'))
+    @mock.patch('atmos_transform.os.rename')
     def test_cutout_subdomain_preexist(self, mock_rename, mock_exec):
         '''Test call to cutout_subdomain - prexisting .cut file'''
         func.logtest('Assert call to cutout_subdomain - pre-existing cutout:')
-        housekeeping.MULE_AVAIL = True
-        with mock.patch('housekeeping.os.path.exists',
+        with mock.patch('atmos_transform.os.path.exists',
                         side_effect=[True, True]):
-            icode = housekeeping.cutout_subdomain('FNAME',
-                                                  'MULEDIR',
-                                                  '-CTYPE',
-                                                  [1, 2, 3, 4])
+            icode = atmos_transform.cutout_subdomain(
+                'FNAME', 'MULEDIR', '-CTYPE', [1, 2, 3, 4]
+                )
             self.assertEqual(icode, 0)
 
         self.assertListEqual(mock_exec.mock_calls, [])
@@ -937,19 +881,19 @@ class TransformTests(unittest.TestCase):
         self.assertIn('Successfully extracted', func.capture())
         self.assertNotIn('OUTPUT', func.capture('err'))
 
-    @mock.patch('housekeeping.utils.exec_subproc', return_value=(10, 'OUTPUT'))
-    @mock.patch('housekeeping.os.rename')
+    @mock.patch('atmos_transform.MULE_AVAIL', True)
+    @mock.patch('atmos_transform.utils.exec_subproc',
+                return_value=(10, 'OUTPUT'))
+    @mock.patch('atmos_transform.os.rename')
     def test_cutout_subdomain_fail(self, mock_rename, mock_exec):
         '''Test call to cutout_subdomain - failure'''
         func.logtest('Assert call to cutout_subdomain - failure:')
-        housekeeping.MULE_AVAIL = True
-        with mock.patch('housekeeping.os.path.exists',
+        with mock.patch('atmos_transform.os.path.exists',
                         side_effect=[True, False]):
             with self.assertRaises(SystemExit):
-                icode = housekeeping.cutout_subdomain('path/to/file/FNAME',
-                                                      'MULEDIR',
-                                                      '-CTYPE',
-                                                      [1, 2, 3, 4])
+                icode = atmos_transform.cutout_subdomain(
+                    'path/to/file/FNAME', 'MULEDIR', '-CTYPE', [1, 2, 3, 4]
+                    )
                 self.assertEqual(icode, 10)
 
         mock_exec.assert_called_once_with(
@@ -959,40 +903,38 @@ class TransformTests(unittest.TestCase):
         self.assertListEqual(mock_rename.mock_calls, [])
         self.assertIn('OUTPUT', func.capture('err'))
 
-    @mock.patch('housekeeping.utils.exec_subproc',
-                side_effect=[(0, ''), (1, 'Source grid is NXxNY points')])
+    @mock.patch('atmos_transform.MULE_AVAIL', True)
+    @mock.patch('atmos_transform.utils.exec_subproc',
+                return_value=(1, 'Source grid is NXxNY points'))
     def test_cutout_same_gridbox(self, mock_exec):
         '''Test call to cutout_subdomain - source file already cutout'''
         func.logtest('Assert call to cutout_subdomain - same gridbox:')
-        housekeeping.MULE_AVAIL = True
         open('FNAME', 'w').close()
         open('FNAME.cut', 'w').close()
-        with mock.patch('housekeeping.os.path.exists',
-                        side_effect=[False]):
-            icode = housekeeping.cutout_subdomain('FNAME',
-                                                  None,
-                                                  'indices',
-                                                  ['ZX', 'ZY', 'NX', 'NY'])
+        with mock.patch('atmos_transform.os.path.exists',
+                        side_effect=[True, False]):
+            icode = atmos_transform.cutout_subdomain(
+                'FNAME', 'UMDIR', 'indices', ['ZX', 'ZY', 'NX', 'NY']
+                )
             self.assertEqual(icode, 1)
         self.assertIn('contains the required gridbox', func.capture())
         self.assertNotIn('Source grid is NXxNY', func.capture())
-        call_list1 = \
-            [mock.call(HousekeepTests.MULE_CUTOUT_CHECK_CMD),
-             mock.call('mule-cutout indices FNAME FNAME.cut ZX ZY NX NY')]
-        mock_exec.assert_has_calls(call_list1)
+        mock_exec.assert_called_once_with(
+            'UMDIR/mule-cutout indices FNAME FNAME.cut ZX ZY NX NY'
+            )
 
-
-    @mock.patch('housekeeping.utils.exec_subproc', return_value=(0, 'OUTPUT'))
+    @mock.patch('atmos_transform.MULE_AVAIL', True)
+    @mock.patch('atmos_transform.utils.exec_subproc',
+                return_value=(0, 'OUTPUT'))
     def test_cutout_rename(self, mock_exec):
         '''Test call to cutout_subdomain - rename file'''
         func.logtest('Assert call to cutout_subdomain - rename file:')
-        housekeeping.MULE_AVAIL = True
         open('FNAME', 'w').close()
         open('FNAME.cut', 'w').close()
-        with mock.patch('housekeeping.os.path.exists',
+        with mock.patch('atmos_transform.os.path.exists',
                         side_effect=[False, True]):
-            icode = housekeeping.cutout_subdomain('FNAME', None, '-CTYPE',
-                                                  [1, 2, 3, 4])
+            icode = atmos_transform.cutout_subdomain('FNAME', None, '-CTYPE',
+                                                     [1, 2, 3, 4])
             self.assertEqual(icode, 0)
 
         expected_cmd_str = 'mule-cutout -CTYPE FNAME FNAME.cut 1 2 3 4'
@@ -1004,18 +946,17 @@ class TransformTests(unittest.TestCase):
         self.assertFalse(os.path.exists('FNAME.cut'))
         self.assertIn('Successfully extracted sub-domain', func.capture())
 
-    @mock.patch('housekeeping.utils.exec_subproc', return_value=(0, 'OUTPUT'))
+    @mock.patch('atmos_transform.MULE_AVAIL', True)
+    @mock.patch('atmos_transform.utils.exec_subproc',
+                return_value=(0, 'OUTPUT'))
     def test_cutout_rename_fail(self, mock_exec):
         '''Test call to cutout_subdomain - failure'''
         func.logtest('Assert call to cutout_subdomain - failure:')
-        housekeeping.MULE_AVAIL = True
-        with mock.patch('housekeeping.os.path.exists',
+        with mock.patch('atmos_transform.os.path.exists',
                         side_effect=[True, False]):
             with self.assertRaises(SystemExit):
-                icode = housekeeping.cutout_subdomain('FNAME',
-                                                      'MULEDIR',
-                                                      '-CTYPE',
-                                                      [1, 2, 3, 4])
+                icode = atmos_transform.cutout_subdomain('FNAME', 'MULEDIR',
+                                                         '-CTYPE', [1, 2, 3, 4])
                 self.assertEqual(icode, -59)
 
         mock_exec.assert_called_once_with(
@@ -1023,30 +964,436 @@ class TransformTests(unittest.TestCase):
             )
         self.assertIn('Failed to rename', func.capture('err'))
 
-    @mock.patch('housekeeping.utils.exec_subproc', return_value=(0, 'OUTPUT'))
+    @mock.patch('atmos_transform.utils.exec_subproc',
+                return_value=(0, 'OUTPUT'))
     def test_cutout_util_non_exist(self, mock_exec):
         '''Test call to cutout_subdomain - utility does not exist'''
         func.logtest('Assert call to cutout_subdomain - non-existent utility:')
         with self.assertRaises(SystemExit):
-            _ = housekeeping.cutout_subdomain('path/to/file/FILENAME',
-                                              'MULEDIR',
-                                              '-CTYPE',
-                                              [1, 2, 3, 4])
+            _ = atmos_transform.cutout_subdomain('path/to/file/FILENAME',
+                                                 'MULEDIR',
+                                                 '-CTYPE', [1, 2, 3, 4])
 
         self.assertListEqual(mock_exec.mock_calls, [])
         self.assertIn('Unable to cut out subdomain', func.capture('err'))
         self.assertIn('mule-cutout utility does not exist', func.capture('err'))
 
-    @mock.patch('housekeeping.utils.exec_subproc', return_value=(0, 'OUTPUT'))
+    @mock.patch('atmos_transform.utils.exec_subproc',
+                return_value=(0, 'OUTPUT'))
     def test_cutout_util_nonexist_debug(self, mock_exec):
         '''Test call to cutout_subdomain - utility does not exist, debug mode'''
         func.logtest('Assert call to cutout_subdomain - no utility, debug:')
-        with mock.patch('housekeeping.utils.get_debugmode', return_value=True):
-            icode = housekeeping.cutout_subdomain('path/to/file/FILENAME',
-                                                  'MULEDIR',
-                                                  '-CTYPE',
-                                                  [1, 2, 3, 4])
+        with mock.patch('atmos_transform.utils.get_debugmode',
+                        return_value=True):
+            icode = atmos_transform.cutout_subdomain('path/to/file/FILENAME',
+                                                     'MULEDIR',
+                                                     '-CTYPE',
+                                                     [1, 2, 3, 4])
             self.assertEqual(icode, -99)
 
         self.assertListEqual(mock_exec.mock_calls, [])
         self.assertIn('Unable to cut out subdomain', func.capture('err'))
+
+
+class MeaningTests(unittest.TestCase):
+    ''' Unit tests for climate meaning '''
+
+    class DummyField(object):
+        ''' Dummy object to represent a UM field '''
+        def __init__(self, value):
+            self.data = None
+            self.lbrel = value
+            self.lblev = None
+            self.lbuser4 = 'X{}'.format(value)
+            self.raw = []
+
+        def copy(self):
+            ''' Replicate mule.umfile.copy() '''
+            func.logtest('DUMMY.copy field')
+            return self
+
+        def get_data(self):
+            ''' replicate mule.umfile.get_data() '''
+            return 2 * self.lbrel
+
+    class DummyFixHd(object):
+        ''' Dummy object to represent a UM fixed-length header '''
+        def __init__(self):
+            self.raw = list(range(40))
+
+    class DummyMuleFile(object):
+        ''' Dummy class to a UMfile loaded by Mule '''
+        def __init__(self):
+            self.fixed_length_header = MeaningTests.DummyFixHd()
+            self.fields = [MeaningTests.DummyField(1),
+                           MeaningTests.DummyField(2),
+                           MeaningTests.DummyField(3)]
+
+        def copy(self):
+            ''' Replicate mule.umfile.copy() '''
+            func.logtest('DUMMY.copy file')
+            return self
+
+        def to_file(self, filename):
+            ''' Replicate mule.umfile.to_file() '''
+            func.logtest('DUMMY.to_file: ' + filename)
+
+    def setUp(self):
+        if 'operator' in self.id():
+            self.fieldlist = []
+            for dummy in [2, 5, 10]:
+                self.fieldlist.append(MeaningTests.DummyField(dummy))
+            self.operator = atmos_transform.WeightedMeanOperator([1, 1, 1])
+        elif not validation.MULE_AVAIL:
+            # Set up dummy Mule for mocking later
+            atmos_transform.mule = None
+            atmos_transform.WeightedMeanOperator = None
+
+        self.meanfile = atmos.climatemean.MeanFile('1m', '10d')
+        self.meanfile.set_filename('MEANFILE', os.getcwd())
+        self.meanfile.periodend = [2000, 6, 1]
+
+    @unittest.skipUnless(validation.MULE_AVAIL,
+                         'Python module "Mule" is not available')
+    def test_operator(self):
+        ''' Test intstantiation of the WeightedMeanOperator object '''
+        func.logtest('Assert instantiation of a WeightedMeanOperator:')
+        self.assertTrue(isinstance(self.operator,
+                                   atmos_transform.WeightedMeanOperator))
+        self.assertListEqual(self.operator.weights, [1, 1, 1])
+
+    @unittest.skipUnless(validation.MULE_AVAIL,
+                         'Python module "Mule" is not available')
+    def test_operator_methods(self):
+        ''' Test methods of the WeightedMeanOperator object '''
+        func.logtest('Assert method functionality of a WeightedMeanOperator:')
+        operator = atmos_transform.WeightedMeanOperator([1, 2, 3])
+        self.assertTrue(isinstance(operator.new_field(self.fieldlist),
+                                   MeaningTests.DummyField))
+        self.assertEqual(operator.new_field(self.fieldlist).get_data(),
+                         4)
+
+        self.assertEqual(
+            operator.transform(self.fieldlist,
+                               operator.new_field(self.fieldlist)),
+            ((1 * 2) + (2 * 5) + (3 * 10)) * 2 / float(1 + 2 + 3)
+            )
+
+    @unittest.skipUnless(validation.MULE_AVAIL,
+                         'Python module "Mule" is not available')
+    def test_operator_methods_badwts(self):
+        ''' Test the WeightedMeanOperator object - mismatched weights'''
+        func.logtest('Assert mismatched weights in a WeightedMeanOperator:')
+        operator = atmos_transform.WeightedMeanOperator([1, 2, 3, 4])
+        self.assertTrue(isinstance(operator.new_field(self.fieldlist),
+                                   MeaningTests.DummyField))
+        self.assertEqual(operator.new_field(self.fieldlist).get_data(),
+                         4)
+
+        self.assertEqual(
+            operator.transform(self.fieldlist,
+                               operator.new_field(self.fieldlist)),
+            (2 + 5 + 10) * 2 / 3.
+            )
+
+    @mock.patch('atmos_transform.MULE_AVAIL', True)
+    @mock.patch('atmos_transform.mule')
+    @mock.patch('atmos_transform.WeightedMeanOperator')
+    def test_create_um_mean(self, mock_op, mock_mule):
+        ''' Test the create_um_mean method'''
+        func.logtest('Assert call to create_um_mean:')
+        self.meanfile.component_files = ['FILE1', 'FILE2', 'FILE3']
+        df1 = MeaningTests.DummyMuleFile()
+        df2 = MeaningTests.DummyMuleFile()
+        df3 = MeaningTests.DummyMuleFile()
+        mock_mule.load_umfile.side_effect = [df1, df2, df3]
+
+        atmos_transform.create_um_mean(self.meanfile)
+
+        mock_op.assert_called_once_with([1, 1, 1])
+        self.assertListEqual(mock_op().mock_calls,
+                             [mock.call([df1.fields[1], mock.ANY, mock.ANY]),
+                              mock.call([df1.fields[2], mock.ANY, mock.ANY])])
+        self.assertListEqual(
+            mock_mule.load_umfile.mock_calls,
+            [mock.call('FILE1'), mock.call('FILE2'), mock.call('FILE3')]
+            )
+
+        self.assertIn(
+            'Creating meanfile MEANFILE with components:'
+            '\n\tFILE1\n\tFILE2\n\tFILE3'
+            '\n[TEST] DUMMY.copy file'
+            '\n[INFO]  Meanfile validity date: 2000,6,1,0 day number 151'
+            '\n[INFO]  \tPPheader STARTdate: '
+            '\n[INFO]  \tPPheader ENDdate: '
+            '\n[TEST] DUMMY.to_file: ' + os.path.join(os.getcwd(), 'MEANFILE'),
+            func.capture())
+
+    @mock.patch('atmos_transform.MULE_AVAIL', True)
+    @mock.patch('atmos_transform.mule')
+    @mock.patch('atmos_transform.WeightedMeanOperator')
+    def test_mean_weights_gregorian_10d(self, mock_op, mock_mule):
+        ''' Test the create_um_mean method - mean weights for Gregorian'''
+        func.logtest('Assert Gregorian mean weights - 10d base:')
+        self.meanfile.component_files = ['FILE1', 'FILE2']
+        mock_mule.load_umfile.return_value = MeaningTests.DummyMuleFile()
+
+        with mock.patch('atmos_transform.utils.calendar',
+                        return_value='gregorian'):
+            atmos_transform.create_um_mean(self.meanfile)
+        self.assertIn('Creating meanfile MEANFILE with components:',
+                      func.capture())
+        self.assertIn('FILE1\n\tFILE2', func.capture())
+        mock_op.assert_called_once_with([1, 1])
+
+        self.assertIn('Meanfile validity date: 2000,6,1,0 day number 153',
+                      func.capture())
+
+    @mock.patch('atmos_transform.MULE_AVAIL', True)
+    @mock.patch('atmos_transform.mule')
+    @mock.patch('atmos_transform.WeightedMeanOperator')
+    def test_mean_weights_gregorian_1m(self, mock_op, mock_mule):
+        ''' Test the create_um_mean method - 1m base, Gregorian'''
+        func.logtest('Assert Gregorian mean weights - 1m base:')
+        mock_mule.load_umfile.return_value = MeaningTests.DummyMuleFile()
+
+        meanfile = atmos.climatemean.MeanFile('1s', '1m')
+        meanfile.set_filename('MEANFILE', os.getcwd())
+        meanfile.component_files = ['2000jan', '2000feb', '2000mar']
+        meanfile.periodend = [2000, 4, 1]
+
+        with mock.patch('atmos_transform.utils.calendar',
+                        return_value='gregorian'):
+            atmos_transform.create_um_mean(meanfile)
+
+        self.assertIn('Creating meanfile MEANFILE with components:',
+                      func.capture())
+        self.assertIn('2000jan\n\t2000feb\n\t2000mar', func.capture())
+        mock_op.assert_called_once_with([31, 29, 31])
+
+        self.assertIn('Meanfile validity date: 2000,4,1,0 day number 92',
+                      func.capture())
+
+    @mock.patch('atmos_transform.MULE_AVAIL', True)
+    @mock.patch('atmos_transform.mule')
+    @mock.patch('atmos_transform.WeightedMeanOperator')
+    def test_mean_weights_gregorian_1s(self, mock_op, mock_mule):
+        ''' Test the create_um_mean method'''
+        func.logtest('Assert Gregorian mean weights - 1s base:')
+        mock_mule.load_umfile.return_value = MeaningTests.DummyMuleFile()
+
+        meanfile = atmos.climatemean.MeanFile('1y', '1s')
+        meanfile.set_filename('MEANFILE', os.getcwd())
+        meanfile.component_files = ['2000son', '2001djf',
+                                    '2001mam', '2001jja']
+        meanfile.periodend = [2000, 9, 1]
+
+        with mock.patch('atmos_transform.utils.calendar',
+                        return_value='gregorian'):
+            atmos_transform.create_um_mean(meanfile)
+
+        self.assertIn('Creating meanfile MEANFILE with components:',
+                      func.capture())
+        self.assertIn('2000son\n\t2001djf\n\t2001mam\n\t2001jja',
+                      func.capture())
+        mock_op.assert_called_once_with([91, 90, 92, 92])
+
+        self.assertIn('Meanfile validity date: 2000,9,1,0 day number 245',
+                      func.capture())
+
+    @mock.patch('atmos_transform.MULE_AVAIL', False)
+    def test_create_um_mean_no_mule(self):
+        ''' Test the create_um_mean method - Mule not available'''
+        func.logtest('Assert call to create_um_mean - Mule not available:')
+        with mock.patch('validation.MULE_AVAIL', return_value=False):
+            rtn = atmos_transform.create_um_mean(self.meanfile)
+        self.assertTupleEqual(rtn, (None, 'create_um_mean: Mule is not '
+                                    'available. Cannot create means'))
+
+
+class DatestringTests(unittest.TestCase):
+    '''Unit tests relating extraction of dates from an inputstring'''
+    def setUp(self):
+        pass
+
+    def tearDown(self):
+        pass
+
+    def test_identify_dates_none(self):
+        ''' Test identify_dates functionality - none found'''
+        func.logtest('Assert return from identify_dates - none:')
+        self.assertIsNone(validation.identify_dates('RUNIDa.daDUMPDATE'))
+
+    def test_identify_dates_digitonly(self):
+        ''' Test identify_dates functionality - digit dates only'''
+        func.logtest('Assert return from identify_dates - digit dates:')
+        self.assertListEqual(validation.identify_dates('RUNIDa.da11112233'),
+                             [['1111', '22', '33']])
+        self.assertListEqual(
+            validation.identify_dates('RUNIDa.p911112233'),
+            [['1111', '22', '33']]
+            )
+        self.assertListEqual(
+            validation.identify_dates('RUNIDa.p911112233_44'),
+            [['1111', '22', '33', '44']]
+            )
+
+    def test_identify_dates_month(self):
+        ''' Test identify_dates functionality - 3char month id (start)'''
+        func.logtest('Assert return from identify_dates - start month:')
+        self.assertListEqual(
+            validation.identify_dates('RUNIDa.pa1111nov'),
+            [['1111', '11', '01']]
+            )
+        self.assertListEqual(
+            validation.identify_dates('RUNIDa.pa1111dec'),
+            [['1111', '12', '01']]
+            )
+        self.assertListEqual(
+            validation.identify_dates('RUNIDa.pa1111jan'),
+            [['1111', '01', '01']]
+            )
+
+    def test_identify_dates_season(self):
+        ''' Test identify_dates functionality - 3char season id (start)'''
+        func.logtest('Assert return from identify_dates - start season:')
+        self.assertListEqual(
+            validation.identify_dates('RUNIDa.pa1111son'),
+            [['1111', '09', '01']]
+            )
+        self.assertListEqual(
+            validation.identify_dates('RUNIDa.pa1111ond'),
+            [['1111', '10', '01']]
+            )
+        self.assertListEqual(
+            validation.identify_dates('RUNIDa.pa1111ndj'),
+            [['1110', '11', '01']]
+            )
+        self.assertListEqual(
+            validation.identify_dates('RUNIDa.pa1111djf'),
+            [['1110', '12', '01']]
+            )
+        self.assertListEqual(
+            validation.identify_dates('RUNIDa.pa1111jfm'),
+            [['1111', '01', '01']]
+            )
+
+    def test_identify_dates_regex(self):
+        func.logtest('Assert return from identify_dates - regex input:')
+        # Example climatemean.set_date_regex
+        self.assertListEqual(validation.identify_dates(
+            r'(19950301|19950601|19950901|19951201)'
+            ),
+                             [['1995', '03', '01'], ['1995', '06', '01'],
+                              ['1995', '09', '01'], ['1995', '12', '01']]
+                            )
+
+        # Example climatemean.end_date_regex
+        self.assertListEqual(
+            validation.identify_dates(r'\d{4}(01|04|07|10)01'),
+            [[r'\d{4}', '(01|04|07|10)', '01']]
+            )
+        self.assertListEqual(
+            validation.identify_dates(r'\d{3}50101'),
+            [[r'\d{3}5', '01', '01']]
+            )
+
+    def test_get_filedate_hourly(self):
+        ''' Test creation of UM file datestring from datelist -hour reinit '''
+        func.logtest('Assert UM filename is created from date list, hourly:')
+        self.assertEqual(validation.get_filedate([2005, 6, 1], '12h'),
+                         '20050601_00')
+        self.assertEqual(validation.get_filedate([2005, 12, 1, 12], '12h'),
+                         '20051201_12')
+        self.assertEqual(
+            validation.get_filedate([r'\d{4}', r'\d{2}', '01', '12'], '12h'),
+            r'\d{4}(01|02|03|04|05|06|07|08|09|10|11|12)01_12'
+            )
+        self.assertEqual(validation.get_filedate([2005, 6, 1, 12], '12h',
+                                                 end_of_period=True),
+                         '20050601_00')
+
+    def test_get_filedate_daily(self):
+        ''' Test creation of UM file datestring from datelist - daily reinit '''
+        func.logtest('Assert UM filename is created from date list, daily:')
+        self.assertEqual(validation.get_filedate([2005, 6, 1], '10d'),
+                         '20050601')
+        self.assertEqual(
+            validation.get_filedate([r'\d{4}', r'\d{2}', '01'], '10d'),
+            r'\d{4}(01|02|03|04|05|06|07|08|09|10|11|12)01'
+            )
+        self.assertEqual(validation.get_filedate([2005, 12, 1], '10d',
+                                                 end_of_period=True),
+                         '20051121')
+
+    def test_get_filedate_monthly(self):
+        ''' Test creation of UM file datestring from datelist - 1m reinit '''
+        func.logtest('Assert UM filename is created from date list, 1m:')
+        self.assertEqual(validation.get_filedate([2005, 6, 1], '1m'),
+                         '2005jun')
+        self.assertEqual(validation.get_filedate([2005, 6, 1], '1m',
+                                                 end_of_period=True),
+                         '2005may')
+        self.assertEqual(
+            validation.get_filedate([r'\d{4}', r'\d{2}', '01'], '1m'),
+            r'\d{4}(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)'
+            )
+        self.assertEqual(
+            validation.get_filedate(['1991', [1, 4, 7, 10], '01'], '1m'),
+            r'1991(jan|apr|jul|oct)'
+            )
+        self.assertEqual(
+            validation.get_filedate([r'\d{4}', '(01|04|07|10)', '01'], '1m',
+                                    end_of_period=True),
+            r'\d{4}(dec|mar|jun|sep)'
+            )
+        self.assertEqual(
+            validation.get_filedate([r'\d{3}5', '1', '01'], '1m',
+                                    end_of_period=True),
+            r'\d{3}4dec'
+            )
+
+    def test_get_filedate_seasonal(self):
+        ''' Test creation of UM file datestring from datelist - 1s reinit '''
+        func.logtest('Assert UM filename is created from date list, 1s:')
+        self.assertEqual(validation.get_filedate([2005, 6, 1], '1s'),
+                         '2005jja')
+        self.assertEqual(
+            validation.get_filedate([2005, 6, 1], '1s', end_of_period=True),
+            '2005mam'
+            )
+        self.assertEqual(
+            validation.get_filedate([r'\d{4}', [3, 6, 9, 12], '01'], '1s'),
+            r'\d{4}(mam|jja|son|djf)'
+            )
+        self.assertEqual(
+            validation.get_filedate([r'\d{4}', '(03|06|09|12)', '01'], '1s',
+                                    end_of_period=True),
+            r'\d{4}(djf|mam|jja|son)'
+            )
+        self.assertEqual(
+            validation.get_filedate(
+                [r'\d{3}5', '1', '01'], '1s', end_of_period=True),
+            r'\d{3}4ond'
+            )
+
+    def test_get_filedate_annual(self):
+        ''' Test creation of UM file datestring from datelist - 1s reinit '''
+        func.logtest('Assert UM filename is created from date list, 1s:')
+        self.assertEqual(validation.get_filedate([2005, 6, 1], '1y'),
+                         '20050601')
+        self.assertEqual(validation.get_filedate([2005, 6, 1], '1y',
+                                                 end_of_period=True),
+                         '20040601')
+        self.assertEqual(
+            validation.get_filedate([r'\d{4}', [3, 6, 9, 12], '01'], '1y'),
+            r'\d{4}(03|06|09|12)01'
+            )
+        self.assertEqual(
+            validation.get_filedate([r'\d{4}', '(03|06|09|12)', '01'], '1y',
+                                    end_of_period=True),
+            r'\d{4}(03|06|09|12)01'
+            )
+        self.assertEqual(validation.get_filedate([r'\d{3}5', '1', '01'], '1y',
+                                                 end_of_period=True),
+                         r'\d{3}50101')

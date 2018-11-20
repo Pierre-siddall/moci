@@ -12,7 +12,7 @@
  Met Office, FitzRoy Road, Exeter, Devon, EX1 3PB, United Kingdom
 *****************************COPYRIGHT******************************
 NAME
-    means_request.py
+    climatemean.py
 
 DESCRIPTION
     Class definition for requested means
@@ -20,6 +20,7 @@ DESCRIPTION
 
 '''
 import os
+import re
 
 from collections import OrderedDict
 
@@ -28,6 +29,9 @@ import timer
 
 MEANPERIODS = OrderedDict([('1m', 'Monthly'), ('1s', 'Seasonal'),
                            ('1y', 'Annual'), ('1x', 'Decadal')])
+
+MONTHS = ('December', 'January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November')
 
 class MeanFile(object):
     '''
@@ -46,7 +50,14 @@ class MeanFile(object):
     def __init__(self, period, component):
         self._period = period
         self._title = self.set_title()
-        self._component = component
+        try:
+            self._component = ''.join(re.match(r'(\d+)([hdmsyx])',
+                                               component).groups())
+        except AttributeError:
+            # Allow for a component prefixed by a streamID rather than
+            # and integer value
+            self._component = '1' + component[-1:]
+
         self._fname = {}
         self.component_files = []
         self.periodend = None
@@ -86,13 +97,9 @@ class MeanFile(object):
         Optional Arguments:
             custom <type 'str'> - Prefix to period mean description
         '''
-        months = [None, 'January', 'February', 'March', 'April', 'May',
-                  'June', 'July', 'August', 'September', 'October',
-                  'November', 'December']
-
         def monthly_detail(year_stamp, month_id):
             ''' Return a descriptive message for a monthly mean '''
-            return  ' '.join([months[month_id], year_stamp])
+            return  ' '.join([MONTHS[month_id % 12], year_stamp])
 
         def seasonal_detail(year_stamp, month_id):
             ''' Return a descriptive message for a seasonal mean '''
@@ -101,26 +108,25 @@ class MeanFile(object):
                 season_id = [2, 5, 8, 11].index(month_id)
                 detail = ['Winter', 'Spring', 'Summer', 'Autumn'][season_id]
             except ValueError:
-                months[0] = 'Dec'
-                months.append('Nov')
                 season_months = sorted(range(month_id, month_id - 3, -1))
-                detail = '-'.join([months[m][:3] for m in season_months])
+                detail = '-'.join([MONTHS[m % 12][:3] for m in season_months])
             if month_id < 3:
                 detail += ', ending'
             return ' '.join([detail, year_stamp])
 
         def annual_detail(year_stamp, month_id):
             ''' Return a descriptive message for an annual mean '''
-            return ' '.join(['year ending', months[month_id], year_stamp])
+            return ' '.join(['year ending', MONTHS[month_id % 12], year_stamp])
 
         def decadal_detail(year_stamp, month_id):
             ''' Return a descriptive message for a decadal mean '''
-            return ' '.join(['period ending', months[month_id],
+            return ' '.join(['period ending', MONTHS[month_id % 12],
                              str(year_stamp)])
 
         def unknown_detail(year_stamp, month_id):
             ''' Return a descriptive message for an unknown period mean '''
-            return ' '.join(['period ending', months[month_id], year_stamp])
+            return ' '.join(['period ending', MONTHS[month_id % 12],
+                             year_stamp])
 
         detail = {'Monthly': monthly_detail, 'Seasonal': seasonal_detail,
                   'Annual': annual_detail, 'Decadal': decadal_detail}
@@ -198,9 +204,10 @@ def available_means(namelist):
             base = namelist.base_component
         except AttributeError:
             base = request_list[0]
-            utils.log_msg('ClimateMean: `base_component` not found in '
-            'namelist.  Assuming first request ({}) is the base'.format(base),
-            level='WARN')
+            utils.log_msg(
+                'ClimateMean: `base_component` not found in namelist.  Assuming'
+                ' first request ({}) is the base'.format(base), level='WARN'
+                )
 
     available = OrderedDict()
     for mean in list(request_list):
@@ -220,31 +227,46 @@ def available_means(namelist):
 
     return available
 
+
 @timer.run_timer
-def create_mean(meanfile, mean_cmd, basistime):
-    ''' Create mean file'''
+def create_mean(meanfile, target_app, basistime, **kwargs):
+    '''
+    Create mean file
+    Arguments:
+        meanfile <type MeanFile>
+        target_app - Either:
+           A function to be called with arguments: meanfile, **kwargs
+           A shell command to be executed in the means directory
+    '''
+    icode = 0
+    msg = ''
+    msglevel = 'INFO'
+
     if os.path.isfile(meanfile.fname['full']):
         msg = '{} already exists: {}'.format(meanfile.description,
                                              meanfile.fname['file'])
         if meanfile.period == meanfile.component:
             msg += '\n\t--> {} mean output directly by the model.'.\
                 format(meanfile.title)
-        utils.log_msg(msg, level='INFO')
 
     elif len(meanfile.component_files) == meanfile.num_components:
-        icode, output = utils.exec_subproc(mean_cmd,
-                                           cwd=meanfile.fname['path'])
+        if callable(target_app):
+            icode, output = target_app(meanfile, **kwargs)
+        else:
+            icode, output = utils.exec_subproc(target_app,
+                                               cwd=meanfile.fname['path'])
 
         if icode == 0 and os.path.isfile(meanfile.fname['full']):
             msg = 'Created {}: {}'.format(meanfile.description,
                                           meanfile.fname['file'])
-            utils.log_msg(msg, level='OK')
+            msglevel = 'OK'
         else:
             msg = '{C}: Error={E}\n{O}\nFailed to create {M}: {L}'
-            msg = msg.format(C=mean_cmd, E=icode, O=output,
+            msg = msg.format(C=str(target_app), E=icode, O=output,
                              M=meanfile.description, L=meanfile.fname['file'])
+            msglevel = 'ERROR'
+            icode = -10
             utils.remove_files(meanfile.fname['full'], ignore_non_exist=True)
-            utils.log_msg(msg, level='ERROR')
 
     else:
         msg = '{} not possible as only got {} file(s): \n\t{}'.\
@@ -255,9 +277,14 @@ def create_mean(meanfile, mean_cmd, basistime):
             # Model in spinup period for the given mean.
             # Insufficent component files is expected.
             msg += '\n\t-> Means creation in spinup mode.'
-            utils.log_msg(msg, level='INFO')
         else:
-            utils.log_msg(msg, level='ERROR')
+            msglevel = 'ERROR'
+            icode = -20
+
+    utils.log_msg(msg, level=msglevel)
+
+    return icode
+
 
 @timer.run_timer
 def mean_spinup(meanfile, basistime):
@@ -281,3 +308,97 @@ def mean_spinup(meanfile, basistime):
         periodstart = basistime
 
     return basistime > periodstart[:len(basistime)]
+
+
+def calc_enddate(startdate, target):
+    r'''
+    Return a tuple of <type str> representing the end date of a period, given a
+    startdate and a target period.
+
+    Arguments:
+        startdate - Tuple or list of <type str>: (YYYY, MM, DD, [hh], [mm])
+        target    - Target period from startdate.
+                    A valid target should match r'-?\d*[hdmsyxHDMSYX].*' to
+                    give one of [hour(s), day(s), month(s), season(s),
+                                 year(s), decade(s)].
+                    The valid target string may be prefixed with a frequency
+                    digit.
+    '''
+    indate = list(startdate)
+    while len(indate) < 3:
+        indate.append('01')
+    while len(indate) < 5:
+        indate.append('00')
+
+    digit, char = utils.get_frequency(target)[:2]
+    rtndate = utils.add_period_to_date(indate, '{}{}'.format(digit, char))
+    # Truncate rtndate at the same length as start_date
+    rtndate = [str(i).zfill(2) for i in rtndate[0:len(startdate)]]
+
+    return tuple(rtndate)
+
+
+def end_date_regex(period, meanref):
+    '''
+    Return a regular expression representing any end date (YYYYMMDD)
+    possible for a given period.
+
+    Arguments:
+        period  - One of MEANPERIODS.keys()
+        meanref - list of <type str> or <type int> representing the
+                  mean reference date
+    '''
+    day = str(meanref[2]).zfill(2)
+
+    if period == '1m':
+        month = r'\d{2}'
+    elif period == '1s':
+        seasons = []
+        for i in range(4):
+            newmonth = (int(meanref[1]) + (i * 3)) % 12
+            seasons.append('12' if newmonth == 0 else str(newmonth).zfill(2))
+        month = '({})'.format('|'.join(seasons))
+    else:
+        month = str(meanref[1]).zfill(2)
+    if period == '1x':
+        year = r'\d{3}' + str(meanref[0])[-1]
+    else:
+        year = r'\d{4}'
+
+    return ''.join([year, month, day])
+
+
+def set_date_regex(period, reinit, enddate, rtnend=False):
+    '''
+    Return a regular expression representing the set of start dates
+    (YYYYMMDD) for components in the given period.
+
+    Arguments:
+        period  - One of MEANPERIODS.keys()
+        reinit  - Reinitialisation period for the set component file
+        enddate - list/tuple of <type int> or <type str>
+                  Representing YYYY,MM,DD[,MM[,HH]]
+    Optional Arguments:
+        rtnend  - If True, return a regular expression representing the
+                  end date of each file in the set.
+                  Otherwise return the set of start dates
+    '''
+    # Calculate the initial start date for the period
+    options = [calc_enddate(enddate, '-' + period)]
+    stop = enddate
+    if rtnend:
+        options[0] = calc_enddate(options[0], reinit)
+        stop = calc_enddate(enddate, reinit)
+
+    while ''.join(options[-1]) < ''.join([str(d).zfill(2) for d in stop]):
+        # Calculate all date options stepping through from start to end date
+        # of the period, with step length = reinit
+        options.append(calc_enddate(options[-1], reinit))
+        if len(options) > 80:
+            # Catch too many date options - break out of loop
+            msg = 'climatemean: set_date_regex - Too many date options: '
+            msg += '{} set with {} component reinitialisation.'
+            utils.log_msg(msg.format(period, reinit), level='WARN')
+            break
+
+    return '({})'.format('|'.join([''.join(d) for d in options[:-1]]))

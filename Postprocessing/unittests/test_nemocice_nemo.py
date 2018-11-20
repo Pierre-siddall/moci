@@ -1309,8 +1309,8 @@ class UtilityMethodTests(unittest.TestCase):
                 )
         self.assertEqual(ncf.prefix, 'nemo_runido')
         self.assertEqual(ncf.base, '10d')
-        self.assertEqual(ncf.start_date, ('2000', '12', '01'))
-        self.assertEqual(ncf.calc_enddate(), ('2000', '12', '11'))
+        self.assertTupleEqual(ncf.start_date, ('2000', '12', '01'))
+        self.assertTupleEqual(ncf.calc_enddate(), ('2000', '12', '11'))
 
     @mock.patch('nemo.netcdf_filenames.NCFilename')
     def test_components_medusa_model(self, mock_ncf):

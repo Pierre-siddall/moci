@@ -22,6 +22,7 @@ import os
 import re
 
 import utils
+import climatemean
 
 NCF_REGEX = r'^{P}_{B}_{S}-{E}{C}\.nc$'
 NCF_TEMPLATE = NCF_REGEX.lstrip('^').rstrip(r'\.nc$') + '.nc'
@@ -86,7 +87,7 @@ class NCFilename(object):
                     of daily means concatenated into a single file.
         '''
         target = target if target else self.base
-        return calc_enddate(self.start_date, target)
+        return climatemean.calc_enddate(self.start_date, target)
 
     @staticmethod
     def nc_match(fname):
@@ -178,55 +179,6 @@ def ncf_getdate(filename, enddate=False):
     return rtndate
 
 
-def calc_enddate(startdate, target, freq=1):
-    r'''
-    Return the end date given a start_date and a target period.
-    Default end date calculated is self.base ahead of self.start_date.
-    Arguments:
-        startdate - Tuple or list: (YYYY, MM, DD, [mm], [hh])
-        target    - Target period from startdate.
-                    A valid target should match r'-?\d*[hdmsyxHDMSYX].*' to
-                    give one of [hour(s), day(s), month(s), season(s),
-                                 year(s), decade(s)].
-                    The valid target string may be prefixed with a frequency
-                    digit.
-    Optional arguments:
-        freq      - Default=1.
-                    Used as a multiplier to self.base or target when
-                    given without digit prefix.
-    '''
-    indate = list(startdate)
-    while len(indate) < 3:
-        indate.append('01')
-    while len(indate) < 5:
-        indate.append('00')
-
-    digit, char = utils.get_frequency(target)[:2]
-    rtndate = utils.add_period_to_date(indate,
-                                       '{}{}'.format(digit * freq, char))
-    # Truncate rtndate at the same length as start_date
-    rtndate = [str(i).zfill(2) for i in rtndate[0:len(startdate)]]
-    return tuple(rtndate)
-
-
-def seasonend(meanref):
-    '''
-    Return a tuple of 4 string MMDD representations for the season ends.
-    '''
-    seasons = []
-    while len(seasons) < 4:
-        seasons.append((meanref[1] + (len(seasons) * 3)) % 12)
-    try:
-        # Replace any instance of '0' with '12' for December
-        seasons[seasons.index(0)] = 12
-    except ValueError:
-        pass
-    for i, _ in enumerate(seasons):
-        # Modify to return tuple of strings
-        seasons[i] = str(seasons[i]).zfill(2) + str(meanref[2]).zfill(2)
-    return tuple(sorted(seasons))
-
-
 def period_end(period, fvars, meanref):
     '''
     Return a regular expression to match the last file in set for a given
@@ -243,31 +195,17 @@ def period_end(period, fvars, meanref):
                                   (e.g. 6h, 10d, 1m)
         meanref <type list>     - Mean reference date
     '''
+
+    enddate = climatemean.end_date_regex(period, meanref)
     try:
         freq, base = re.match(r'(\d+)([a-z]+)', fvars.base).groups()
     except AttributeError:
         freq = '1'
         base = fvars.base[0].lower()
 
-    end_year = r'\d{4}'
-    if period == '1m':
-        end_mmdd = r'\d{{2}}{:02}'.format(meanref[2])
-    elif period == '1s':
-        end_mmdd = '|'.join(seasonend(meanref))
-    elif period in ['1y', '1x']:
-        end_mmdd = str(meanref[1]).zfill(2) + str(meanref[2]).zfill(2)
-        if period == '1x':
-            end_year = r'\d{3}' + str(meanref[0])[-1]
-    else:
-        # Period not recognised
-        end_mmdd = 'MMDD'
-        msg = 'netcdf_filenames: period_end - Mean period {} not recognised.'
-        msg += '  Defaulting to start date "MMDD"'
-        utils.log_msg(msg.format(period), level='WARN')
-
     return NCF_REGEX.format(P=fvars.prefix, B=''.join([freq, base]),
                             S=r'\d{8,10}',
-                            E=r'{}({})(00)?'.format(end_year, end_mmdd),
+                            E=r'{}(00)?'.format(enddate),
                             C=fvars.custom)
 
 
@@ -285,24 +223,11 @@ def period_set(period, fvars):
                                   fvars.base should be a base frequency
                                   (e.g. 6h, 10d, 1m)
     '''
-    end_yyyymmdd = calc_enddate(fvars.start_date, fvars.base)
-    # Calculate the startdate for the period
-    start_yyyymmdd = [calc_enddate(end_yyyymmdd, '-' + period)]
+    end_yyyymmdd = climatemean.calc_enddate(fvars.start_date, fvars.base)
+    start_set = climatemean.set_date_regex(period, fvars.base, end_yyyymmdd)
 
-    while ''.join(start_yyyymmdd[-1]) < ''.join(end_yyyymmdd):
-        # Calculate all start date options stepping through from
-        # start to end date of the period, with step length = fvars.base
-        start_yyyymmdd.append(calc_enddate(start_yyyymmdd[-1], fvars.base))
-        if len(start_yyyymmdd) > 50:
-            # Catch too many date options - break out of loop
-            msg = 'netcdf_filenames: period_set - Too many start date options: '
-            msg += '{} set with {} base component.'.format(period, fvars.base)
-            utils.log_msg(msg, level='WARN')
-            break
-
-    start_set = '|'.join([''.join(d) for d in start_yyyymmdd[:-1]])
     return NCF_REGEX.format(P=fvars.prefix, B=fvars.base,
-                            S=r'({})(\d{{2}})?'.format(start_set),
+                            S=r'{}(\d{{2}})?'.format(start_set),
                             E=r'\d{8,10}', C=fvars.custom)
 
 
@@ -324,7 +249,7 @@ def mean_stencil(fvars, target=None):
         enddate = startdate
     else:
         target = target if target else fvars.base
-        enddate = calc_enddate(fvars.start_date, target)
+        enddate = climatemean.calc_enddate(fvars.start_date, target)
 
     return NCF_TEMPLATE.format(P=fvars.prefix, B=fvars.base,
                                S=''.join(startdate), E=''.join(enddate),

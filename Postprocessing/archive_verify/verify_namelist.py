@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -43,6 +43,9 @@ class AtmosVerify(object):
     meanfields = None
     mean_reference_date = '10001201'
     meanstreams = ['1m', '1s', '1y', '1x']
+    pp_climatemeans = False
+    base_mean = 'pm'
+    streams_1m = None
     streams_90d = None
     streams_30d = None
     streams_10d = None
@@ -74,6 +77,7 @@ class NemoVerify(object):
     meanfields = ['grid-U', 'grid-T', 'grid-W', 'grid-V']
     mean_reference_date = '10001201'
     meanstreams = ['1m', '1s', '1y']
+    pp_climatemeans = True
     streams_1d_1m = None
     streams_6h_1m = None
     iberg_traj = False
@@ -91,12 +95,12 @@ class CiceVerify(object):
     archive_timestamps = 'Biannual'
     restart_suffix = '.nc'
     buffer_restart = 1
-    buffer_mean = None
     base_mean = '10d'
     cice_age_rst = False
     meanfields = None
     mean_reference_date = '10001201'
     meanstreams = ['1m', '1s', '1y']
+    pp_climatemeans = True
     streams_1d_1m = False
 
 

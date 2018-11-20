@@ -15,9 +15,10 @@ NAME
     housekeeping.py
 
 DESCRIPTION
-    Atmosphere housekeeping methods:
+    Atmosphere housekeeping methods
       File deletion utilities
       File processing utilities - conversion to pp format
+                                  creation of means
 '''
 
 import re
@@ -27,25 +28,16 @@ from collections import OrderedDict
 import timer
 import utils
 
-from netcdf_filenames import NCF_TEMPLATE
-from validation import MULE_AVAIL
-
-try:
-    import iris_transform
-except ImportError:
-    # Iris is not part of the standard Python package
-    utils.log_msg('Iris Module is not available', level='WARN')
-
 # Constants
 FILETYPE = OrderedDict([
     ('dump_names', ([], lambda p, s:
                     re.compile(r'^{0}a\.da\d{{8}}'.format(p)))),
     ('pp_inst_names', ([], lambda p, s:
-                       re.compile(r'^{0}a\.p[{1}]'.format(p, s)))),
+                       re.compile(r'^{0}a\.({1})'.format(p, s)))),
     ('pp_mean_names', ([], lambda p, s:
-                       re.compile(r'^{0}a\.[pm][{1}]'.format(p, s)))),
+                       re.compile(r'^{0}a\.({1})'.format(p, s)))),
     ('nc_names', ([], lambda p, s:
-                  re.compile(r'^atmos_{0}a_.*_[pm][{1}]'.format(p, s)))),
+                  re.compile(r'^atmos_{0}a_.*_({1})'.format(p, s)))),
     ])
 RTN = 0
 REGEX = 1
@@ -150,8 +142,7 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, nc_names, archived):
                                                            atmos.means),
                           ppfile)
             if pp_inst or pp_mean:
-                if re.match(atmos.ff_pattern.format(atmos.convpp_streams),
-                            ppfile):
+                if atmos.ff_match(atmos.convpp_streams, filename=ppfile):
                     to_delete.append(ppfile + '.pp')
                 # Mark the original fieldsfile for deletion regardless of
                 # whether it should have been converted to pp.  If the file
@@ -195,170 +186,17 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, nc_names, archived):
 
 
 @timer.run_timer
-def convert_to_pp(fieldsfile, umutils, keep_ffile):
-    '''
-    Create the command to call the appropriate UM utility for file
-    conversion to pp format.
-        UM versions up to vn10.3: um-ff2pp
-        UM versions 10.4 onwards: um-convpp
-    '''
-    ppfname = fieldsfile + '.pp'
-    sharedir = os.path.dirname(fieldsfile)
-    try:
-        version = re.match(r'.*/(vn|VN)(\d+\.\d+).*', umutils).group(2)
-        conv_exec = 'um-convpp' if float(version) > 10.3 else 'um-ff2pp'
-    except AttributeError:
-        # Version number not in path
-        conv_exec = 'um-convpp'
-
-    cmd = ' '.join([os.path.join(umutils, conv_exec),
-                    fieldsfile, ppfname])
-    ret_code, output = utils.exec_subproc(cmd, cwd=sharedir)
-
-    if ret_code == 0:
-        msg = 'convert_to_pp: Converted to pp format: ' + ppfname
-        if not keep_ffile:
-            utils.remove_files(fieldsfile, path=sharedir)
-        utils.log_msg(msg, level='INFO')
-    else:
-        msg = 'convert_to_pp: Conversion to pp format failed: {}\n {}\n'
-        utils.log_msg(msg.format(fieldsfile, output), level='ERROR')
-
-    return ppfname
-
-
-@timer.run_timer
-def extract_to_netcdf(fieldsfile, fields, ncftype, complevel):
-    '''
-    Extract given field(s) to netCDF format.
-
-    Multiple instances of the same field in the same file will result
-    in only the final instance being extracted.
-
-    Arguments:
-       fieldsfile - Full filename (including path)
-       fields     - <type dict> keys=fieldnames or STASHcodes
-                                vals=descriptor for field
-    '''
-    dirname = os.path.dirname(fieldsfile)
-    try:
-        suite_id, stream_id = re.match(r'(.*)a\.([pm][a-zA-Z0-9])\d{4}',
-                                       os.path.basename(fieldsfile)).groups()
-    except AttributeError:
-        msg = 'PP/Fieldsfile name does not match expected format: '
-        utils.log_msg(msg + os.path.basename(fieldsfile), level='WARN')
-        suite_id = os.environ['CYLC_SUITE_NAME']
-        stream_id = 'p9'
-    ncf_prefix = 'atmos_{}a'.format(suite_id)
-    try:
-        all_cubes = iris_transform.IrisCubes(fieldsfile, fields)
-        icode = 0
-    except (AttributeError, NameError):
-        # Iris module is not available
-        utils.log_msg('Iris module is not available - '
-                      'cannot extract fields to netCDF format', level='ERROR')
-        icode = -1
-
-    if icode == 0:
-        # Loop over requested fields
-        for field in sorted(all_cubes.field_attributes):
-            fattr = all_cubes.field_attributes[field]
-            descriptor = '_' + stream_id
-            if fattr['Descriptor']:
-                descriptor += '-' + fattr['Descriptor']
-                ncfilename = os.path.join(
-                    dirname,
-                    NCF_TEMPLATE.format(P=ncf_prefix,
-                                        B=fattr['DataFrequency'],
-                                        S=fattr['StartDate'],
-                                        E=fattr['EndDate'],
-                                        C=descriptor)
-                    )
-            icode += iris_transform.save_format(fattr['IrisCube'],
-                                                ncfilename,
-                                                'netcdf',
-                                                kwargs={'complevel': complevel,
-                                                        'ncftype': ncftype})
-
-    return icode
-
-
-@timer.run_timer
-def cutout_subdomain(full_fname, mule_utils, coord_type, coords):
-    '''
-    Use Mule to cut out a fieldsfile sub-domain - suitable for input to createbc
-
-    Arguments:
-      full_fname - <type str> Filename including full path
-      mule_utils - Path to mule-cutout.
-                   If <type NoneType> then mule-cutout is assumed to be on
-                   the system $PATH variable.
-      coord_type - Coordinate system argument for mule-cutout.  One of:
-                     ['indices', 'coords', 'coords --native-grid']
-      coords     - Integer coordinates to cut out:
-                     indices: zx,zy,nz,ny
-                     coords : SW_lon,SW_lat,NE_lon,NE_lat
-    '''
-    cutout_exec_present = False
-    if mule_utils:
-        # if a path is passed in, create a full path to the cutout executable
-        cutout = os.path.expandvars(os.path.join(mule_utils, 'mule-cutout'))
-        cutout_exec_present = os.path.exists(cutout)
-    else:
-        # if no path is passed in, we expect mule-cutout to be on the system $PATH
-        ret_val, _ = utils.exec_subproc('mule-cutout --help')
-        cutout = 'mule-cutout'
-        cutout_exec_present = ret_val == 0
-
-
-    outfile = full_fname + '.cut'
-
-    mlevel = 'ERROR'
-    if os.path.exists(full_fname + '.cut'):
-        # Cut out file already exists - skip to rename
-        icode = 0
-
-    elif cutout_exec_present and MULE_AVAIL:
-        # mule-cutout requires the mule Python module to be available
-        cmd = ' '.join([cutout, coord_type, full_fname, outfile] +
-                       [str(x) for x in coords])
-        icode, msg = utils.exec_subproc(cmd)
-        if icode != 0 and coord_type == 'indices':
-            if 'Source grid is {}x{}'.format(coords[2], coords[3]) in msg:
-                # This file has already been cut out with this gridbox
-                msg = 'File already contains the required gridbox.'
-                mlevel = 'INFO'
-
-    else:
-        msg = 'Unable to cut out subdomain - ' + \
-            '{} utility does not exist'.format(cutout)
-        icode = -99
-
-    if icode == 0:
-        try:
-            os.rename(full_fname + '.cut', full_fname)
-            msg = 'Successfully extracted sub-domain from {}'.\
-                format(full_fname)
-            mlevel = 'OK'
-        except OSError:
-            msg = 'Failed to rename sub-domain fieldsfile'
-            icode = -59
-
-    utils.log_msg(msg, level=mlevel)
-
-    return icode
-
-
-@timer.run_timer
 def get_marked_files(datadir, pattern, suffix):
     '''
     Returns a list of files marked as available for archiving.
     Completed fieldsfiles are marked by the presence of a '.arch' suffixed file
     in the work directory.
     '''
-    marked_files = utils.get_subset(datadir, pattern)
+    marked_files = utils.get_subset(datadir, pattern.replace('$', suffix + '$'))
     if len(marked_files) == 0:
-        utils.log_msg('No file marked for archive', level='INFO')
+        utils.log_msg('No files marked ' + suffix, level='INFO')
     if suffix:
-        marked_files = [fn[:-len(suffix)]for fn in marked_files]
+        marked_files = [fn.replace(suffix, '') for fn in marked_files]
+
     return marked_files
+

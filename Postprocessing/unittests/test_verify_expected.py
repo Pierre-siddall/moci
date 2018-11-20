@@ -58,7 +58,8 @@ class DateTests(unittest.TestCase):
 class ArchivedFilesTests(unittest.TestCase):
     ''' Unit tests relating to the ArchivedFiles (parent) class methods '''
     def setUp(self):
-        with mock.patch('utils.finalcycle', return_value=False):
+        with mock.patch('expected_content.utils.finalcycle',
+                        return_value=False):
             self.files = expected_content.ArchivedFiles(
                 '11112233', '44445566', 'PREFIX', 'model',
                 verify_namelist.AtmosVerify()
@@ -76,15 +77,24 @@ class ArchivedFilesTests(unittest.TestCase):
         self.assertEqual(self.files.model, 'model')
         self.assertFalse(self.files.finalcycle)
 
-    def test_extract_start_date(self):
+    def test_extract_start_date_atmos(self):
         '''Assert correct extraction of date from various filenames '''
-        func.logtest('Assert correct extraction of date')
+        func.logtest('Assert correct extraction of date - atmos')
         self.assertListEqual(self.files.extract_date('runida.pa1988jan'),
                              [1988, 1, 1])
-        self.assertListEqual(self.files.extract_date('runida.pa19880115'),
+        self.assertListEqual(self.files.extract_date('runida.pa1988djf'),
+                             [1987, 12, 1])
+        self.assertListEqual(self.files.extract_date('runida.pa1988mam'),
+                             [1988, 3, 1])
+
+        self.assertListEqual(self.files.extract_date('runida.pb19880115'),
                              [1988, 1, 15])
         self.assertListEqual(self.files.extract_date('runida.da19880115_12'),
                              [1988, 1, 15, 12])
+
+    def test_extract_start_date_ncf(self):
+        '''Assert correct extraction of date from various filenames '''
+        func.logtest('Assert correct extraction of date - NetCDF')
         self.assertListEqual(
             self.files.extract_date('runido_19880115_rst.nc'), [1988, 1, 15]
             )
@@ -113,19 +123,40 @@ class ArchivedFilesTests(unittest.TestCase):
             [1988, 1, 10, 12]
             )
 
-    def test_extract_end_date(self):
+    def test_extract_end_date_atmos(self):
         '''Assert correct extraction of date from various filenames '''
-        func.logtest('Assert correct extraction of date')
-        self.assertListEqual(self.files.extract_date('runida.pa1988jan',
-                                                     start=False),
-                             [1988, 1, 1])
+        func.logtest('Assert correct extraction of date - atmos')
+        self.assertListEqual(
+            self.files.extract_date('runida.pa1988nov', start=False),
+            [1988, 12, 1]
+            )
+        self.assertListEqual(
+            self.files.extract_date('runida.pa1988dec', start=False),
+            [1989, 1, 1]
+            )
+        self.assertListEqual(
+            self.files.extract_date('runida.pa1988jan', start=False),
+            [1988, 2, 1]
+            )
+        self.assertListEqual(
+            self.files.extract_date('runida.pa1988son', start=False),
+            [1988, 12, 1]
+            )
+        self.assertListEqual(
+            self.files.extract_date('runida.pa1988ond', start=False),
+            [1989, 1, 1]
+            )
+        self.assertListEqual(
+            self.files.extract_date('runida.pa1988ndj', start=False),
+            [1988, 2, 1]
+            )
+
+    def test_extract_end_date_ncf(self):
+        '''Assert correct extraction of date from various filenames '''
+        func.logtest('Assert correct extraction of date - ncf')
         self.assertListEqual(
             self.files.extract_date('medusa_runido_1m_198801-198802_grid.nc',
                                     start=False), [1988, 2, 1]
-            )
-        self.assertListEqual(
-            self.files.extract_date('lim_runidi_1s_198812-198903_grid.nc',
-                                    start=False), [1989, 3, 1]
             )
         self.assertListEqual(
             self.files.extract_date('nemo_runido_10d_19880115-19881115'
@@ -136,44 +167,15 @@ class ArchivedFilesTests(unittest.TestCase):
                                     start=False), [1988, 1, 11, 12]
             )
 
-    def test_extract_seasonal_date(self):
-        '''Assert correct handling of atmosphere seasonal means'''
-        func.logtest('Assert correct handling of atmosphere seasonal means:')
-        with self.assertRaises(SystemExit):
-            _ = self.files.extract_date('runida.pa1988djf')
-        self.assertIn('Mean reference date required', func.capture('err'))
-
-        self.files.meanref = [2000, 12, 1]
-        self.assertListEqual(self.files.extract_date('runida.pa1988djf'),
-                             [1987, 12, 1])
-        self.assertListEqual(self.files.extract_date('runida.pa1988mam'),
-                             [1988, 3, 1])
-        self.assertListEqual(self.files.extract_date('runida.pa1988djf',
-                                                     start=False), [1988, 3, 1])
-        self.assertListEqual(self.files.extract_date('runida.pa1988mam',
-                                                     start=False), [1988, 6, 1])
-
     def test_seasons(self):
         '''Assert return of available seasons'''
         func.logtest('Assert return of available seasons:')
-        self.assertListEqual(self.files.seasons([2000, 12, 1]),
-                             [(3, 'mam'), (6, 'jja'), (9, 'son'), (12, 'djf')])
-        self.assertListEqual(self.files.seasons([2010, 11, 15]),
-                             [(2, 'fma'), (5, 'mjj'), (8, 'aso'), (11, 'ndj')])
-        self.assertListEqual(self.files.seasons([2000, 1, 1]),
-                             [(1, 'jfm'), (4, 'amj'), (7, 'jas'), (10, 'ond')])
-
-    def test_seasons_shift(self):
-        '''Assert return of available seasons'''
-        func.logtest('Assert return of available seasons:')
-        self.assertListEqual(self.files.seasons([2000, 12, 1], shift=1),
-                             [(1, 'jfm'), (4, 'amj'), (7, 'jas'), (10, 'ond')])
-        self.assertListEqual(self.files.seasons([2000, 12, 1], shift=2),
-                             [(2, 'fma'), (5, 'mjj'), (8, 'aso'), (11, 'ndj')])
-        self.assertListEqual(self.files.seasons([2000, 12, 1], shift=3),
-                             [(3, 'mam'), (6, 'jja'), (9, 'son'), (12, 'djf')])
-        self.assertListEqual(self.files.seasons([2000, 12, 1], shift=4),
-                             [(1, 'jfm'), (4, 'amj'), (7, 'jas'), (10, 'ond')])
+        self.assertTupleEqual(expected_content.SEASONS,
+                              ('djf', 'jfm', 'fma', 'mam', 'amj', 'mjj', 'jja',
+                               'jas', 'aso', 'son', 'ond', 'ndj'))
+        self.assertListEqual(expected_content.season_starts(12), [3, 6, 9, 12])
+        self.assertListEqual(expected_content.season_starts(11), [2, 5, 8, 11])
+        self.assertListEqual(expected_content.season_starts('1'), [1, 4, 7, 10])
 
     def test_filename_dict_atmos(self):
         '''Assert return of key, realm and component for atmosphere'''
@@ -293,7 +295,8 @@ class RestartFilesTests(unittest.TestCase):
         elif '6m_delay' in self.id():
             naml.delay_rst_archive = '6M'
 
-        with mock.patch('utils.finalcycle', return_value=False):
+        with mock.patch('expected_content.utils.finalcycle',
+                        return_value=False):
             self.files = expected_content.RestartFiles('19950811', '19981101',
                                                        'PREFIX', model, naml)
 
@@ -418,7 +421,7 @@ class RestartFilesTests(unittest.TestCase):
                   'PREFIXo_19980701_restart.nc']
         self.files.naml.buffer_restart = 4  # 40 days
 
-        with mock.patch('utils.CylcCycle._cyclepoint',
+        with mock.patch('expected_content.utils.CylcCycle._cyclepoint',
                         return_value={'iso': '19980621T0000Z',
                                       'intlist':  [1998, 6, 21, 0, 0]}):
             files_returned = self.files.expected_files()['oda.file']
@@ -481,7 +484,7 @@ class RestartFilesTests(unittest.TestCase):
                   'PREFIXi.restart.1998-11-01-00000.nc',
                   'PREFIXi.restart.age.1998-11-01-00000.nc']
         self.files.naml.buffer_restart = 9  # 9*1m --> effective edate=1998,3,1
-        with mock.patch('utils.CylcCycle._cyclepoint',
+        with mock.patch('expected_content.utils.CylcCycle._cyclepoint',
                         return_value={'iso': '19981001T0000Z',
                                       'intlist':  [1998, 10, 1, 0, 0]}):
             self.assertListEqual(self.files.expected_files()['ida.file'],
@@ -523,7 +526,8 @@ class DiagnosticFilesTests(unittest.TestCase):
             model = 'cice'
             naml = verify_namelist.CiceVerify()
             naml.cice_age_rst = True
-        with mock.patch('utils.finalcycle', return_value=False):
+        with mock.patch('expected_content.utils.finalcycle',
+                        return_value=False):
             self.files = expected_content.DiagnosticFiles(
                 '19950811', '19981101', 'PREFIX', model, naml
                 )
@@ -748,75 +752,6 @@ class DiagnosticFilesTests(unittest.TestCase):
         # Default setting: naml.iberg_traj=False
         self.assertEqual(self.files.iceberg_trajectory(), {'oni.nc.file': []})
 
-    def test_rm_component_above_day(self):
-        ''' Assert correct removal of higher mean components (day) '''
-        func.logtest('Assert correct removal of higher mean components:')
-        infiles = ['file_19900101-19900111.nc', 'file_19900111-19900121.nc',
-                   'file_19900121-19900201.nc', 'file_19900201-19900211.nc',
-                   'file_19900211-19900221.nc']
-
-        self.files.meanref = [1000, 12, 1]
-        outfiles = self.files.remove_higher_mean_components(infiles[:], 'd')
-        self.assertListEqual(outfiles, infiles[:-2])
-
-        self.files.meanref = [1000, 5, 21]
-        outfiles = self.files.remove_higher_mean_components(infiles[:], 'd')
-        self.assertListEqual(outfiles, infiles)
-
-    def test_rm_component_above_season(self):
-        ''' Assert correct removal of higher mean components (season) '''
-        func.logtest('Assert correct removal of higher mean components:')
-        infiles = ['file_19900301-19900601.nc', 'file_19900601-19900901.nc',
-                   'file_19900901-19901201.nc', 'file_19901201-19910301.nc',
-                   'file_19910301-19910601.nc']
-
-        self.files.meanref = [1000, 12, 1]
-        outfiles = self.files.remove_higher_mean_components(infiles[:], 's')
-        self.assertListEqual(outfiles, infiles[:-2])
-
-        self.files.meanref = [1000, 6, 1]
-        outfiles = self.files.remove_higher_mean_components(infiles[:], 's')
-        self.assertListEqual(outfiles, infiles)
-
-    def test_rm_component_above_year(self):
-        ''' Assert correct removal of higher mean components (year) '''
-        func.logtest('Assert correct removal of higher mean components:')
-        infiles = ['file_19901201-19911201.nc', 'file_19911201-19921201.nc',
-                   'file_19921201-19931201.nc', 'file_19931201-19941201.nc',
-                   'file_19941201-19951201.nc', 'file_19951201-19961201.nc',
-                   'file_19961201-19971201.nc', 'file_19971201-19981201.nc']
-
-        self.files.meanref = [1956, 12, 1]
-        outfiles = self.files.remove_higher_mean_components(infiles[:], 'y')
-        self.assertListEqual(outfiles, infiles[:-2])
-
-        self.files.meanref = [1988, 12, 1]
-        outfiles = self.files.remove_higher_mean_components(infiles[:], 'y')
-        self.assertListEqual(outfiles, infiles)
-
-    def test_rm_component_ds_only(self):
-        ''' Assert correct removal of higher mean components (d,s only) '''
-        func.logtest('Assert correct removal of higher mean components:')
-        dfiles = ['file_19900101-19900111.nc', 'file_19900111-19900121.nc',
-                  'file_19900121-19900201.nc', 'file_19900201-19900211.nc',
-                  'file_19900211-19900221.nc', 'file_19900221-19900301.nc',
-                  'file_19900301-19900311.nc', 'file_19900311-19900321.nc',
-                  'file_19900321-19900401.nc', 'file_19900201-19900411.nc',
-                  'file_19900411-19900421.nc', 'file_19900421-19900501.nc']
-        sfiles = ['file_19900301-19900601.nc', 'file_19900601-19900901.nc',
-                  'file_19900901-19901201.nc', 'file_19901201-19910301.nc',
-                  'file_19910301-19910601.nc', 'file_19910601-19910901.nc']
-
-        self.files.meanref = [1000, 12, 1]
-        self.files.naml.meanstreams = ['10d', '1s']
-        # Monthly mean is missing. Shift output condition for daily files
-        outfiles = self.files.remove_higher_mean_components(dfiles[:], 'd')
-        self.assertListEqual(outfiles, dfiles[:-6])
-
-        # Seasonal mean is the top mean - all files archived
-        outfiles = self.files.remove_higher_mean_components(sfiles[:], 's')
-        self.assertListEqual(outfiles, sfiles)
-
     def test_expected_atmos(self):
         ''' Assert correct list of expected atmos files '''
         func.logtest('Assert correct return of atmos files:')
@@ -838,6 +773,78 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.assertListEqual(expected['apm.pp'][:2], outfiles['apm.pp'][:2])
         self.assertListEqual(expected['apm.pp'][-2:], outfiles['apm.pp'][-2:])
         self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
+
+    def test_expected_atmos_ppcmean(self):
+        ''' Assert correct list of expected atmos files - pp climate means '''
+        func.logtest('Assert correct return of atmos files - pp c.means:')
+        # startdate: 19950811, enddate: 20150501, meanref: ???01201
+        self.files.edate = [2015, 5, 1]
+        self.files.naml.pp_climatemeans = True
+        self.files.naml.meanstreams = ['1s', '1y', '1x']
+        self.files.naml.base_mean = 'ma'
+        self.files.naml.streams_10d = ['ma']
+        expected = self.files.expected_diags()
+        self.assertListEqual(expected['apx.pp'], ['PREFIXa.px20101201.pp'])
+        self.assertListEqual(expected['apy.pp'][:2],
+                             ['PREFIXa.py19961201.pp', 'PREFIXa.py19971201.pp'])
+        self.assertListEqual(expected['apy.pp'][-2:],
+                             ['PREFIXa.py20091201.pp', 'PREFIXa.py20101201.pp'])
+        self.assertListEqual(expected['aps.pp'][:2],
+                             ['PREFIXa.ps1995son.pp', 'PREFIXa.ps1996djf.pp'])
+        self.assertListEqual(expected['aps.pp'][-2:],
+                             ['PREFIXa.ps2014jja.pp', 'PREFIXa.ps2014son.pp'])
+        self.assertListEqual(expected['ama.pp'][:2],
+                             ['PREFIXa.ma19950811.pp', 'PREFIXa.ma19950821.pp'])
+        self.assertListEqual(expected['ama.pp'][-2:],
+                             ['PREFIXa.ma20150211.pp', 'PREFIXa.ma20150221.pp'])
+
+        self.assertListEqual(sorted(expected.keys()),
+                             ['ama.pp', 'aps.pp', 'apx.pp', 'apy.pp'])
+
+    def test_expect_atmos_ppcmean_mref(self):
+        ''' Assert correct list of expected atmos files - means at meanref '''
+        func.logtest('Assert correct return of atmos means at meanref:')
+        # startdate: 19950811, enddate: 20201101
+        self.files.naml.pp_climatemeans = True
+        self.files.naml.meanstreams = ['1m', '1s', '1y', '1x']
+        self.files.edate = [2020, 1, 1]
+        self.files.meanref = [0, 1, 1]
+        expected = self.files.expected_diags()
+
+        self.assertListEqual(expected['apx.pp'],
+                             ['PREFIXa.px20100101.pp', 'PREFIXa.px20200101.pp'])
+        self.assertListEqual(expected['apy.pp'][-2:],
+                             ['PREFIXa.py20190101.pp', 'PREFIXa.py20200101.pp'])
+        self.assertListEqual(expected['aps.pp'][-2:],
+                             ['PREFIXa.ps2019jas.pp', 'PREFIXa.ps2019ond.pp'])
+        self.assertListEqual(expected['apm.pp'][-2:],
+                             ['PREFIXa.pm2019nov.pp', 'PREFIXa.pm2019dec.pp'])
+        self.assertListEqual(sorted(expected.keys()),
+                             ['apm.pp', 'aps.pp', 'apx.pp', 'apy.pp'])
+
+    def test_expect_atmos_ppcmean_final(self):
+        ''' Assert list of expected atmos files - pp climate means (final)'''
+        func.logtest('Assert correct atmos files - pp c.means (final cycle):')
+        # startdate: 19950811, enddate: 20150501
+        self.files.naml.pp_climatemeans = True
+        self.files.naml.meanstreams = ['1s', '1y', '1x']
+        self.files.naml.base_mean = 'pm'
+        self.files.naml.streams_1m = ['pm']
+        self.files.edate = [2015, 5, 1]
+        self.files.meanref = [0, 12, 1]
+
+        self.files.finalcycle = True
+        final = self.files.expected_diags()
+
+        self.assertListEqual(final['apx.pp'], ['PREFIXa.px20101201.pp'])
+        self.assertListEqual(final['apy.pp'][-2:],
+                             ['PREFIXa.py20131201.pp', 'PREFIXa.py20141201.pp'])
+        self.assertListEqual(final['aps.pp'][-2:],
+                             ['PREFIXa.ps2014son.pp', 'PREFIXa.ps2015djf.pp'])
+        self.assertListEqual(final['apm.pp'][-2:],
+                             ['PREFIXa.pm2015mar.pp', 'PREFIXa.pm2015apr.pp'])
+        self.assertListEqual(sorted(final.keys()),
+                             ['apm.pp', 'aps.pp', 'apx.pp', 'apy.pp'])
 
     def test_expected_atmos_altdates(self):
         ''' Assert correct list of expected atmos files - alternative dates'''
@@ -863,9 +870,47 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.assertListEqual(expected['apm.pp'][-2:], outfiles['apm.pp'][-2:])
         self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
 
+    def test_expected_atmos_1s1x(self):
+        ''' Assert correct list of expected atmos files - 1s & 1x only'''
+        func.logtest('Assert correct return of atmos files - 1s,1x only:')
+        self.files.naml.meanstreams = ['1s', '1x']
+        self.files.naml.base_mean = 'ps'
+        self.files.meanref = [1992, 2, 1]
+        self.files.edate = [2015, 11, 1]
+        outfiles = {
+            'apx.pp': ['PREFIXa.px20120201.pp'],
+            'aps.pp': ['PREFIXa.ps1996ndj.pp', 'PREFIXa.ps1996fma.pp',
+                       'PREFIXa.ps2015mjj.pp', 'PREFIXa.ps2015aso.pp'],
+            }
+        expected = self.files.expected_diags()
+        self.assertListEqual(expected['apx.pp'], outfiles['apx.pp'])
+        self.assertListEqual(expected['aps.pp'][:2], outfiles['aps.pp'][:2])
+        self.assertListEqual(expected['aps.pp'][-2:], outfiles['aps.pp'][-2:])
+        self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
+
+    def test_expected_atmos_1m1s(self):
+        ''' Assert correct list of expected atmos files - 1m & 1s only'''
+        func.logtest('Assert correct return of atmos files - 1m,1s only:')
+        self.files.naml.meanstreams = ['1m', '1s']
+        self.files.meanref = [1992, 2, 1]
+        self.files.edate = [2015, 11, 1]
+        outfiles = {
+            'apm.pp': ['PREFIXa.pm1995sep.pp', 'PREFIXa.pm1995oct.pp',
+                       'PREFIXa.pm2015sep.pp', 'PREFIXa.pm2015oct.pp'],
+            'aps.pp': ['PREFIXa.ps1996ndj.pp', 'PREFIXa.ps1996fma.pp',
+                       'PREFIXa.ps2015mjj.pp', 'PREFIXa.ps2015aso.pp'],
+            }
+        expected = self.files.expected_diags()
+        self.assertListEqual(expected['apm.pp'][:2], outfiles['apm.pp'][:2])
+        self.assertListEqual(expected['apm.pp'][-2:], outfiles['apm.pp'][-2:])
+        self.assertListEqual(expected['aps.pp'][:2], outfiles['aps.pp'][:2])
+        self.assertListEqual(expected['aps.pp'][-2:], outfiles['aps.pp'][-2:])
+        self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
+
     def test_expected_atmos_ppff(self):
         ''' Assert correct list of expected files - pp and f files'''
         func.logtest('Assert correct return of atmos files - pp & f files:')
+        # startdate: 19950811, enddate: 19981101, meanref: ???01201
         self.files.naml.meanstreams = '1x'
         self.files.naml.ff_streams = ['pa']
         self.files.naml.streams_90d = ['pa', 'pb']
@@ -950,7 +995,7 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.files.meanfields = ['grid-W', 'diad-T', 'icemod']
         self.files.naml.streams_1d_10d = 'UK-shelf-V'
         self.files.naml.streams_1m = 'UK-shelf'
-        self.files.edate = [1996, 1, 1]
+        self.files.edate = [1996, 5, 1]
         outfiles = {
             'ond.nc.file': ['nemo_prefixo_1d_19950811-19950821_UK-shelf-V.nc',
                             'nemo_prefixo_1d_19950821-19950901_UK-shelf-V.nc',
@@ -965,11 +1010,27 @@ class DiagnosticFilesTests(unittest.TestCase):
                             'nemo_prefixo_1d_19951121-19951201_UK-shelf-V.nc',
                             'nemo_prefixo_1d_19951201-19951211_UK-shelf-V.nc',
                             'nemo_prefixo_1d_19951211-19951221_UK-shelf-V.nc',
-                            'nemo_prefixo_1d_19951221-19960101_UK-shelf-V.nc'],
+                            'nemo_prefixo_1d_19951221-19960101_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19960101-19960111_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19960111-19960121_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19960121-19960201_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19960201-19960211_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19960211-19960221_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19960221-19960301_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19960301-19960311_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19960311-19960321_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19960321-19960401_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19960401-19960411_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19960411-19960421_UK-shelf-V.nc',
+                            'nemo_prefixo_1d_19960421-19960501_UK-shelf-V.nc'],
             'onm.nc.file': ['nemo_prefixo_1m_19950901-19951001_UK-shelf.nc',
                             'nemo_prefixo_1m_19951001-19951101_UK-shelf.nc',
                             'nemo_prefixo_1m_19951101-19951201_UK-shelf.nc',
                             'nemo_prefixo_1m_19951201-19960101_UK-shelf.nc',
+                            'nemo_prefixo_1m_19960101-19960201_UK-shelf.nc',
+                            'nemo_prefixo_1m_19960201-19960301_UK-shelf.nc',
+                            'nemo_prefixo_1m_19960301-19960401_UK-shelf.nc',
+                            'nemo_prefixo_1m_19960401-19960501_UK-shelf.nc',
                             'nemo_prefixo_1m_19950901-19951001_grid-W.nc',
                             'medusa_prefixo_1m_19950901-19951001_diad-T.nc',
                             'nemo_prefixo_1m_19951001-19951101_grid-W.nc',
@@ -978,7 +1039,10 @@ class DiagnosticFilesTests(unittest.TestCase):
                             'medusa_prefixo_1m_19951101-19951201_diad-T.nc',
                             'nemo_prefixo_1m_19951201-19960101_grid-W.nc',
                             'medusa_prefixo_1m_19951201-19960101_diad-T.nc',
-                           ],
+                            'nemo_prefixo_1m_19960101-19960201_grid-W.nc',
+                            'medusa_prefixo_1m_19960101-19960201_diad-T.nc',
+                            'nemo_prefixo_1m_19960201-19960301_grid-W.nc',
+                            'medusa_prefixo_1m_19960201-19960301_diad-T.nc'],
             'ons.nc.file': ['nemo_prefixo_1s_19950901-19951201_grid-W.nc',
                             'medusa_prefixo_1s_19950901-19951201_diad-T.nc'],
             'inm.nc.file': ['lim_prefixi_1m_19950901-19951001_icemod.nc',
@@ -990,17 +1054,30 @@ class DiagnosticFilesTests(unittest.TestCase):
 
         expected = self.files.expected_diags()
         self.assertListEqual(sorted(expected['onm.nc.file']),
-                             sorted(outfiles['onm.nc.file'][:-2]))
+                             sorted(outfiles['onm.nc.file']))
         self.assertListEqual(sorted(expected['ons.nc.file']),
                              sorted(outfiles['ons.nc.file']))
-        self.assertListEqual(expected['inm.nc.file'],
-                             outfiles['inm.nc.file'][:-1])
-        self.assertListEqual(expected['ins.nc.file'], outfiles['ins.nc.file'])
 
         self.files.finalcycle = True
+        additional = {
+            'ond.nc.file': [],
+            'onm.nc.file': ['nemo_prefixo_1m_19960301-19960401_grid-W.nc',
+                            'medusa_prefixo_1m_19960301-19960401_diad-T.nc',
+                            'nemo_prefixo_1m_19960401-19960501_grid-W.nc',
+                            'medusa_prefixo_1m_19960401-19960501_diad-T.nc'],
+            'ons.nc.file': ['nemo_prefixo_1s_19951201-19960301_grid-W.nc',
+                            'medusa_prefixo_1s_19951201-19960301_diad-T.nc'],
+            'inm.nc.file': ['lim_prefixi_1m_19960101-19960201_icemod.nc',
+                            'lim_prefixi_1m_19960201-19960301_icemod.nc',
+                            'lim_prefixi_1m_19960301-19960401_icemod.nc',
+                            'lim_prefixi_1m_19960401-19960501_icemod.nc'],
+            'ins.nc.file': ['lim_prefixi_1s_19951201-19960301_icemod.nc']
+            }
+
         expected = self.files.expected_diags()
         for key in outfiles:
-            self.assertListEqual(sorted(expected[key]), sorted(outfiles[key]))
+            self.assertListEqual(sorted(expected[key]),
+                                 sorted(outfiles[key] + additional[key]))
 
         self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
 
@@ -1024,37 +1101,53 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.files.finalcycle = True
         expected = self.files.expected_diags()
         self.assertListEqual(sorted(expected['ons.nc.file']),
-                                    sorted(outfiles['ons.nc.file']))
+                             sorted(outfiles['ons.nc.file']))
 
     def test_expected_nemo_buffer(self):
         ''' Assert correct list of expected nemo files - buffered'''
         func.logtest('Assert correct return of expected nemo files buffer=2:')
-        self.files.naml.meanstreams = '1m'
+        # startdate: 19950811, meanref: ???01201, default base_mean=10d
+        self.files.naml.meanstreams = ['10d', '1m']
         self.files.meanfields = ['grid-W', 'diad-T']
+        self.files.naml.streams_10d = 'my10d'
         self.files.edate = [1996, 2, 1]
-        # Default base_mean=10d
         self.files.naml.buffer_mean = 4
-        outfiles = {
-            'onm.nc.file': ['nemo_prefixo_1m_19950901-19951001_grid-W.nc',
-                            'medusa_prefixo_1m_19950901-19951001_diad-T.nc',
-                            'nemo_prefixo_1m_19951001-19951101_grid-W.nc',
-                            'medusa_prefixo_1m_19951001-19951101_diad-T.nc',
-                            'nemo_prefixo_1m_19951101-19951201_grid-W.nc',
-                            'medusa_prefixo_1m_19951101-19951201_diad-T.nc',
-                            'nemo_prefixo_1m_19951201-19960101_grid-W.nc',
-                            'medusa_prefixo_1m_19951201-19960101_diad-T.nc',
-                            'nemo_prefixo_1m_19960101-19960201_grid-W.nc',
-                            'medusa_prefixo_1m_19960101-19960201_diad-T.nc']
-            }
+        regex = '{M}_prefixo_{P}_{D}_{F}.nc'
+        dailydates = [
+            '19950811-19950821', '19950821-19950901', '19950901-19950911',
+            '19950911-19950921', '19950921-19951001', '19951001-19951011',
+            '19951011-19951021', '19951021-19951101', '19951101-19951111',
+            '19951111-19951121', '19951121-19951201', '19951201-19951211',
+            '19951211-19951221', '19951221-19960101', '19960101-19960111',
+            '19960111-19960121', '19960121-19960201'
+            ]
+        gridw_d = [regex.format(M='nemo', P='10d', D=d, F='grid-W')
+                   for d in dailydates]
+        diadt_d = [regex.format(M='medusa', P='10d', D=d, F='diad-T')
+                   for d in dailydates]
+        my10d = [regex.format(M='nemo', P='10d', D=d, F='my10d')
+                 for d in dailydates]
+
+        monthlydates = ['19950901-19951001', '19951001-19951101',
+                        '19951101-19951201', '19951201-19960101',
+                        '19960101-19960201']
+        gridw_m = [regex.format(M='nemo', P='1m', D=d, F='grid-W')
+                   for d in monthlydates]
+        diadt_m = [regex.format(M='medusa', P='1m', D=d, F='diad-T')
+                   for d in monthlydates]
 
         expected = self.files.expected_diags()
         self.assertListEqual(sorted(expected['onm.nc.file']),
-                             sorted(outfiles['onm.nc.file'][:-4]))
+                             sorted(gridw_m[:-2] + diadt_m[:-2]))
+        self.assertListEqual(sorted(expected['ond.nc.file']),
+                             sorted(gridw_d[:-6] + diadt_d[:-6] + my10d[:-4]))
 
         self.files.finalcycle = True
         expected = self.files.expected_diags()
         self.assertListEqual(sorted(expected['onm.nc.file']),
-                             sorted(outfiles['onm.nc.file']))
+                             sorted(gridw_m + diadt_m))
+        self.assertListEqual(sorted(expected['ond.nc.file']),
+                             sorted(gridw_d + diadt_d + my10d))
 
     def test_expected_cice_hourly(self):
         '''Assert correct return of expected cice hourly files'''
@@ -1070,6 +1163,22 @@ class DiagnosticFilesTests(unittest.TestCase):
         expected = self.files.expected_diags()
         self.assertListEqual(expected['inh.nc.file'][:2], hr_files[:2])
         self.assertListEqual(expected['inh.nc.file'][-2:], hr_files[-2:])
+
+    def test_expected_cice_meanbase(self):
+        '''Assert correct return of expected cice files with mean_base'''
+        func.logtest('Assert correct return of expected cice files:')
+        # startdate: 19950811, meanref: ???01201, default base_mean=10d
+        self.files.naml.meanstreams = ['1m']
+        self.files.naml.streams_10d = True
+        self.files.edate = [1995, 10, 21]
+
+        daily_files = ['cice_prefixi_10d_19950811-19950821.nc',
+                       'cice_prefixi_10d_19950821-19950901.nc',
+                       'cice_prefixi_10d_19950901-19950911.nc',
+                       'cice_prefixi_10d_19950911-19950921.nc',
+                       'cice_prefixi_10d_19950921-19951001.nc']
+        expected = self.files.expected_diags()
+        self.assertListEqual(expected['ind.nc.file'], daily_files)
 
     def test_expected_cice_final(self):
         ''' Assert correct list of expected cice files'''
@@ -1097,7 +1206,8 @@ class DiagnosticFilesTests(unittest.TestCase):
     def test_expected_cice_concat_means(self):
         ''' Assert correct list of expected cice files - concatenated means'''
         func.logtest('Assert correct return of expected cice concat means:')
-        self.files.naml.meanstreams = ['1d_1m']
+        self.files.naml.meanstreams = []
+        self.files.naml.streams_1d_1m = True
         self.files.sdate = [1995, 9, 1]
         self.files.finalcycle = True
         outfiles = {
@@ -1112,10 +1222,18 @@ class DiagnosticFilesTests(unittest.TestCase):
             self.assertListEqual(expected[key][-2:], outfiles[key][-2:])
         self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
 
+        self.files.naml.streams_1d_1m = False
+        self.files.naml.meanstreams = ['1d_1m']
+        expected = self.files.expected_diags()
+        for key in outfiles:
+            self.assertListEqual(expected[key][:2], outfiles[key][:2])
+            self.assertListEqual(expected[key][-2:], outfiles[key][-2:])
+        self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
+
     def test_expected_nemo_concat_6h_1m(self):
         ''' Assert correct list of expected concatenated files - hours -> 1m'''
         func.logtest('Assert correct return of expected concatenated files:')
-        self.files.naml.meanstreams = None
+        self.files.naml.meanstreams = []
         self.files.naml.streams_6h_1m = 'UK-shelf-T'
         self.files.sdate = [1995, 8, 21]
         self.files.finalcycle = True
@@ -1126,7 +1244,6 @@ class DiagnosticFilesTests(unittest.TestCase):
                             'nemo_prefixo_6h_19981001-19981101_UK-shelf-T.nc'],
             }
         expected = self.files.expected_diags()
-
         for key in outfiles:
             self.assertListEqual(expected[key][:2], outfiles[key][:2])
             self.assertListEqual(expected[key][-2:], outfiles[key][-2:])
@@ -1151,3 +1268,82 @@ class DiagnosticFilesTests(unittest.TestCase):
             self.assertListEqual(expected[key][:2], outfiles[key][:2])
             self.assertListEqual(expected[key][-2:], outfiles[key][-2:])
         self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
+
+
+class ClimateMeanTests(unittest.TestCase):
+    ''' Unit tests relating to the ClimateMean class methods '''
+    def setUp(self):
+        self.dmean = expected_content.ClimateMean('10d', '1m',
+                                                  {'base_cmpt': '1d'})
+        self.mmean = expected_content.ClimateMean('1m', '1s',
+                                                  {'base_cmpt': '1m',
+                                                   'fileid': 'pa'})
+        self.smean = expected_content.ClimateMean('1s', '1y',
+                                                  {'base_cmpt': '1m'})
+        self.ymean = expected_content.ClimateMean('1y', '1x',
+                                                  {'base_cmpt': '1s'})
+        self.xmean = expected_content.ClimateMean('1x', None,
+                                                  {'base_cmpt': '1y'})
+
+        with mock.patch('expected_content.utils.finalcycle',
+                        return_value=False):
+
+            self.diags = expected_content.DiagnosticFiles(
+                '19900601', '20021201', 'PREFIX', 'atmos',
+                verify_namelist.AtmosVerify()
+                )
+
+    def tearDown(self):
+        pass
+
+    def test_climatmean_instantiation(self):
+        '''Assert instantiation of the ClimateMean object'''
+        func.logtest('Assert instantiation of the Climatemean object:')
+        self.assertEqual(self.dmean.period, '10d')
+        self.assertEqual(self.dmean.next, '1m')
+        self.assertEqual(self.dmean.previous, '1d')
+
+        self.assertEqual(self.mmean.component_stream, 'pa')
+        self.assertEqual(self.xmean.next, None)
+
+    def test_climatmean_availability(self):
+        '''Assert availability of a climate mean file'''
+        func.logtest('Assert availability of a climate mean file:')
+        self.assertTrue(self.dmean.get_availability([1980, 6, 1],
+                                                    [1978, 12, 1]))
+        self.assertFalse(self.dmean.get_availability([1980, 6, 11],
+                                                     [1978, 12, 1]))
+
+        self.assertTrue(self.mmean.get_availability([1980, 3, 1],
+                                                    [1978, 12, 1]))
+        self.assertFalse(self.mmean.get_availability([1980, 11, 1],
+                                                     [1978, 12, 1]))
+
+        self.assertTrue(self.smean.get_availability([1980, 12, 1],
+                                                    [1978, 12, 1]))
+        self.assertFalse(self.smean.get_availability([1980, 11, 1],
+                                                     [1978, 12, 1]))
+
+        self.assertTrue(self.ymean.get_availability([1988, 12, 1],
+                                                    [1978, 12, 1]))
+        self.assertFalse(self.ymean.get_availability([1985, 12, 1],
+                                                     [1978, 12, 1]))
+
+        self.assertTrue(self.xmean.get_availability([1978, 3, 15],
+                                                    [1978, 12, 1]))
+
+    def test_climate_meanfiles(self):
+        '''Assert creation of the climate meanfiles dictionary'''
+        func.logtest('Assert creation of climate meanfile dictionary:')
+        means = self.diags.climate_meanfiles(['1m', '1y', '1x'])
+        self.assertEqual(means['1m'].previous, '1m')
+        self.assertEqual(means['1m'].next, '1y')
+
+        self.assertEqual(means['1y'].previous, '1m')
+        self.assertEqual(means['1y'].next, '1x')
+
+        self.assertEqual(means['1x'].previous, '1y')
+        self.assertEqual(means['1x'].next, None)
+
+        self.assertListEqual(sorted(list(means.keys())),
+                             ['1m', '1x', '1y'])

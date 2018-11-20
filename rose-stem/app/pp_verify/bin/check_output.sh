@@ -52,13 +52,17 @@
 #                 to pp has been disabled.
 #
 #   MOCI #181  - Change to test seasonal offset for atmosphere dump archive
-#               - removed file: hg3esa.da19811201_00
+#                - removed file: hg3esa.da19811201_00
+#   MOCI #291  - Change in mean reference date for atmosphere to 1st Jan (MULE_AVAIL=true)
+#                - Affects seasonal and annual mean dates
+#                - "Seasonal" date of dumps changed to months 1,4,7,10
 ###############################################################################
+
 adumps="
-hg3esa.da19820301_00
-hg3esa.da19820601_00
-hg3esa.da19820901_00
-hg3esa.da19821201_00
+hg3esa.da19820401_00
+hg3esa.da19820701_00
+hg3esa.da19821001_00
+hg3esa.da19830101_00
 hg3esa.da19830201_00"
 
 apm="
@@ -78,6 +82,16 @@ hg3esa.pm1982oct.pp
 hg3esa.pm1982nov.pp
 hg3esa.pm1982dec.pp"
 
+if [[ "$MULE_AVAIL" == "true" ]] ; then
+aps="
+hg3esa.ps1981ond.pp
+hg3esa.ps1982jfm.pp
+hg3esa.ps1982amj.pp
+hg3esa.ps1982jas.pp
+hg3esa.ps1982ond.pp"
+
+apy="hg3esa.py19830101.pp"
+else
 aps="
 hg3esa.ps1982djf.pp
 hg3esa.ps1982mam.pp
@@ -85,6 +99,7 @@ hg3esa.ps1982jja.pp
 hg3esa.ps1982son.pp"
 
 apy="hg3esa.py19821201.pp"
+fi
 
 ape="
 hg3esa.pe19811001_00

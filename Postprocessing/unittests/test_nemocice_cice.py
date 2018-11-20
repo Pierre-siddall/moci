@@ -317,7 +317,8 @@ class MeansProcessingTests(unittest.TestCase):
             # Check call to get_subset for netCDF fname object:
             self.assertEqual(mock_set.mock_calls[1],
                              mock.call('.', r'^cice_runidi_1d_\d{8,10}-\d{4}' +
-                                       r'(\d{2}01)(00)?\.nc$'))
+                                       r'\d{2}01(00)?\.nc$'))
+
             self.assertEqual(
                 mock_set.mock_calls[2],
                 mock.call('.', '^cice_runidi_1d_(11110201|11110202|11110203|' +

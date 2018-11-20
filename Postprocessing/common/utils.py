@@ -374,6 +374,23 @@ def calendar():
     return cal
 
 
+def monthlength(month, year):
+    '''Returns length of given month in days - calendar dependent'''
+    days_per_month = {
+        # Days list runs from Dec -> Nov
+        '360day': [30]*12,
+        '365day': [31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30],
+        'gregorian': [31, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30],
+        }
+    year = int(year) + (int(month) // 12)
+    month = int(month) % 12
+
+    if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
+        days_per_month['gregorian'][2] = 29
+
+    return days_per_month[calendar()][month % 12]
+
+
 def add_period_to_date(indate, delta):
     '''
     Add a delta (list of integers) to a given date (list of integers).

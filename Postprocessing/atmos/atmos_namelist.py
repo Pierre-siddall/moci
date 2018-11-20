@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -45,6 +45,14 @@ class AtmosNamelist(object):
     streams_to_cutout = None
     cutout_coords = None
     cutout_coords_type = 'coords'
+
+    create_means = False
+    create_monthly_mean = False
+    create_seasonal_mean = False
+    create_annual_mean = False
+    create_decadal_mean = False
+    meanbase_period = None
+    meanbase_stream = 'pm'
 
 
 class Archiving(object):

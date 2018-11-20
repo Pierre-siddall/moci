@@ -18,9 +18,9 @@ import sys
 def logtest(msg, err=False):
     '''Print message to standard output stream'''
     if err:
-        sys.stderr.write('\n[TEST_ERROR] ' + msg + '\n')
+        sys.stderr.write('[TEST_ERROR] ' + msg + '\n')
     else:
-        sys.stdout.write('\n[TEST] ' + msg + '\n')
+        sys.stdout.write('[TEST] ' + msg + '\n')
 
 
 def capture(direct='out'):

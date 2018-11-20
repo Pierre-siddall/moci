@@ -23,12 +23,77 @@ import os
 
 import filenames
 import utils
+import climatemean
 
-MONTHS = {
-    1: 'jan', 2: 'feb', 3: 'mar', 4: 'apr',
-    5: 'may', 6: 'jun', 7: 'jul', 8: 'aug',
-    9: 'sep', 10: 'oct', 11: 'nov', 12: 'dec'
-}
+MONTHS = tuple(m[:3].lower() for m in climatemean.MONTHS)
+SEASONS = tuple(''.join([c[0] for c in [MONTHS[m],
+                                        MONTHS[(m + 1) % 12],
+                                        MONTHS[(m + 2) % 12]]])
+                for m in range(12))
+
+
+def season_starts(ref_month):
+    '''
+    Return a list of start months for seasons give a mean reference month
+    '''
+    start_months = [mth % 12 for mth in
+                    range(int(ref_month), int(ref_month) + 12, 3)]
+    if 0 in start_months:
+        start_months[start_months.index(0)] = 12
+
+    return sorted(start_months)
+
+
+class ClimateMean(object):
+    '''
+    Object to represent a climate mean period.
+    Arguments:
+        period:      Climate mean period - one of climatemean.MEANPERIODS
+        next_period: Subsequent period (if any), for which files of this period
+                   may need to remain on disk as components.
+        component:   <type dict> keys: base_cmpt, inst_base (opt), fileid (opt)
+                        base_cmpt: <type str>  period of the base component
+                        inst_base: <type bool> Flag to indicate that the base
+                                 component of the first mean is instantaneous
+                        fileid:    <type str>  Required when the filename may
+                                 not be discerned from the period (atmos only)
+    '''
+    def __init__(self, period, next_period, component):
+        self.period = period
+        self.next = next_period
+        self.previous = component['base_cmpt']
+        self.component_stream = component.get('fileid', None)
+        self.instantaneous_base = component.get('inst_base', False)
+
+    def get_availability(self, file_enddate, meanref):
+        '''
+        Return <type bool>: True if a mean file should be available in the
+                           archive; dependent on the necessity to keep files
+                           on disk as components of future higher means
+                           (self.next).
+        Arguments:
+            file_end_date <type list> of <type int>
+                          [YY,MM,DD] End date of the period file
+            meanref       <type list> of <type int>
+                          [YY,MM,DD] Mean reference date
+        '''
+        # 10day mean only relevant for 360d calendar - use range(1,31)
+        days10 = range(meanref[2], 31, 10)
+        if len(days10) < 3:
+            days10.append(meanref[2] - 10)
+        conditions = {
+            '10d': (file_enddate[2] in days10,),
+            '1m': (file_enddate[2] == meanref[2],),
+            '1s': (file_enddate[1] in season_starts(meanref[1]),
+                   file_enddate[2] == meanref[2]),
+            '1y': (file_enddate[1] == meanref[1],
+                   file_enddate[2] == meanref[2]),
+            '1x': (str(file_enddate[0])[-1] == str(meanref[0])[-1],
+                   file_enddate[1] == meanref[1],
+                   file_enddate[2] == meanref[2])
+            }
+
+        return all(conditions.get(self.next, []))
 
 
 def nlist_date(date, description):
@@ -100,6 +165,13 @@ class ArchivedFiles(object):
     def extract_date(self, filename, start=True):
         '''
         Extract integer year, month and day from filename.
+        Arguments:
+            filename - <type str> Filename to contain a date of the form:
+                                  YY[yy]MMDD[[_]HH]
+                                  YYYY<3char month/ssn>
+                                  YYYY-MM-DD[-HH]
+        Optional Arguments:
+            start - <type bool> When True return start date, otherwise end
         '''
 
         date_patterns = (r'\d{4}[a-z]{3}', r'\d{8}_\d{2}', r'\d{6,10}',
@@ -108,71 +180,34 @@ class ArchivedFiles(object):
             dates = re.findall(patt, filename)
             if dates:
                 break
-        splits = []
-        for date in dates:
-            if '-' in date:
-                splits.append(date.split('-'))
-            else:
-                splits.append(re.match(r'(\d{4})(\d{2}|[a-z]{3})'
-                                       r'(\d{2})?(\d{2})?_?(\d{2})?',
-                                       date).groups())
 
-        date = splits[0] if start else splits[-1]
-        year, month = date[:2]
-        if re.match(r'([a-z]{3})', month):
+        split = r'(\d{4})-?(\d{2}|[a-z]{3})-?(\d{2})?-?(\d{2})?-?_?(\d{2})?'
+        date_lists = [re.match(split, d).groups() for d in dates]
+        date = list(date_lists[0 if start else -1])
+        date[0] = int(date[0])
+        try:
+            date[1] = int(date[1])
+        except ValueError:
             # Special case for atmosphere monthly and seasonal files
             try:
                 # Monthly files
-                month = list(MONTHS.keys())[list(MONTHS.values()).index(month)]
+                date[1] = range(1, 13)[MONTHS.index(date[1]) - 1]
+                if not start:
+                    date[1] = range(1, 13)[date[1] % 12]
+                    date[0] += (date[1] == 1)
             except ValueError:
                 # Seasonal files
-                try:
-                    for mth, ssn in self.seasons(self.meanref):
-                        if month == ssn:
-                            month = mth
-                            break
-                except TypeError:
-                    utils.log_msg('Mean reference date required for '
-                                  'seasonal mean date.', level='FAIL')
-                # Seasonal datestamp year is FINAL month
-                if month > 9:
-                    year = int(year) - 1
-                if not start:
-                    month += 3
-                    if month > 12:
-                        month -= 12
-                        year = int(year) + 1
+                date[1] = range(1, 13)[SEASONS.index(date[1]) - 1]
+                if start:
+                    date[0] -= (date[1] > 9)
+                else:
+                    date[1] = range(1, 13)[(date[1] + 2) % 12]
+                    date[0] += (date[1] == 1)
 
-        day = date[2] if date[2] else 1
-        int_date = [int(year), int(month), int(day)]
-        for i in range(3, 6):
-            if len(date) > i:
-                if date[i]:
-                    int_date.append(int(date[i]))
+        date[2] = int(date[2]) if date[2] else 1
+        date[3:] = [int(x) for x in date[3:] if x]
 
-        return int_date
-
-    def seasons(self, meanref, shift=0):
-        '''
-        Return a list of tuples: (starting month, 3char descriptor) for
-        each season.
-        '''
-        seasons = []
-        while len(seasons) < 4:
-            seasons.append((meanref[1] + shift + (len(seasons) * 3)) % 12)
-        try:
-            seasons[seasons.index(0)] = 12
-        except ValueError:
-            pass
-        for i, ssn in enumerate(seasons):
-            # Modify to list of tuples [tuple(start month, descriptor)]
-            months = MONTHS[ssn][0]
-            for mth in [1, 2]:
-                months += MONTHS[ssn + mth if ssn + mth <= 12 else
-                                 ssn + mth - 12][0]
-            seasons[i] = (ssn, months)
-
-        return sorted(seasons)
+        return date
 
     def get_collection(self, period=None, stream=None):
         '''
@@ -237,7 +272,7 @@ class RestartFiles(ArchivedFiles):
         ''' Return a list of timestamps '''
         meanref = nlist_date(self.naml.mean_reference_date,
                              'mean reference date')
-        seasons = [s[0] for s in self.seasons(meanref)]
+        seasons = season_starts(meanref[1])
         if 'Monthly' in self.naml.archive_timestamps:
             tstamps = [[x, meanref[2]] for x in range(1, 13)]
         elif 'Seasonal' in self.naml.archive_timestamps:
@@ -383,7 +418,6 @@ class DiagnosticFiles(ArchivedFiles):
                                               prefix, model, naml)
         fields = self.naml.meanfields if self.naml.meanfields else ''
         self.meanfields = utils.ensure_list(fields, listnone=True)
-
         self.meanref = nlist_date(self.naml.mean_reference_date,
                                   'mean reference date')
         self.tlim = self.time_limited_streams()
@@ -392,6 +426,11 @@ class DiagnosticFiles(ArchivedFiles):
         '''
         Generator method to yield reinitialisation step and period
         for each stream.
+        Yield <type tuple>:
+           base     - period of the data in the stream
+           delta    - reinitialisation period of the stream
+           streams  - list of stream ids to process
+           descript - "[concatenated_]mean" or "instantaneous" stream
         '''
         for reinit in reinit_periods:
             # In the case of concatenated files, delta follows '_'
@@ -406,7 +445,7 @@ class DiagnosticFiles(ArchivedFiles):
                     # Allow for blank field name
                     streams = ['']
             else:
-                descript = 'mean'
+                descript = 'mean' if base == delta else 'concatenated_mean'
                 if self.model == 'atmos':
                     streams = ['p' + reinit[-1]]
                 else:
@@ -438,8 +477,7 @@ class DiagnosticFiles(ArchivedFiles):
                     sdate[0] += 1
 
         if period == 's':
-            s_starts = [s[0] for s in self.seasons(self.meanref)]
-            while sdate[1] not in s_starts:
+            while sdate[1] not in season_starts(self.meanref[1]):
                 sdate[1] += 1
                 if sdate[1] > 12:
                     sdate[1] -= 12
@@ -461,7 +499,22 @@ class DiagnosticFiles(ArchivedFiles):
         intermittent_coll = {}
 
         all_streams = [a for a in dir(self.naml) if a.startswith('streams')]
-        all_streams += utils.ensure_list(self.naml.meanstreams)
+        meanperiods = utils.ensure_list(self.naml.meanstreams)
+
+        base_stream = None
+        if len(meanperiods) > 0:
+            all_streams += meanperiods
+            if self.naml.pp_climatemeans:
+                meanfiles = self.climate_meanfiles(meanperiods)
+                period1 = meanfiles[meanperiods[0]]
+                base_cm = ClimateMean(period1.previous, period1.period,
+                                      {'base_cmpt': period1.previous})
+                if period1.instantaneous_base:
+                    if period1.component_stream:
+                        base_stream = period1.component_stream
+                    else:
+                        base_stream = ''.join(self.meanfields)
+
         try:
             spawn_ncf = utils.ensure_list(self.naml.spawn_netcdf_streams)
         except AttributeError:
@@ -474,42 +527,71 @@ class DiagnosticFiles(ArchivedFiles):
         except AttributeError:
             intermittent_streams = []
 
-        for base, delta, streams, desc in \
+        for base, delta, streams, descript in \
                 self.gen_reinit_period(list(set(all_streams))):
             date = self.get_period_startdate(delta[-1])
             edate = self.edate[:]
             while len(edate) < 5:
                 edate.append(0)
+            base_edate = edate[:]
 
-            if not self.finalcycle and hasattr(self.naml, 'buffer_mean'):
-                # Adjust for mean buffer
-                mean_buffer = self.naml.buffer_mean
-                while mean_buffer and mean_buffer > 0:
-                    edate = utils.add_period_to_date(
-                        edate, '-{}'.format(self.naml.base_mean)
-                        )
-                    mean_buffer -= 1
+            if not self.finalcycle:
+                try:
+                    file_buffer = self.naml.buffer_mean
+                except AttributeError:
+                    file_buffer = 0
+                if self.naml.pp_climatemeans and descript == 'mean':
+                    if meanfiles[delta].instantaneous_base:
+                        # Adjust for instantaneous component not being available
+                        # at the end of the validation period
+                        if self.model == 'atmos':
+                            file_buffer += 1
+                        while file_buffer > 0:
+                            edate = utils.add_period_to_date(
+                                edate, '-' + period1.previous
+                                )
+                            file_buffer -= 1
+
+                    while not meanfiles[delta].get_availability(edate,
+                                                                self.meanref):
+                        edate = utils.add_period_to_date(edate, '-1d')
+
+                while file_buffer > 0:
+                    edate = utils.add_period_to_date(edate, '-' + delta)
+                    file_buffer -= 1
+
+                try:
+                    while not base_cm.get_availability(base_edate,
+                                                       self.meanref):
+                        base_edate = utils.add_period_to_date(base_edate, '-1d')
+                except NameError:
+                    # No mean base
+                    pass
 
             while date <= edate:
                 newdate = utils.add_period_to_date(date, delta)
 
-                add_file = True
-                if desc == 'instantaneous' and self.model == 'atmos':
-                    # Atmos instantaneous streams not available at the edate
-                    # due to reinitialisation method.
-                    if date == edate:
-                        add_file = False
-                elif newdate > edate:
-                    # newdate is end of data so must fall before edate.
-                    add_file = False
+                if self.model == 'atmos' and descript == 'instantaneous':
+                    # Due to reinitialisation method, Atmos instantaneous
+                    # streams are created at the start of the period, and
+                    # are not available at the edate.
+                    add_file = (date if self.finalcycle else newdate) < edate
+                else:
+                    # Files are created at the end of the period
+                    add_file = newdate <= edate
 
                 if add_file:
-                    if self.model == 'atmos' and desc == 'mean':
+                    if self.model == 'atmos' and descript == 'mean':
                         # Adjust year for atmosphere means - use end year
-                        if newdate[1:3] > [1, 1]:
+                        if newdate[1:3] > [1, 1] or delta not in '1m1s':
                             date[0] = newdate[0]
+
                     for stream in streams:
                         stream = str(stream)
+                        if stream in str(base_stream) and date >= base_edate:
+                            # Base component stream - awaiting higher mean
+                            continue
+
                         if stream in self.tlim and \
                                 (date < self.tlim[stream][0] or
                                  date >= self.tlim[stream][1]):
@@ -545,24 +627,6 @@ class DiagnosticFiles(ArchivedFiles):
                 date = newdate
 
         for fileset in all_files:
-            if not self.finalcycle:
-                try:
-                    if re.match(r'^a[pmn]([a-zA-Z0-9])\.',
-                                fileset).group(1) not in 'msyx':
-                        # Atmosphere instantaneous pp/fieldsfiles
-                        if (fileset[2] in self.tlim) and \
-                                (self.tlim[fileset[2]][1] < self.edate):
-                            # Time limited period is over - no file waiting
-                            # for reinitialisation.
-                            pass
-                        else:
-                            all_files[fileset].remove(all_files[fileset][-1])
-                except AttributeError:
-                    if fileset[2] in 'dmsyx':
-                        all_files[fileset] = self.remove_higher_mean_components(
-                            all_files[fileset], fileset[2]
-                            )
-
             if fileset in intermittent_coll:
                 pattern = intermittent_patterns[
                     intermittent_streams.index(intermittent_coll[fileset])
@@ -580,58 +644,82 @@ class DiagnosticFiles(ArchivedFiles):
 
         return all_files
 
-    def remove_higher_mean_components(self, periodfiles, period):
+    def climate_meanfiles(self, meanperiods):
         '''
-        Where available means files can be used to create higher means they
-        will not be found in the archive until that higher mean has been
-        created.
+        Return a <type dict> where:
+            keys   = Climate mean period - one of climatemean.MEANPERIODS
+            values = <type ClimateMean> object
+        Arguments:
+            meanperiods - Single or list of mean periods to be verified
+                          (from climatemean.MEANPERIODS)
         '''
-        meanstreams = utils.ensure_list(self.naml.meanstreams)
-        skip = ''
-        meanperiods = 'xysmd'
-        period_id = meanperiods.index(period)
-        topmean = True
-        for mean in meanperiods[:period_id]:
-            if '1' + mean in meanstreams:
-                topmean = False
-            else:
-                skip += mean
+        meanperiods = utils.ensure_list(meanperiods)
+        component = re.match(r'^(\d+|[pm])?([a-z0-9])$',
+                             self.naml.base_mean).groups()
 
-        period_condition = meanperiods[period_id]
-        if skip:
-            shift = 1
+        try:
+            file_buffer = self.naml.buffer_mean
+        except AttributeError:
+            file_buffer = 0
+
+        if str(component[0]).isdigit():
+            component = self.naml.base_mean
+            component_id = None
+            if component not in meanperiods:
+                file_buffer += 1
+        else:
+            # Establish the period of the base mean, where the base_mean is
+            # a stream ID rather than a period (Atmosphere)
+            if component[0] is None:
+                component_id = 'p' + component[0]
+            else:
+                component_id = ''.join(component)
+            if component_id.replace('p', '1') in meanperiods:
+                component = component_id.replace('p', '1')
+            else:
+                reinit_streams = [a for a in dir(self.naml)
+                                  if re.match(r'streams_\d+[hdmsyx]', a)]
+                while isinstance(component, tuple):
+                    try:
+                        reinit = reinit_streams.pop()
+                        try:
+                            if component_id in getattr(self.naml, reinit):
+                                component = reinit.split('_')[-1]
+                                file_buffer += 1
+                        except TypeError:
+                            # reinit namelist is None
+                            pass
+                    except IndexError:
+                        utils.log_msg('Unable to calculate the period of the '
+                                      'base component of the first mean.  '
+                                      'Please adjust &atmosverify/base_mean',
+                                      level='ERROR')
+                        component = '1m'
+
+        instantaneous_base = file_buffer > 0
+
+        meanfiles = {}
+        for i, m_period in enumerate(meanperiods[:]):
             try:
-                while meanperiods[period_id - shift] in skip:
-                    period_condition = meanperiods[period_id - shift]
-                    shift += 1
+                next_period = meanperiods[i+1]
             except IndexError:
-                # No further periods
+                next_period = None
+
+            m_component = {'base_cmpt': component,
+                           'inst_base': instantaneous_base}
+            try:
+                m_component['fileid'] = component_id
+            except NameError:
                 pass
+            meanfiles[m_period] = ClimateMean(m_period, next_period,
+                                              m_component)
+            # Update component for next period
+            component = m_period
 
-        meansfiles = [fn for fn in reversed(periodfiles) if
-                      any([fd in fn for fd in self.meanfields])]
+            if component_id:
+                component_id = m_period.replace('1', 'p')
 
-        to_remove = []
-        season_starts = [m for m, _ in self.seasons(self.meanref)]
-        for fname in meansfiles:
-            year, month, day = self.extract_date(fname, start=False)[:3]
-            conditions = {
-                'd': day == self.meanref[2],
-                'm': month in season_starts and day == self.meanref[2],
-                's': [month, day] == self.meanref[1:3],
-                'y': [month, day] == self.meanref[1:3] and \
-                    str(year)[-1] == str(self.meanref[0])[-1],
-                'x': True,
-                }
-            if topmean or conditions[period_condition]:
-                break
-            else:
-                to_remove.append(fname)
-
-        for fname in to_remove:
-            periodfiles.remove(fname)
-
-        return periodfiles
+        return meanfiles
 
     def time_limited_streams(self):
         '''
@@ -752,7 +840,6 @@ class DiagnosticFiles(ArchivedFiles):
         start = [str(x).zfill(2) for x in start]
         end = [str(x).zfill(2) for x in end]
         prefix = self.prefix
-
         if self.model == 'atmos' and re.match(r'^[pm][a-z1-9]$', stream):
             if 'h' in period:
                 # Hourly files require "_HH" post-fix
@@ -762,17 +849,16 @@ class DiagnosticFiles(ArchivedFiles):
 
             m_streams = ['pm']
             if self.naml.streams_30d:
-                m_streams += [str(s) for s in
-                              utils.ensure_list(self.naml.streams_30d)]
+                m_streams += [str(s) for s in self.naml.streams_30d]
+            if self.naml.streams_1m:
+                m_streams += [str(s) for s in self.naml.streams_1m]
+
             if stream in m_streams:
                 start[2] = ''
-                start[1] = MONTHS[int(start[1])]
+                start[1] = MONTHS[int(start[1]) % 12]
             elif stream == 'ps':
                 start[2] = ''
-                for mth, ssn in self.seasons(self.meanref):
-                    if int(start[1]) in range(mth, mth + 3):
-                        start[1] = ssn
-                        break
+                start[1] = SEASONS[int(start[1]) % 12]
         else:
             if start[3] == end[3]:
                 # Hour not required

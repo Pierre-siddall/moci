@@ -76,6 +76,8 @@ class MeanFileTests(unittest.TestCase):
         self.assertEqual(meanfile.num_components, 4)
         meanfile = climatemean.MeanFile('1x', '1y')
         self.assertEqual(meanfile.num_components, 10)
+        meanfile = climatemean.MeanFile('1m', 'qm')
+        self.assertEqual(meanfile.num_components, 1)
 
     def test_num_components_gregorian(self):
         '''Test calculation of number of components'''
@@ -125,6 +127,10 @@ class MeanFileTests(unittest.TestCase):
 
         meanfile.periodend = ['1111', '05', '01']
         self.assertIn('Seasonal mean for Feb-Mar-Apr 1111',
+                      meanfile.description)
+
+        meanfile.periodend = ('1111', '01', '01')
+        self.assertIn('Seasonal mean for Oct-Nov-Dec 1110',
                       meanfile.description)
 
         meanfile.periodend = ('1111', '02', '01')
@@ -493,8 +499,6 @@ class MeansMethodsTests(unittest.TestCase):
             os.path.join(os.getcwd(), 'MeanFileName'), ignore_non_exist=True
             )
 
-
-
     def test_seasonal_mean_spinup_yr1(self):
         '''Test Spinup period for seasonal means - first year'''
         func.logtest('Assert initial spinup period for seasonal means - yr1:')
@@ -574,3 +578,193 @@ class MeansMethodsTests(unittest.TestCase):
         self.assertIn('[WARN]', func.capture('err'))
         self.assertIn('unknown meantype', func.capture('err'))
 
+
+class DateRegexTests(unittest.TestCase):
+    ''' Unit tests for the module level methods relating to dates'''
+    def setUp(self):
+        pass
+
+    def tearDown(self):
+        pass
+
+    def test_calc_enddate_12h(self):
+        '''Test calc_enddate method with 12h period'''
+        func.logtest('Assert return from calc_enddate with 12h:')
+        startdate = ('2000', '12', '11', '12')
+        dates = [climatemean.calc_enddate(startdate, '12HOURS')]
+        dates.append(climatemean.calc_enddate(startdate, '12h'))
+
+        for date in dates:
+            self.assertTupleEqual(date, ('2000', '12', '12', '00'))
+
+    def test_calc_enddate_1d(self):
+        '''Test calc_enddate method with 1d period'''
+        func.logtest('Assert return from calc_enddate with 1d:')
+        startdate = ('2000', '12', '11', '12')
+        dates = [climatemean.calc_enddate(startdate, '24HOURS')]
+        dates.append(climatemean.calc_enddate(startdate, '24h'))
+        dates.append(climatemean.calc_enddate(startdate, 'day'))
+        dates.append(climatemean.calc_enddate(startdate, 'daily'))
+        for date in dates:
+            self.assertTupleEqual(date, ('2000', '12', '12', '12'))
+
+    def test_calc_enddate_10d(self):
+        '''Test calc_enddate method with 10d period'''
+        func.logtest('Assert return from calc_enddate with 10d:')
+        startdate = ('2000', '12', '11')
+        dates = [climatemean.calc_enddate(startdate, '10DAYS')]
+        dates.append(climatemean.calc_enddate(startdate, '10d'))
+        dates.append(climatemean.calc_enddate(startdate, '10daily'))
+        for date in dates:
+            self.assertTupleEqual(date, ('2000', '12', '21'))
+
+    def test_calc_enddate_1m(self):
+        '''Test get_enddate method with 1m period'''
+        func.logtest('Assert return from calc_enddate with 1m:')
+        startdate = ('2000', '12', '11')
+        dates = [climatemean.calc_enddate(startdate, '30DAYS')]
+        dates.append(climatemean.calc_enddate(startdate, '1M'))
+        dates.append(climatemean.calc_enddate(startdate, 'Monthly'))
+        for date in dates:
+            self.assertTupleEqual(date, ('2001', '01', '11'))
+
+    def test_calc_enddate_1m_shortdate(self):
+        '''Test get_enddate method with 1m period - shortdate format'''
+        func.logtest('Assert return from calc_enddate with 1m - shortdate:')
+        startdate = ('2000', '12')
+        dates = [climatemean.calc_enddate(startdate, '30Day')]
+        dates.append(climatemean.calc_enddate(startdate, '1M'))
+        dates.append(climatemean.calc_enddate(startdate, 'Monthly'))
+        for date in dates:
+            self.assertTupleEqual(date, ('2001', '01'))
+
+    def test_calc_enddate_1s(self):
+        '''Test calc_enddate method with 1s period'''
+        func.logtest('Assert return from calc_enddate with 1s:')
+        startdate = ('2000', '12', '11')
+        dates = [climatemean.calc_enddate(startdate, '3mth')]
+        dates.append(climatemean.calc_enddate(startdate, '1s'))
+        dates.append(climatemean.calc_enddate(startdate, 'Seasonal'))
+        for date in dates:
+            self.assertTupleEqual(date, ('2001', '03', '11'))
+
+    def test_calc_enddate_1y(self):
+        '''Test calc_enddate method with 1y period'''
+        func.logtest('Assert return from calc_enddate with 1y:')
+        startdate = ('2000', '12', '11')
+        dates = [climatemean.calc_enddate(startdate, '4ssn')]
+        dates.append(climatemean.calc_enddate(startdate, '1y'))
+        dates.append(climatemean.calc_enddate(startdate, 'Year'))
+        for date in dates:
+            self.assertTupleEqual(date, ('2001', '12', '11'))
+
+    def test_calc_enddate_1x(self):
+        '''Test calc_enddate method with 10y (1x) period'''
+        func.logtest('Assert return from calc_enddate with 10y (1x):')
+        startdate = ('2000', '12', '11')
+        dates = [climatemean.calc_enddate(startdate, '10YR')]
+        dates.append(climatemean.calc_enddate(startdate, '10yrs'))
+        dates.append(climatemean.calc_enddate(startdate, '1x'))
+        for date in dates:
+            self.assertTupleEqual(date, ('2010', '12', '11'))
+
+    def test_calc_enddate_fail(self):
+        '''Test calc_enddate method with invalid period'''
+        func.logtest('Assert return from calc_enddate with ?:')
+        with self.assertRaises(SystemExit):
+            _ = climatemean.calc_enddate('startdate', 'period')
+        self.assertIn('Invalid target provided', func.capture('err'))
+
+    def test_end_date_regex_monthly(self):
+        '''Test calculation of regular expression for endates - monthly'''
+        func.logtest('Assert monthly period enddate regular expression:')
+        self.assertEqual(climatemean.end_date_regex('1m', [1000, 12, 15]),
+                         r'\d{4}\d{2}15')
+
+    def test_end_date_regex_seasonal(self):
+        '''Test calculation of regular expression for endates - seasonal'''
+        func.logtest('Assert seasonal period enddate regular expression:')
+        self.assertEqual(climatemean.end_date_regex('1s', [1000, 12, 15]),
+                         r'\d{4}(12|03|06|09)15')
+
+        self.assertEqual(climatemean.end_date_regex('1s', [1000, 1, 1]),
+                         r'\d{4}(01|04|07|10)01')
+
+    def test_end_date_regex_annual(self):
+        '''Test calculation of regular expression for endates - annual'''
+        func.logtest('Assert annual period enddate regular expression:')
+        self.assertEqual(climatemean.end_date_regex('1y', [1000, 12, 15]),
+                         r'\d{4}1215')
+
+        self.assertEqual(climatemean.end_date_regex('1y', [1000, 1, 1]),
+                         r'\d{4}0101')
+
+    def test_end_date_regex_decadal(self):
+        '''Test calculation of regular expression for endates - decadal'''
+        func.logtest('Assert decadal period enddate regular expression:')
+        self.assertEqual(climatemean.end_date_regex('1x', [1000, 12, 15]),
+                         r'\d{3}01215')
+
+        self.assertEqual(climatemean.end_date_regex('1x', [1005, 1, 1]),
+                         r'\d{3}50101')
+
+    def test_set_date_regex_monthly(self):
+        '''Test calculation of regular expression for set dates - monthly'''
+        func.logtest('Assert monthly period set date regular expression:')
+        self.assertEqual(climatemean.set_date_regex('1m', '10d',
+                                                    [1987, 12, 11]),
+                         '(19871111|19871121|19871201)')
+
+        self.assertEqual(
+            climatemean.set_date_regex('1m', '10d', [1987, 12, 11],
+                                       rtnend=True),
+            '(19871121|19871201|19871211)'
+            )
+
+    def test_set_date_regex_seasonal(self):
+        '''Test calculation of regular expression for set dates - seasonal'''
+        func.logtest('Assert seasonal period set date regular expression:')
+        self.assertEqual(
+            climatemean.set_date_regex('1s', 'month', [1987, 12, 1]),
+            '(19870901|19871001|19871101)'
+            )
+
+        self.assertEqual(
+            climatemean.set_date_regex('1s', '10days', [1987, 1, 1],
+                                       rtnend=True),
+            '(19861011|19861021|19861101|19861111|19861121|'
+            '19861201|19861211|19861221|19870101)'
+            )
+
+    def test_set_date_regex_annual(self):
+        '''Test calculation of regular expression for set dates - annual'''
+        func.logtest('Assert annual period set date regular expression:')
+        self.assertEqual(
+            climatemean.set_date_regex('1y', 'ssn', [1987, 11, 1]),
+            '(19861101|19870201|19870501|19870801)'
+            )
+        self.assertEqual(
+            climatemean.set_date_regex('1y', '1m', [1987, 11, 1], rtnend=True),
+            '(19861201|19870101|19870201|19870301|19870401|19870501|19870601|'
+            '19870701|19870801|19870901|19871001|19871101)'
+            )
+
+    def test_set_date_regex_decadal(self):
+        '''Test calculation of regular expression for set dates - decadal'''
+        func.logtest('Assert decadal period set date regular expression:')
+        self.assertEqual(
+            climatemean.set_date_regex('1x', 'ssn', [1996, 11, 1]),
+            '(19861101|19870201|19870501|19870801|19871101|19880201|19880501|'
+            '19880801|19881101|19890201|19890501|19890801|19891101|19900201|'
+            '19900501|19900801|19901101|19910201|19910501|19910801|19911101|'
+            '19920201|19920501|19920801|19921101|19930201|19930501|19930801|'
+            '19931101|19940201|19940501|19940801|19941101|19950201|19950501|'
+            '19950801|19951101|19960201|19960501|19960801)'
+            )
+
+        self.assertEqual(
+            climatemean.set_date_regex('1x', 'year', [1996, 11, 1],
+                                       rtnend=True),
+            '(19871101|19881101|19891101|19901101|19911101|19921101|19931101|'
+            '19941101|19951101|19961101)'
+            )
