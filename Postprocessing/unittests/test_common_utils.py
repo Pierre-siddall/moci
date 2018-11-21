@@ -722,6 +722,7 @@ class SmallUtilsTests(unittest.TestCase):
         self.assertListEqual(utils.get_frequency('2s'), [2, 's'])
         self.assertListEqual(utils.get_frequency('YEAR'), [1, 'y'])
         self.assertListEqual(utils.get_frequency('x'), [1, 'x'])
+        self.assertListEqual(utils.get_frequency('-PT12H'), [-12, 'h'])
 
     def test_get_frequency_deltalist(self):
         ''' Assert return of a delta list from delta string '''
@@ -738,12 +739,19 @@ class SmallUtilsTests(unittest.TestCase):
                              [1, 0, 0, 0, 0])
         self.assertListEqual(utils.get_frequency('x', rtn_delta=True),
                              [10, 0, 0, 0, 0])
+        self.assertListEqual(utils.get_frequency('-P3M', rtn_delta=True),
+                             [0, -3, 0, 0, 0])
+        self.assertListEqual(utils.get_frequency('PT30M', rtn_delta=True),
+                             [0, 0, 0, 0, 30])
+
 
     def test_get_frequency_delta_multi(self):
         ''' Assert get_frequency delta return value given an multiple period '''
         func.logtest('Assert get_frequency return with multiple periods:')
-        self.assertListEqual(utils.get_frequency('3H-2M', rtn_delta=True),
-                             [0, -2, 0, 3, 0])
+        self.assertListEqual(utils.get_frequency('3H-2M1Y', rtn_delta=True),
+                             [1, -2, 0, 3, 0])
+        self.assertListEqual(utils.get_frequency('-P1YT10M', rtn_delta=True),
+                             [-1, 0, 0, 0, -10])
         self.assertListEqual(utils.get_frequency('P5Y4M3DT2H1M',
                                                  rtn_delta=True),
                              [5, 4, 3, 2, 1])

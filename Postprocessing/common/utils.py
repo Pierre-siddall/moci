@@ -528,9 +528,22 @@ def get_frequency(delta, rtn_delta=False):
     regex = r'(-?\d+)([{}])'.format(''.join(all_targets.keys()))
     rval = [0]*5
 
+    preserve_neg = None
     while delta:
-        multiplier = -1 if '-' in delta[:2] else 1
-        delta = delta.lower().lstrip('-p')
+        neg, iso, subdaily, delta = re.match(r'(-?)(p?)(t?)([\w\-]*)',
+                                             delta.lower()).groups()
+        if subdaily:
+            # Redefine "m" to "minutes" (date index 4)
+            all_targets['m'] = 4
+        if iso:
+            # `delta` prefix is [-]P indicating an ISO period.
+            # Any negative should be preserved such that it is applied
+            # to each frequency in the whole string.  Examples:
+            #   -P1Y3M is "-1 year and -1 month"
+            #   PT1H30M is "+1 hour and +30 minutes"
+            preserve_neg = (neg == '-')
+        multiplier = -1 if (preserve_neg or neg) else 1
+
         try:
             freq, base = re.match(regex, delta).groups()
             freq = int(freq) * multiplier
@@ -541,25 +554,17 @@ def get_frequency(delta, rtn_delta=False):
         try:
             index = [all_targets[t] for t in all_targets if t == base][0]
         except IndexError:
-            log_msg('get_frequency - Invalid target provided: ' + delta,
+            concatdelta = ''.join([neg, subdaily, delta])
+            log_msg('get_frequency - Invalid target provided: ' + concatdelta,
                     level='FAIL')
 
         if rtn_delta:
             # Strip freq/base from the start of the delta string for next pass
-            delta = delta.lstrip('-')
             delta = delta.lstrip(str(freq))
             delta = delta.lstrip(base)
-            if delta.startswith('t'):
-                all_targets['m'] = 4
-                delta = delta.lstrip('t')
-            try:
-                int(delta[1 if delta[0] == '-' else 0])
-            except ValueError:
+            if not re.search(r'\d+', delta):
                 # Remaining delta string cannot be a period - pass complete
                 delta = ''
-            except IndexError:
-                # Delta string is empty - pass complete
-                pass
 
             # Return delta in the form of an integer list
             if base == 's':
