@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2018 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -67,8 +67,16 @@ def log_archive(dataset):
 
 def moose_archive(dataset):
     ''' Return Moose archive listing '''
-    if len(dataset.split('/')) == 1:
+    dataset_split = dataset.split(os.sep)
+    if len(dataset_split) == 1:
+        # Default to crum structured data class
         dataset = 'moose:crum/' + dataset
+    elif ':ens' in dataset and len(dataset_split) < 3:
+        # Require ":ens/<suite-id>/<ensemble id>/<collection" to ensure only
+        # a single ensemble member is assessed
+        utils.log_msg('Structured data class "moose:ens" indicated but '
+                      'Suite ID and/or Ensemble ID appear to be missing from '
+                      '&commonverify/dataset: ' + dataset, level='ERROR')
     cmd = 'moo ls -r {}'.format(dataset)
     _, listing = utils.exec_subproc(cmd)
     utils.log_msg('Moose archive listing --->\n {}\n'.format(listing.strip()),

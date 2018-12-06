@@ -114,7 +114,7 @@ class VerifyArchiveTests(unittest.TestCase):
         self.assertEqual(listing, self.archcontent)
 
     @mock.patch('archive_integrity.utils.exec_subproc')
-    def test_debug_mooread(self, mock_exec):
+    def test_moose_read(self, mock_exec):
         ''' Test reading of the archive log file - Moose archive '''
         func.logtest('Assert creation of archive listing from Moose archive:')
         moo = 'dataset/coll1.file/file1 \n dataset/coll2.pp/file2 \n'
@@ -123,6 +123,27 @@ class VerifyArchiveTests(unittest.TestCase):
         mock_exec.return_value = (0, moo)
         listing = archive_integrity.moose_archive('moose:ens/dataset/ensid')
         self.assertEqual(listing, self.archcontent)
+        mock_exec.assert_called_once_with('moo ls -r moose:ens/dataset/ensid')
+
+    @mock.patch('archive_integrity.utils.exec_subproc')
+    def test_moose_read_default(self, mock_exec):
+        ''' Test reading of the archive log file - Moose default dataclass '''
+        func.logtest('Assert creation of archive listing from Moose - default:')
+        moo = 'dataset/coll1.file/file1 \n dataset/coll2.pp/file2 \n'
+        moo += ' dataset/coll1.file/file3 \n dataset/coll2.pp/file4 \n'
+
+        mock_exec.return_value = (0, moo)
+        listing = archive_integrity.moose_archive('suiteid')
+        self.assertEqual(listing, self.archcontent)
+        mock_exec.assert_called_once_with('moo ls -r moose:crum/suiteid')
+
+    def test_moose_read_fail(self):
+        ''' Test reading of the archive log file - Moose archive - fail '''
+        func.logtest('Assert failure to read Moose archive:')
+        with self.assertRaises(SystemExit):
+            _ = archive_integrity.moose_archive('moose:ens/dataset')
+        self.assertIn('"moose:ens" indicated but Suite ID and/or Ensemble ID',
+                      func.capture('err'))
 
     def test_verify_archive(self):
         ''' Test archive verification '''
