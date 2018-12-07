@@ -594,7 +594,7 @@ class DiagnosticFiles(ArchivedFiles):
 
                         if stream in self.tlim and \
                                 (date < self.tlim[stream][0] or
-                                 date >= self.tlim[stream][1]):
+                                 date > self.tlim[stream][1]):
                             # Time limited stream - outside output dates
                             continue
 

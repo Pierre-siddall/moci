@@ -756,6 +756,8 @@ class DiagnosticFilesTests(unittest.TestCase):
         ''' Assert correct list of expected atmos files '''
         func.logtest('Assert correct return of atmos files:')
         # startdate: 19950811, enddate: 19981101
+        self.files.naml.streams_10d = ['pe']
+        self.files.tlim = {'pe': ([1997, 1, 1], [1998, 2, 1])}
         outfiles = {
             'apy.pp': ['PREFIXa.py19961201.pp', 'PREFIXa.py19971201.pp'],
             'aps.pp': ['PREFIXa.ps1995son.pp', 'PREFIXa.ps1996djf.pp',
@@ -765,13 +767,17 @@ class DiagnosticFilesTests(unittest.TestCase):
                        'PREFIXa.ps1997son.pp', 'PREFIXa.ps1998djf.pp',
                        'PREFIXa.ps1998mam.pp', 'PREFIXa.ps1998jja.pp'],
             'apm.pp': ['PREFIXa.pm1995sep.pp', 'PREFIXa.pm1995oct.pp',
-                       'PREFIXa.pm1998sep.pp', 'PREFIXa.pm1998oct.pp']
+                       'PREFIXa.pm1998sep.pp', 'PREFIXa.pm1998oct.pp'],
+            'ape.pp': ['PREFIXa.pe19970101.pp', 'PREFIXa.pe19970111.pp',
+                       'PREFIXa.pe19980111.pp', 'PREFIXa.pe19980121.pp']
             }
         expected = self.files.expected_diags()
         self.assertListEqual(expected['apy.pp'], outfiles['apy.pp'])
         self.assertListEqual(expected['aps.pp'], outfiles['aps.pp'])
         self.assertListEqual(expected['apm.pp'][:2], outfiles['apm.pp'][:2])
         self.assertListEqual(expected['apm.pp'][-2:], outfiles['apm.pp'][-2:])
+        self.assertListEqual(expected['ape.pp'][:2], outfiles['ape.pp'][:2])
+        self.assertListEqual(expected['ape.pp'][-2:], outfiles['ape.pp'][-2:])
         self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
 
     def test_expected_atmos_ppcmean(self):
@@ -849,6 +855,8 @@ class DiagnosticFilesTests(unittest.TestCase):
     def test_expected_atmos_altdates(self):
         ''' Assert correct list of expected atmos files - alternative dates'''
         func.logtest('Assert correct return of atmos files - alt. dates:')
+        self.files.naml.streams_10d = ['pe']
+        self.files.tlim = {'pe': ([2015, 10, 1], [2020, 1, 1])}
         self.files.meanref = [1992, 2, 1]
         self.files.edate = [2015, 11, 1]
         outfiles = {
@@ -858,7 +866,8 @@ class DiagnosticFilesTests(unittest.TestCase):
             'aps.pp': ['PREFIXa.ps1996ndj.pp', 'PREFIXa.ps1996fma.pp',
                        'PREFIXa.ps2015mjj.pp', 'PREFIXa.ps2015aso.pp'],
             'apm.pp': ['PREFIXa.pm1995sep.pp', 'PREFIXa.pm1995oct.pp',
-                       'PREFIXa.pm2015sep.pp', 'PREFIXa.pm2015oct.pp']
+                       'PREFIXa.pm2015sep.pp', 'PREFIXa.pm2015oct.pp'],
+            'ape.pp': ['PREFIXa.pe20151001.pp', 'PREFIXa.pe20151011.pp']
             }
         expected = self.files.expected_diags()
         self.assertListEqual(expected['apx.pp'], outfiles['apx.pp'])
@@ -868,6 +877,7 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.assertListEqual(expected['aps.pp'][-2:], outfiles['aps.pp'][-2:])
         self.assertListEqual(expected['apm.pp'][:2], outfiles['apm.pp'][:2])
         self.assertListEqual(expected['apm.pp'][-2:], outfiles['apm.pp'][-2:])
+        self.assertListEqual(expected['ape.pp'], outfiles['ape.pp'])
         self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
 
     def test_expected_atmos_1s1x(self):
