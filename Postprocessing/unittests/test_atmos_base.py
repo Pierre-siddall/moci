@@ -488,10 +488,11 @@ class MeaningTests(unittest.TestCase):
             shutil.rmtree('mean_archflags')
         except OSError:
             pass
-        try:
-            os.remove('RUNIDa.pm1990apr.arch')
-        except OSError:
-            pass
+        for date in ['m1990apr', 's1990jja', 's1990ond']:
+            try:
+                os.remove('RUNIDa.p{}.arch'.format(date))
+            except OSError:
+                pass
 
     def test_requested_means(self):
         ''' Test setup of requested means '''
@@ -525,6 +526,79 @@ class MeaningTests(unittest.TestCase):
                       func.capture('err'))
 
     @mock.patch('atmos.utils.get_subset')
+    @mock.patch('atmos.os.path.isfile')
+    @mock.patch('atmos.climatemean.create_mean')
+    def test_do_meaning_ppfile(self, mock_create, mock_isfile, mock_set):
+        ''' Test call to do_meaning - pre-existing pp format file found'''
+        func.logtest('Assert call to do_meaning - pp file on disk:')
+
+        self.atmos.naml.atmospp.create_monthly_mean = False
+        self.atmos.naml.atmospp.create_seasonal_mean = True
+        self.atmos.naml.atmospp.create_annual_mean = False
+        self.atmos.naml.atmospp.create_decadal_mean = False
+        self.atmos.requested_means = self.atmos._requested_means()
+
+        # Calls to mock_set - get files matching:
+        #   [0] .arch file to move to flags directory
+        #   [1] .arch files in flags directory representing seasons set-ends
+        #   [2] seasonal mean component files for Dec-Jan-Feb
+        mock_set.side_effect = [[], ['RUNIDa.pm1990dec'], ['seasonsetOND']]
+        # mock_isfile return [0] => .pp format mean file exists
+        mock_isfile.sideeffect = [True]
+
+        self.atmos.do_meaning()
+
+        self.assertEqual(mock_create.call_count, 0)
+        self.assertIn('The requested mean file already exists in pp format',
+                      func.capture())
+        self.assertListEqual(
+            mock_set.mock_calls,
+            [mock.call(os.getcwd(),
+                       r'^RUNIDa\.([p][m])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+             mock.call(self.flagdir,
+                       r'^RUNIDa\.([p][m])\d{4}(aug|nov|feb|may).arch$'),
+             mock.call(os.getcwd(),
+                       r'^RUNIDa\.([p][m])(1990oct|1990nov|1990dec)(\.pp)?$')]
+            )
+
+    @mock.patch('atmos.utils.get_subset')
+    @mock.patch('atmos.climatemean.create_mean')
+    def test_do_meaning_ppcmpt(self, mock_create, mock_set):
+        ''' Test call to do_meaning - pre-existing pp format components'''
+        func.logtest('Assert call to do_meaning - pp components on disk:')
+
+        self.atmos.naml.atmospp.create_monthly_mean = False
+        self.atmos.naml.atmospp.create_seasonal_mean = True
+        self.atmos.naml.atmospp.create_annual_mean = False
+        self.atmos.naml.atmospp.create_decadal_mean = False
+        self.atmos.requested_means = self.atmos._requested_means()
+
+
+        # Calls to mock_set - get files matching:
+        #   [0] .arch file to move to flags directory
+        #   [1] .arch files in flags directory representing seasons set-ends
+        #   [2] seasonal mean component files for Dec-Jan-Feb
+        mock_set.side_effect = [[], ['RUNIDa.pm1990aug'], ['seasonsetJJA.pp']]
+
+        self.atmos.do_meaning()
+
+        self.assertEqual(mock_create.call_count, 0)
+        self.assertIn('Component(s) of the requested mean file are already '
+                      'in pp format', func.capture('err'))
+        self.assertIn('RUNIDa.ps1990jja is assumed', func.capture('err'))
+        self.assertListEqual(
+            mock_set.mock_calls,
+            [mock.call(os.getcwd(),
+                       r'^RUNIDa\.([p][m])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+             mock.call(self.flagdir,
+                       r'^RUNIDa\.([p][m])\d{4}(aug|nov|feb|may).arch$'),
+             mock.call(os.getcwd(),
+                       r'^RUNIDa\.([p][m])(1990jun|1990jul|1990aug)(\.pp)?$')]
+            )
+        self.assertTrue(os.path.isfile(os.path.join(os.getcwd(),
+                                                    'RUNIDa.ps1990jja.arch')))
+
+    @mock.patch('atmos.utils.get_subset')
     @mock.patch('atmos.climatemean.create_mean')
     def test_do_meaning_monthly_rqst(self, mock_create, mock_set):
         ''' Test call to do_meaning - request = model output'''
@@ -536,6 +610,10 @@ class MeaningTests(unittest.TestCase):
         self.atmos.naml.atmospp.create_decadal_mean = False
         self.atmos.requested_means = self.atmos._requested_means()
 
+        # Calls to mock_set - get files matching:
+        #   [0] .arch file to move to flags directory
+        #   [1] .arch files in flags directory representing month set-end
+        #   [2] monthly mean component files for April
         mock_set.side_effect = [[], ['RUNIDa.pm1990apr'], ['monthsetAPR']]
 
         self.atmos.do_meaning()
@@ -550,7 +628,7 @@ class MeaningTests(unittest.TestCase):
              mock.call(self.flagdir,
                        r'^RUNIDa\.([p][m])\d{4}(jan|feb|mar|apr|may|jun|'
                        r'jul|aug|sep|oct|nov|dec).arch$'),
-             mock.call(os.getcwd(), r'^RUNIDa\.([p][m])(1990apr)$')]
+             mock.call(os.getcwd(), r'^RUNIDa\.([p][m])(1990apr)(\.pp)?$')]
             )
 
     @mock.patch('atmos.utils.get_subset')
@@ -569,6 +647,10 @@ class MeaningTests(unittest.TestCase):
         self.atmos.requested_means = self.atmos._requested_means()
         meanfile = self.atmos.requested_means['1m']
 
+        # Calls to mock_set - get files matching:
+        #   [0] .arch file to move to flags directory
+        #   [1] .arch files in flags directory representing month set-end
+        #   [2] monthly mean component files for April
         mock_set.side_effect = [['MoveToFlag'], ['RUNIDa.pa1990apr'],
                                 ['monthsetAPR']]
         with mock.patch('atmos.os.path.exists', return_value=True):
@@ -581,7 +663,7 @@ class MeaningTests(unittest.TestCase):
              mock.call(self.flagdir,
                        r'^RUNIDa\.([pm][a])\d{4}(jan|feb|mar|apr|may|jun|'
                        r'jul|aug|sep|oct|nov|dec).arch$'),
-             mock.call(os.getcwd(), r'^RUNIDa\.([pm][a])(1990apr)$')]
+             mock.call(os.getcwd(), r'^RUNIDa\.([pm][a])(1990apr)(\.pp)?$')]
             )
         meanfile.set_filename('RUNIDa.pm1990apr', os.getcwd())
         self.assertEqual(mock_create.call_args[0][0].fname, meanfile.fname)
@@ -614,6 +696,10 @@ class MeaningTests(unittest.TestCase):
         self.atmos.requested_means = self.atmos._requested_means()
         meanfile = self.atmos.requested_means['1m']
 
+        # Calls to mock_set - get files matching:
+        #   [0] .arch file to move to flags directory
+        #   [1] .arch files in flags directory representing month set-end
+        #   [2] monthly mean component files for December
         mock_set.side_effect = [[], ['RUNIDa.pa19901221'], ['monthsetDEC']]
         self.atmos.do_meaning()
 
@@ -623,9 +709,10 @@ class MeaningTests(unittest.TestCase):
                        r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
              mock.call(self.flagdir,
                        r'^RUNIDa\.([pm][a])\d{4}(01|02|03|04|05|06|07|08|'
-                       r'09|10|11|12)21.arch$'),
+                       '09|10|11|12)21.arch$'),
              mock.call(os.getcwd(),
-                       r'^RUNIDa\.([pm][a])(19901201|19901211|19901221)$')]
+                       r'^RUNIDa\.([pm][a])(19901201|19901211|19901221)'
+                       r'(\.pp)?$')]
             )
         meanfile.set_filename('RUNIDa.pm1990dec', os.getcwd())
         self.assertEqual(mock_create.call_args[0][0].fname, meanfile.fname)
@@ -649,6 +736,10 @@ class MeaningTests(unittest.TestCase):
         self.atmos.requested_means = self.atmos._requested_means()
         meanfile = self.atmos.requested_means['1m']
 
+        # Calls to mock_set - get files matching:
+        #   [0] .arch file to move to flags directory
+        #   [1] .arch files in flags directory representing month set-end
+        #   [2] monthly mean component files for December
         mock_set.side_effect = [[], ['RUNIDa.pa19901230_12'], ['monthsetDEC']]
         self.atmos.do_meaning()
 
@@ -675,7 +766,7 @@ class MeaningTests(unittest.TestCase):
                        r'19901224_00|19901224_12|19901225_00|19901225_12|'
                        r'19901226_00|19901226_12|19901227_00|19901227_12|'
                        r'19901228_00|19901228_12|19901229_00|19901229_12|'
-                       r'19901230_00|19901230_12)$')]
+                       r'19901230_00|19901230_12)(\.pp)?$')]
             )
         meanfile.set_filename('RUNIDa.pm1990dec', os.getcwd())
         self.assertEqual(mock_create.call_args[0][0].fname, meanfile.fname)
@@ -706,6 +797,11 @@ class MeaningTests(unittest.TestCase):
         self.atmos.naml.atmospp.meanbase_period = '1m'
         self.atmos.requested_means = self.atmos._requested_means()
 
+        # Calls to mock_set - get files matching:
+        #   [0] .arch file to move to flags directory
+        #   [1] .arch files in flags directory representing month set-end
+        #   [2] .arch files in flags directory representing season set-ends
+        #   [3] seasonal mean component files for Jun-Jul-Aug
         mock_set.side_effect = [[], [], ['RUNIDa.pm1990aug'], ['seasonsetJJA']]
         self.atmos.do_meaning()
 
@@ -719,7 +815,7 @@ class MeaningTests(unittest.TestCase):
              mock.call(self.flagdir,
                        r'^RUNIDa\.pm\d{4}(aug|nov|feb|may).arch$'),
              mock.call(os.getcwd(),
-                       r'^RUNIDa\.pm(1990jun|1990jul|1990aug)$')]
+                       r'^RUNIDa\.pm(1990jun|1990jul|1990aug)(\.pp)?$')]
             )
 
         self.assertEqual(mock_create.call_args[0][0].fname['file'],
@@ -743,6 +839,11 @@ class MeaningTests(unittest.TestCase):
         self.atmos.naml.atmospp.meanbase_period = '1m'
         self.atmos.requested_means = self.atmos._requested_means()
 
+        # Calls to mock_set - get files matching:
+        #   [0] .arch file to move to flags directory
+        #   [1] .arch files in flags directory representing seasons set-ends
+        #   [2] seasonal mean component files for Jun-Jul-Aug
+        #   [3] seasonal mean component files for Dec-Jan-Feb
         mock_set.side_effect = [[],
                                 ['RUNIDa.pa1990aug', 'RUNIDa.pa1991feb'],
                                 ['seasonsetJJA'], ['seasonsetDJF']]
@@ -755,9 +856,9 @@ class MeaningTests(unittest.TestCase):
              mock.call(self.flagdir,
                        r'^RUNIDa\.([pm][a])\d{4}(aug|nov|feb|may).arch$'),
              mock.call(os.getcwd(),
-                       r'^RUNIDa\.([pm][a])(1990jun|1990jul|1990aug)$'),
+                       r'^RUNIDa\.([pm][a])(1990jun|1990jul|1990aug)(\.pp)?$'),
              mock.call(os.getcwd(),
-                       r'^RUNIDa\.([pm][a])(1990dec|1991jan|1991feb)$')]
+                       r'^RUNIDa\.([pm][a])(1990dec|1991jan|1991feb)(\.pp)?$')]
             )
 
         self.assertEqual(mock_create.call_args[0][0].fname['file'],
@@ -783,6 +884,11 @@ class MeaningTests(unittest.TestCase):
         self.atmos.naml.atmospp.meanbase_period = '1m'
         self.atmos.requested_means = self.atmos._requested_means()
 
+        # Calls to mock_set - get files matching:
+        #   [0] .arch file to move to flags directory
+        #   [1] .arch files in flags directory representing seasons set-ends
+        #   [2] .arch files in flags directory representing annual set-ends
+        #   [3] annual mean component files for 1990
         mock_set.side_effect = [[], [], ['RUNIDa.ps1990ndj'], ['yearset']]
         self.atmos.do_meaning()
 
@@ -795,7 +901,7 @@ class MeaningTests(unittest.TestCase):
              mock.call(self.flagdir,
                        r'^RUNIDa\.ps\d{4}ndj.arch$'),
              mock.call(os.getcwd(),
-                       r'^RUNIDa\.ps(1989fma|1989mjj|1989aso|1990ndj)$')]
+                       r'^RUNIDa\.ps(1989fma|1989mjj|1989aso|1990ndj)(\.pp)?$')]
             )
 
         self.assertEqual(mock_create.call_args[0][0].fname['file'],
@@ -821,6 +927,10 @@ class MeaningTests(unittest.TestCase):
         self.atmos.naml.atmospp.meanbase_period = '1m'
         self.atmos.requested_means = self.atmos._requested_means()
 
+        # Calls to mock_set - get files matching:
+        #   [0] .arch file to move to flags directory
+        #   [1] .arch files in flags directory representing annual set-end
+        #   [2] annual mean component files
         mock_set.side_effect = [[], ['RUNIDa.ps1990dec'], ['yearset']]
         self.atmos.do_meaning()
 
@@ -833,7 +943,7 @@ class MeaningTests(unittest.TestCase):
              mock.call(os.getcwd(),
                        r'^RUNIDa\.([pm][a])(1990jan|1990feb|1990mar|'
                        r'1990apr|1990may|1990jun|1990jul|1990aug|1990sep|'
-                       r'1990oct|1990nov|1990dec)$')]
+                       r'1990oct|1990nov|1990dec)(\.pp)?$')]
             )
 
         self.assertEqual(mock_create.call_args[0][0].fname['file'],
@@ -859,6 +969,11 @@ class MeaningTests(unittest.TestCase):
         self.atmos.naml.atmospp.meanbase_period = '1s'
         self.atmos.requested_means = self.atmos._requested_means()
 
+        # Calls to mock_set - get files matching:
+        #   [0] .arch file to move to flags directory
+        #   [1] .arch files in flags directory representing annual set-ends
+        #   [2] .arch files in flags directory representing decadal set-ends
+        #   [3] decadal mean component files for Dec-Jan-Feb
         mock_set.side_effect = [[], [], ['RUNIDa.py19981201'], ['decadeset']]
         self.atmos.do_meaning()
 
@@ -873,7 +988,7 @@ class MeaningTests(unittest.TestCase):
              mock.call(os.getcwd(),
                        r'^RUNIDa\.py(19891201|19901201|19911201|19921201|'
                        r'19931201|19941201|19951201|19961201|19971201|'
-                       r'19981201)$')]
+                       r'19981201)(\.pp)?$')]
             )
 
         self.assertEqual(mock_create.call_args[0][0].fname['file'],
@@ -899,6 +1014,10 @@ class MeaningTests(unittest.TestCase):
         self.atmos.naml.atmospp.meanbase_period = '1s'
         self.atmos.requested_means = self.atmos._requested_means()
 
+        # Calls to mock_set - get files matching:
+        #   [0] .arch file to move to flags directory
+        #   [1] .arch files in flags directory representing decadal set-end
+        #   [2] decadal mean component files
         mock_set.side_effect = [[], ['RUNIDa.ps1997ond'], ['decadeset']]
         self.atmos.do_meaning()
 
@@ -916,7 +1035,7 @@ class MeaningTests(unittest.TestCase):
                        '1993amj|1993jas|1993ond|1994jfm|1994amj|1994jas|'
                        '1994ond|1995jfm|1995amj|1995jas|1995ond|1996jfm|'
                        '1996amj|1996jas|1996ond|1997jfm|1997amj|1997jas|'
-                       '1997ond)$')]
+                       '1997ond)(\.pp)?$')]
             )
 
         self.assertEqual(mock_create.call_args[0][0].fname['file'],

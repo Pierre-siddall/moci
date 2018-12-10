@@ -401,6 +401,8 @@ class AtmosPostProc(control.RunPostProc):
                 )
 
         setpatt = self.ff_match(basestream, date_regex=regex)
+        # Allow for components already converted to pp format
+        setpatt = setpatt.replace('$', r'(\.pp)?$')
         meanfile.component_files = utils.add_path(
             utils.get_subset(self.share, setpatt), self.share
             )
@@ -419,6 +421,26 @@ class AtmosPostProc(control.RunPostProc):
             utils.log_msg('The requested mean is a direct UM output: ' +
                           setend_fname, level='INFO')
             rcode = 1
+        elif os.path.isfile(meanfile.fname['full'] + '.pp'):
+            # Failure recovery - file already exists in pp format
+            # climatemean.create_mean() will pick up pre-existing fieldsfile.
+            utils.log_msg('The requested mean file already exists in '
+                          'pp format: ' + meanfile.fname['file'],
+                          level='INFO')
+            rcode = 0
+        elif any([f.endswith('.pp') for f in meanfile.component_files]):
+            # Failure recovery - on or more of the components is already in
+            # pp format - this may happen if a previous task failed having
+            # successfully created the mean and then converted the components.
+            # The mean file itself may already be in the archive.
+            utils.log_msg('Component(s) of the requested mean file are already '
+                          'in pp format:\n\t' + \
+                              '\n\t'.join(meanfile.component_files),
+                          level='WARN')
+            utils.log_msg('Continuing. {} is '.format(meanfile.fname['file']) +
+                          'assumed to have been created successfully.',
+                          level='WARN')
+            rcode = 0
         else:
             rcode = climatemean.create_mean(meanfile,
                                             transform.create_um_mean,
@@ -473,8 +495,9 @@ class AtmosPostProc(control.RunPostProc):
 
                     # Return component archiving flags to the work directory
                     for cmpt in meanfile.component_files:
-                        arch = os.path.join(flagdir,
-                                            os.path.basename(cmpt) + '.arch')
+                        # Strip path and any .pp file extension from .arch name
+                        cmpt = re.sub('.pp$', '', os.path.basename(cmpt))
+                        arch = os.path.join(flagdir, cmpt + '.arch')
                         if os.path.exists(arch):
                             utils.move_files(arch, self.work)
 
