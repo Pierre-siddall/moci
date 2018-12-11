@@ -16,15 +16,21 @@ class UpgradeError(Exception):
       __str__ = __repr__
 
 
-class pp22_tXXX(rose.upgrade.MacroUpgrade):
+class pp22_t370(rose.upgrade.MacroUpgrade):
 
-    """Upgrade macro for ticket #XXX by <Author>."""
+    """Upgrade macro for ticket #370 by Erica Neininger."""
     BEFORE_TAG = "postproc_2.2"
-    AFTER_TAG = "pp22_tXXX"
+    AFTER_TAG = "postproc_2.3"
 
     def upgrade(self, config, meta_config=None):
         """Upgrade a Postproc make app configuration."""
-        # Add changes here...
+       # Upgrade extract revision keywords
+        self.change_setting_value(config, ["env", "config_base"],
+                                  "fcm:moci.xm_tr", forced=True)
+        self.change_setting_value(config, ["env", "config_rev"],
+                                  "@postproc_2.3", forced=True)
+        self.change_setting_value(config, ["env", "pp_rev"],
+                                  "postproc_2.3", forced=True)
 
         return config, self.reports
 

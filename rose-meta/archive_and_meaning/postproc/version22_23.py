@@ -1,7 +1,6 @@
 import rose.upgrade
 import re
 import sys
-import os
 
 class UpgradeError(Exception):
 
@@ -139,14 +138,13 @@ class pp22_t356(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp22_tXXX(rose.upgrade.MacroUpgrade):
+class pp22_t370(rose.upgrade.MacroUpgrade):
 
-    """Upgrade macro for ticket #XXX by <Author>."""
+    """Upgrade macro for ticket #370 by Erica Neininger."""
     BEFORE_TAG = "pp22_t356"
-    AFTER_TAG = "pp22_tXXX"
+    AFTER_TAG = "postproc_2.3"
 
     def upgrade(self, config, meta_config=None):
-        """Upgrade a Postproc app configuration."""
-        # Add changes here...
-
+        """Upgrade a Postproc app configuration to postproc_2.3."""
+        
         return config, self.reports
