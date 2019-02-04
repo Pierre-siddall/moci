@@ -468,8 +468,14 @@ class AtmosPostProc(control.RunPostProc):
         # Save any archiving flags for base component file
         markedfiles = housekeeping.get_marked_files(self.work, match_base,
                                                     '.arch')
+        # Ensure that components are still in fieldsfile format
+        archflags = []
         for archflag in markedfiles:
-            utils.move_files(archflag + '.arch', flagdir, originpath=self.work)
+            if os.path.isfile(os.path.join(self.share, archflag)):
+                archflags.append(archflag + '.arch')
+        if len(archflags) == len(markedfiles):
+            utils.move_files(archflags, flagdir,
+                             originpath=self.work)
 
         # Loop over requested mean periods
         for meanp in self.requested_means:

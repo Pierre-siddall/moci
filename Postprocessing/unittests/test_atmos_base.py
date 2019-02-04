@@ -600,6 +600,35 @@ class MeaningTests(unittest.TestCase):
 
     @mock.patch('atmos.utils.get_subset')
     @mock.patch('atmos.climatemean.create_mean')
+    @mock.patch('atmos.utils.move_files')
+    def test_do_meaning_ffcmpt(self, mock_mv, mock_create, mock_set):
+        ''' Test call to do_meaning - Check for fieldsfile components'''
+        func.logtest('Assert call to do_meaning - pp components on disk:')
+        self.atmos.requested_means = []
+
+        # Calls to mock_set - get files matching:
+        #   [0] .arch file to move to flags directory
+        mock_set.side_effect = [['cmpt1', 'cmpt2', 'cmpt3']]
+
+        with mock.patch('atmos.os.path.isfile',
+                        side_effect=[False, True, False]):
+            self.atmos.do_meaning()
+        mock_mv.assert_not_called()
+
+        self.assertEqual(mock_create.call_count, 0)
+        mock_set.assert_called_once_with(
+            os.getcwd(),
+            r'^RUNIDa\.([p][m])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'
+            )
+
+        self.assertListEqual(
+            mock_set.mock_calls,
+            [mock.call(os.getcwd(),
+                       r'^RUNIDa\.([p][m])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$')]
+            )
+
+    @mock.patch('atmos.utils.get_subset')
+    @mock.patch('atmos.climatemean.create_mean')
     def test_do_meaning_monthly_rqst(self, mock_create, mock_set):
         ''' Test call to do_meaning - request = model output'''
         func.logtest('Assert call to do_meaning - create monthly mean:')
@@ -653,7 +682,8 @@ class MeaningTests(unittest.TestCase):
         #   [2] monthly mean component files for April
         mock_set.side_effect = [['MoveToFlag'], ['RUNIDa.pa1990apr'],
                                 ['monthsetAPR']]
-        with mock.patch('atmos.os.path.exists', return_value=True):
+        with mock.patch('atmos.os.path.isfile',
+                        side_effect=[True, False, True]):
             self.atmos.do_meaning()
 
         self.assertListEqual(
@@ -674,12 +704,8 @@ class MeaningTests(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(os.getcwd(),
                                                     'RUNIDa.pm1990apr.arch')))
 
-        self.assertListEqual(
-            mock_mv.mock_calls,
-            [mock.call('MoveToFlag.arch', self.flagdir, originpath=os.getcwd()),
-             mock.call(os.path.join(self.flagdir, 'monthsetAPR.arch'),
-                       os.getcwd())]
-            )
+        mock_mv.assert_called_once_with(['MoveToFlag.arch'], self.flagdir,
+                                        originpath=os.getcwd())
 
     @mock.patch('atmos.utils.get_subset')
     @mock.patch('atmos.climatemean.create_mean')
@@ -1035,7 +1061,7 @@ class MeaningTests(unittest.TestCase):
                        '1993amj|1993jas|1993ond|1994jfm|1994amj|1994jas|'
                        '1994ond|1995jfm|1995amj|1995jas|1995ond|1996jfm|'
                        '1996amj|1996jas|1996ond|1997jfm|1997amj|1997jas|'
-                       '1997ond)(\.pp)?$')]
+                       r'1997ond)(\.pp)?$')]
             )
 
         self.assertEqual(mock_create.call_args[0][0].fname['file'],

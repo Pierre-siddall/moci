@@ -9,7 +9,7 @@
         pre-script = "module load scitools"
         [[[job]]]
             batch system = slurm
-            execution time limit = PT5M
+            execution time limit = PT10M
         [[[directives]]]
             --ntasks=1
             --mem=1G
