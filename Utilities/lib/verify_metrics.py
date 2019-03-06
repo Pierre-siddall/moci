@@ -2,7 +2,7 @@
 
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016 Met Office. All rights reserved.
+ (C) Crown copyright 2019 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -98,6 +98,26 @@ def _gather_metrics(cpmip_output_file):
     return metrics
 
 
+def _compare_max_only(name, measured_val, reference_val, tolerance=0.1):
+    '''
+    Compare a metric, but only require that it be below a certian value.
+    Takes the metric name, measured value, and a tolerance to be applied
+    to be added to the measured value. Returns an error code of 0 if the
+    test passes, and 1 if not
+    '''
+    max_accepted = reference_val + tolerance
+    if measured_val <= max_accepted:
+        return_code = 0
+    else:
+        error_msg = '\n[FAIL] Metric %s hasnt passed validation\n' \
+            '  Measured value is %.4f\n' \
+            '  Expected value is %.4f with tolerance of %.2f\n' \
+            '    Should have a value less than or equal to %.4f\n' % \
+            (name, measured_val, reference_val, tolerance, max_accepted)
+        sys.stderr.write(error_msg)
+        return_code = 1
+    return return_code
+
 
 def _compare(name, measured_val, reference_val, tolerance=0.1):
     '''
@@ -133,8 +153,12 @@ def perform_comparison(cpmip_file):
         if info.val:
             expected_val = float(_read_envar('%s_EXPECTED' % key))
             tolerance = float(_read_envar('%s_TOL' % key))
-            did_fail = _compare(info.label, info.val, expected_val,
-                                tolerance)
+            if key == 'CPMIP_ANALYSIS':
+                did_fail = _compare_max_only(info.label, info.val, expected_val,
+                                             tolerance)
+            else:
+                did_fail = _compare(info.label, info.val, expected_val,
+                                    tolerance)
             note = ['Passed', 'Failed - See STDERR for details'][did_fail]
             sys.stdout.write('[INFO] Testing %s metric: %s. Value is %.4f\n' %
                              (info.label, note, info.val))
