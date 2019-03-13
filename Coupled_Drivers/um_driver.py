@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2019 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -62,7 +62,7 @@ def _verify_fix_rst(xhistfile, cyclepoint, workdir, task_name):
         sys.stdout.write(msg)
         #find the work directory for the previous cycle
         prev_work_dir = common.find_previous_workdir(cyclepoint, workdir,
-                                                    task_name)
+                                                     task_name)
         old_hist_path = os.path.join(prev_work_dir, 'history_archive')
         old_hist_files = [f for f in os.listdir(old_hist_path) if
                           'temp_hist' in f]
@@ -157,8 +157,9 @@ def _setup_executable(common_envar):
     um_envar = _load_run_environment_variables(um_envar)
 
     # Save the state of the partial sum files, or restore state depending on
-    # what is required
-    save_um_state.save_state(common_envar, um_envar['CONTINUE'])
+    # what is required. This doesnt currently make sense for integer cycling
+    if common_envar['CYLC_CYCLING_MODE'] != 'integer':
+        save_um_state.save_state(common_envar, um_envar['CONTINUE'])
 
     # Create a link to the UM atmos exec in the work directory
     common.remove_file(um_envar['ATMOS_LINK'])
