@@ -230,7 +230,7 @@ class Transfer(object):
             # Use gridftp (ssh authentication) for the file transfer
             utils.log_msg('Transferring files using gridFTP', level='INFO')
 
-            globus_cmd = 'globus-url-copy -vb -cd -p 4 -cc 4 -sync'
+            globus_cmd = 'globus-url-copy -vb -cd -cc 4 -sync'
             if self._transfer_type == 'push':
                 transfer_cmd = '{} file://{}/ sshftp://{}{}/'.format(
                     globus_cmd, archive_dir, remote_host, transfer_dir
