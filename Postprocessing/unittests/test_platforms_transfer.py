@@ -318,7 +318,7 @@ class TransferTest(unittest.TestCase):
         rtn = self.inst.do_transfer()
         self.assertIn('Checksums generated successfully', func.capture())
         self.assertIn('using gridFTP', func.capture())
-        transfer_cmd = 'globus-url-copy -vb -cd -p 4 -cc 4 -sync ' \
+        transfer_cmd = 'globus-url-copy -vb -cd -cc 4 -sync ' \
             'file:///ArchiveDir/NAME/20000121T0000Z/ '\
             'sshftp://RHOST/XDIR/NAME/20000121T0000Z/'
         mock_exec.assert_any_call(transfer_cmd)
@@ -338,7 +338,7 @@ class TransferTest(unittest.TestCase):
         self.inst._transfer_type = 'pull'
         rtn = self.inst.do_transfer()
         self.assertIn('using gridFTP', func.capture())
-        transfer_cmd = 'globus-url-copy -vb -cd -p 4 -cc 4 -sync ' \
+        transfer_cmd = 'globus-url-copy -vb -cd -cc 4 -sync ' \
             'sshftp://RHOST/ArchiveDir/NAME/20000121T0000Z/ ' \
             'file:///XDIR/NAME/20000121T0000Z/'
         mock_exec.assert_any_call(transfer_cmd)
