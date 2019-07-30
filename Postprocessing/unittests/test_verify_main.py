@@ -41,8 +41,7 @@ class DummyNamelists(object):
 class FilenamesTests(unittest.TestCase):
     ''' Unit tests relating to the filenames module '''
     def setUp(self):
-        archive_integrity.sys = mock.Mock()
-        archive_integrity.sys.argv = []
+        pass
 
     def tearDown(self):
         pass
@@ -91,6 +90,68 @@ class VerifyArchiveTests(unittest.TestCase):
             os.remove('cylclog')
         except OSError:
             pass
+
+    @mock.patch('archive_integrity.sys')
+    @mock.patch('archive_integrity.nlist.load_namelist')
+    @mock.patch('archive_integrity.expected_content.RestartFiles')
+    def test_verify_dates(self, mock_rst, mock_nl, mock_sys):
+        ''' Test verification of the start/end dates'''
+        func.logtest('Assert verfication of start/end dates:')
+        mock_sys.argv = ('script', 'atmos')
+        namelists = DummyNamelists()
+        namelists.atmosverify.verify_model = True
+        mock_nl.return_value = namelists
+        with mock.patch('archive_integrity.expected_content.DiagnosticFiles'):
+            with mock.patch('archive_integrity.moose_archive', return_value={}):
+                archive_integrity.main()
+                mock_rst.assert_called_with('11112233', '44445566', 'runid',
+                                            'atmos', namelists.atmosverify)
+
+                namelists.commonverify.startdate = '20000901T0000Z'
+                namelists.commonverify.enddate = '20000902'
+                archive_integrity.main()
+                mock_rst.assert_called_with(
+                    '20000901T0000Z', '20000902', 'runid', 'atmos',
+                    namelists.atmosverify
+                    )
+
+                namelists.commonverify.startdate = '20000901'
+                namelists.commonverify.enddate = '20010601T0000Z'
+                archive_integrity.main()
+                mock_rst.assert_called_with(
+                    '20000901', '20010601T0000Z', 'runid', 'atmos',
+                    namelists.atmosverify
+                    )
+
+    @mock.patch('archive_integrity.nlist.load_namelist')
+    @mock.patch('archive_integrity.expected_content.RestartFiles')
+    def test_verify_dates_fail(self, mock_rst, mock_nl):
+        ''' Test failure to verify of the start/end dates'''
+        func.logtest('Assert failure to verify of start/end dates:')
+        namelists = DummyNamelists()
+        namelists.atmosverify.verify_model = True
+        with mock.patch('archive_integrity.moose_archive', return_value={}):
+            namelists.commonverify.startdate = '22222222'
+            namelists.commonverify.enddate = '11111111'
+            mock_nl.return_value = namelists
+            with self.assertRaises(SystemExit):
+                archive_integrity.main()
+
+            namelists.commonverify.startdate = '20000902T0000Z'
+            namelists.commonverify.enddate = '20000901'
+            mock_nl.return_value = namelists
+            with self.assertRaises(SystemExit):
+                archive_integrity.main()
+
+            namelists.commonverify.startdate = '20000902'
+            namelists.commonverify.enddate = '20000901T0000Z'
+            mock_nl.return_value = namelists
+            with self.assertRaises(SystemExit):
+                archive_integrity.main()
+
+        self.assertIn('Start date (20000902) preceeds end (20000901T0000Z)',
+                      func.capture('err'))
+        self.assertListEqual(mock_rst.mock_calls, [])
 
     def test_archive_contents(self):
         ''' Test return of the contents of a given archive listing '''
@@ -218,6 +279,7 @@ class VerifyArchiveTests(unittest.TestCase):
         mock_verify.assert_called_once_with({}, {})
         self.assertIn('All expected files', func.capture())
 
+    @mock.patch('archive_integrity.sys')
     @mock.patch('archive_integrity.nlist.load_namelist')
     @mock.patch('expected_content.RestartFiles.expected_files',
                 return_value={'ada': ['dump1']})
@@ -229,9 +291,11 @@ class VerifyArchiveTests(unittest.TestCase):
     @mock.patch('archive_integrity.check_archive_additional')
     @mock.patch('archive_integrity.verify_archive')
     def test_main_function_atmos(self, mock_verify, mock_add, mock_moo,
-                                 mock_log, mock_diag, mock_rst, mock_nl):
+                                 mock_log, mock_diag, mock_rst, mock_nl,
+                                 mock_sys):
         ''' Test main function - atmos namelist'''
         func.logtest('Assert calls to methods by main function - atmos :')
+        mock_sys.argv = ('script', 'atmos')
         expected = {}
         expected.update({'ada': ['dump1']})
         expected.update({'apa': ['pp1']})
@@ -260,6 +324,7 @@ class VerifyArchiveTests(unittest.TestCase):
         mock_add.assert_called_once_with(expected, mock_moo.return_value)
         self.assertIn('Unexpected files present in moose', func.capture())
 
+    @mock.patch('archive_integrity.sys')
     @mock.patch('archive_integrity.nlist.load_namelist')
     @mock.patch('expected_content.RestartFiles.expected_files',
                 return_value={'oda': ['rst1']})
@@ -272,10 +337,11 @@ class VerifyArchiveTests(unittest.TestCase):
     @mock.patch('archive_integrity.check_archive_additional')
     @mock.patch('archive_integrity.verify_archive')
     def test_main_function_nemo(self, mock_verify, mock_add, mock_moo,
-                                mock_log, mock_diag, mock_rst, mock_nl):
+                                mock_log, mock_diag, mock_rst, mock_nl,
+                                mock_sys):
         ''' Test main function - NEMO as script argument'''
         func.logtest('Assert calls by main function - NEMO script arg:')
-        archive_integrity.sys.argv = ('script', 'nemo')
+        mock_sys.argv = ('script', 'nemo')
         expected = {}
         expected.update({'oda': ['rst1']})
         expected.update({'onm.nc.file': ['nc_m1']})

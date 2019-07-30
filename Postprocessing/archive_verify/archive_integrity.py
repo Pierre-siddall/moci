@@ -177,6 +177,11 @@ def main():
     load_nl = nlist.load_namelist('verify.nl')
     startdate = load_nl.commonverify.startdate
     enddate = load_nl.commonverify.enddate
+    # Check that we're dealing with a positive length of period
+    datelen = min(len(str(startdate)), len(str(enddate)))
+    if str(startdate)[:datelen] > str(enddate)[:datelen]:
+        msg = 'archive_integrity: Start date ({}) preceeds end ({})'
+        utils.log_msg(msg.format(startdate, enddate), level='ERROR')
     prefix = load_nl.commonverify.prefix
     dataset = load_nl.commonverify.dataset
     if load_nl.commonverify.testing:
@@ -203,7 +208,6 @@ def main():
             getattr(load_nl, namelist)
             )
         expected_files.update(restarts.expected_files())
-
         # Diagnostic files
         diagnostics = expected_content.DiagnosticFiles(
             startdate, enddate, prefix, model,
