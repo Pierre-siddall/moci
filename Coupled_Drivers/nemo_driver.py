@@ -585,21 +585,38 @@ def _setup_executable(common_envar):
 
     #Make our call to update the nemo namelist. First generate the list
     #of commands
-    update_nl_cmd = '--file %s --runid %so --restart %s --restart_ctl %s' \
-        ' --next_step %i --final_step %s --start_date %s --leapyear %i' \
-        ' --iproc %s --jproc %s --ijproc %s --cpl_river_count %s --verbose' % \
-        (nemo_envar['NEMO_NL'], \
-             common_envar['RUNID'], \
-             ln_restart, \
-             restart_ctl, \
-             nemo_next_step, \
-             nemo_final_step, \
-             nemo_ndate0, \
-             nleapy, \
-             nemo_envar['NEMO_IPROC'], \
-             nemo_envar['NEMO_JPROC'], \
-             nemo_envar['NEMO_NPROC'], \
-	     nemo_envar['CPL_RIVER_COUNT'])
+    if int(nemo_envar['NEMO_VERSION']) >= 400:
+        # from NEMO 4.0 onwards we don't have jpnij in the namelist
+        update_nl_cmd = '--file %s --runid %so --restart %s --restart_ctl %s' \
+            ' --next_step %i --final_step %s --start_date %s --leapyear %i' \
+            ' --iproc %s --jproc %s  --cpl_river_count %s --verbose' % \
+            (nemo_envar['NEMO_NL'], \
+                 common_envar['RUNID'], \
+                 ln_restart, \
+                 restart_ctl, \
+                 nemo_next_step, \
+                 nemo_final_step, \
+                 nemo_ndate0, \
+                 nleapy, \
+                 nemo_envar['NEMO_IPROC'], \
+                 nemo_envar['NEMO_JPROC'], \
+                 nemo_envar['CPL_RIVER_COUNT'])
+    else:
+        update_nl_cmd = '--file %s --runid %so --restart %s --restart_ctl %s' \
+            ' --next_step %i --final_step %s --start_date %s --leapyear %i' \
+            ' --iproc %s --jproc %s --ijproc %s  --cpl_river_count %s --verbose' % \
+            (nemo_envar['NEMO_NL'], \
+                 common_envar['RUNID'], \
+                 ln_restart, \
+                 restart_ctl, \
+                 nemo_next_step, \
+                 nemo_final_step, \
+                 nemo_ndate0, \
+                 nleapy, \
+                 nemo_envar['NEMO_IPROC'], \
+                 nemo_envar['NEMO_JPROC'], \
+                 nemo_envar['NEMO_NPROC'], \
+                 nemo_envar['CPL_RIVER_COUNT'])
 
     update_nl_cmd = './update_nemo_nl %s' % update_nl_cmd
 
