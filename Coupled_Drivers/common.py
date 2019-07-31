@@ -286,6 +286,8 @@ def setup_runtime():
             calendar = '360'
         elif calendar == '365day':
             calendar = '365'
+        elif calendar == 'gregorian':
+            pass
         else:
             sys.stderr.write('[FAIL] setup_runtime: Calendar type %s not' \
                                  ' recognised\n' % calendar)
