@@ -28,7 +28,11 @@ import stat
 import common
 import error
 import save_um_state
-
+import create_namcouple
+try:
+    import f90nml
+except ImportError:
+    pass
 
 def _grab_xhist_date(xhistfile):
     '''
@@ -56,7 +60,7 @@ def _grab_xhist_date(xhistfile):
     return checkpoint_date
 
 
-def _verify_fix_rst(xhistfile, cyclepoint, workdir, task_name):
+def verify_fix_rst(xhistfile, cyclepoint, workdir, task_name, temp_hist_name):
     '''
     Verify that the restart dump the UM is attempting to pick up is for the
     start of the cycle. The cyclepoint variable has the form yyyymmddThhmmZ.
@@ -76,7 +80,7 @@ def _verify_fix_rst(xhistfile, cyclepoint, workdir, task_name):
                                                      task_name)
         old_hist_path = os.path.join(prev_work_dir, 'history_archive')
         old_hist_files = [f for f in os.listdir(old_hist_path) if
-                          'temp_hist' in f]
+                          temp_hist_name in f]
         old_hist_files.sort(reverse=True)
         for o_h_f in old_hist_files:
             xhist_date = _grab_xhist_date(os.path.join(old_hist_path, o_h_f))
@@ -134,6 +138,7 @@ def _load_run_environment_variables(um_envar):
     _ = um_envar.load_envar('STASHMSTR', '')
     _ = um_envar.load_envar('SHARED_FNAME', 'SHARED')
     _ = um_envar.load_envar('FLUME_IOS_NPROC', '0')
+    _ = um_envar.load_envar('CPL_RIVER_COUNT', '0')
 
     load_shared_fname = um_envar.load_envar('SHARED_FNAME')
     if load_shared_fname == 0:
@@ -170,7 +175,8 @@ def _setup_executable(common_envar):
     # Save the state of the partial sum files, or restore state depending on
     # what is required. This doesnt currently make sense for integer cycling
     if common_envar['CYLC_CYCLING_MODE'] != 'integer':
-        save_um_state.save_state(common_envar, um_envar['CONTINUE'])
+        save_um_state.save_state(common_envar['RUNID'], common_envar,
+                                 um_envar['CONTINUE'])
 
     # Create a link to the UM atmos exec in the work directory
     common.remove_file(um_envar['ATMOS_LINK'])
@@ -188,10 +194,11 @@ def _setup_executable(common_envar):
                              um_envar['HISTORY'])
             sys.exit(error.MISSING_DRIVER_FILE_ERROR)
         if common_envar['DRIVERS_VERIFY_RST'] == 'True':
-            _verify_fix_rst(um_envar['HISTORY'],
-                            common_envar['CYLC_TASK_CYCLE_POINT'],
-                            common_envar['CYLC_TASK_WORK_DIR'],
-                            common_envar['CYLC_TASK_NAME'])
+            verify_fix_rst(um_envar['HISTORY'],
+                           common_envar['CYLC_TASK_CYCLE_POINT'],
+                           common_envar['CYLC_TASK_WORK_DIR'],
+                           common_envar['CYLC_TASK_NAME'],
+                           'temp_hist')
     um_envar.add('HISTORY_TEMP', 'thist')
 
     # Calculate total number of processes
@@ -209,7 +216,7 @@ def _setup_executable(common_envar):
         stashmaster = os.path.join(um_envar['UMDIR'],
                                    'vn%s' % (um_envar['VN']),
                                    'ctldata', 'STASHmaster')
-        sys.stdout.write('[INFO] Using default STASHmaster %s' %
+        sys.stdout.write('[INFO] Using default STASHmaster %s\n' %
                          stashmaster)
         um_envar['STASHMASTER'] = stashmaster
     if um_envar['STASHMSTR'] == '':
@@ -249,6 +256,290 @@ def _set_launcher_command(um_envar):
 
     return launch_cmd
 
+def get_atmos_resol(um_name, um_resol_file, run_info):
+    '''
+    Determine the atmosphere resolution.
+    This function is only used when creating the namcouple at run time.
+    '''
+
+    # Check that resolution file exists
+    if not os.path.isfile(um_resol_file):
+        sys.stderr.write('[FAIL] not found %s file.\n' % um_resol_file)
+        sys.exit(error.MISSING_FILE_SIZES)
+
+    # Read the resolution file
+    sizes_nml = f90nml.read(um_resol_file)
+
+    # Check the horizontal resolution variables exist
+    if not 'nlsizes' in sizes_nml:
+        sys.stderr.write('[FAIL] nlsizes not found in %s\n' % \
+                             um_resol_file)
+        sys.exit(error.MISSING_ATM_RESOL_NML)
+    if not 'global_row_length' in sizes_nml['nlsizes'] or \
+            not 'global_rows' in sizes_nml['nlsizes']:
+        sys.stderr.write('[FAIL] global_row_length or global_rows are '
+                         'missing from namelist nlsizes in %s\n' % \
+                             um_resol_file)
+        sys.exit(error.MISSING_ATM_HORIZ_RESOL)
+
+    # Store the grid
+    atmos_resol = int(sizes_nml['nlsizes']['global_row_length'] / 2)
+    atmos_grid_name = um_name + '_grid'
+    if um_name == 'JNR':
+        run_info[atmos_grid_name] = 'n' + str(atmos_resol) + 'j'
+    else:
+        run_info[atmos_grid_name] = 'n' + str(atmos_resol)
+
+    # Store the resolution
+    atmos_resol_name = um_name + '_resol'
+    run_info[atmos_resol_name] = [sizes_nml['nlsizes']['global_row_length'],
+                                  sizes_nml['nlsizes']['global_rows']]
+
+    # Check that vertical resolution exists
+    if not 'model_levels' in sizes_nml['nlsizes']:
+        sys.stderr.write('[FAIL] model_levels is missing from namelist '
+                         'nlsizes in %s\n' % um_resol_file)
+        sys.exit(error.MISSING_ATM_VERT_RESOL)
+
+    # Store the vertical levels for atmosphere
+    atmos_lev_name = um_name + '_model_levels'
+    run_info[atmos_lev_name] = sizes_nml['nlsizes']['model_levels']
+
+    return run_info
+
+def get_jules_levels(jules_resol_file):
+    '''
+    Determine the number of levels in JULES.
+    This function is only used when creating the namcouple at run time.
+    '''
+
+    # Check that resolution file exists
+    if not os.path.isfile(jules_resol_file):
+        sys.stderr.write('[FAIL] not found %s file.\n' % jules_resol_file)
+        sys.exit(error.MISSING_FILE_SHARED)
+
+    # Read the resolution file
+    sizes_nml = f90nml.read(jules_resol_file)
+
+    # Check that soil depths exist
+    if not 'jules_soil' in sizes_nml:
+        sys.stderr.write('[FAIL] jules_soil not found in %s\n' % \
+                         jules_resol_file)
+        sys.exit(error.MISSING_JULES_RESOL_NML)
+    if not 'dzsoil_io' in sizes_nml['jules_soil']:
+        sys.stderr.write('[FAIL] dzsoil_io is missing from namelist '
+                         'jules_soil in %s\n' % jules_resol_file)
+        sys.exit(error.MISSING_JULES_VERT_RESOL)
+
+    # Return the vertical levels for soil
+    return len(sizes_nml['jules_soil']['dzsoil_io'])
+
+def _add_hybrid_cpl(n_cpl_freq, cpl_list, origin, dest, name_out_ident,
+                    rmp_mapping, mapping_order, hybrid_weight):
+    '''
+    Write the hybrid coupling fields into hybrid_snd_list.
+    This function is only used when creating the namcouple at run time.
+    '''
+
+    if cpl_list:
+        hybrid_snd_list = []
+        if isinstance(cpl_list, int):
+            # Convert single integer to a list
+            cpl_list = [cpl_list]
+
+        # Loop across the fields to couple
+        for stash_code in cpl_list:
+            name_out = '{:05d}'.format(stash_code) + name_out_ident + '001'
+
+            # Add entry
+            hybrid_snd_list.append(
+                create_namcouple.NamcoupleEntry(name_out,
+                                                (100000 + stash_code),
+                                                '?', origin, dest, -99, '?',
+                                                rmp_mapping, mapping_order,
+                                                hybrid_weight, True,
+                                                n_cpl_freq))
+
+            # Move to next entry
+            hybrid_weight += 1
+    else:
+        # There's no extra coupling fields
+        hybrid_snd_list = None
+
+    return hybrid_weight, hybrid_snd_list
+
+def read_hybrid_coupling(hybrid_file_nml, run_info, oasis_nml):
+    '''
+    Read the hybrid coupling namelist and store the hybrid coupling
+    fields.
+    This function is only used when creating the namcouple at run time.
+    '''
+
+    # Determine if hybrid sending file is present
+    if os.path.exists(hybrid_file_nml):
+        # Determine if this Snr->Jnr or Jnr->Snr coupling
+        if hybrid_file_nml == 'HYBRID_SNR2JNR':
+            # These are Snr->Jnr fields
+            origin = 'ATM'
+            dest   = 'JNR'
+            name_out_ident = 's'
+        else:
+            # These are Jnr->Snr fields
+            origin = 'JNR'
+            dest   = 'ATM'
+            name_out_ident = 'j'
+
+        # The default option
+        mapping_order = -99
+
+        # Check we have the data in oasis_nml which we need
+        if not 'hybrid_weight' in oasis_nml['oasis_send_nml']:
+            sys.stderr.write('[FAIL] entry hybrid_weight missing '
+                             'from namelist oasis_send_nml.\n')
+            sys.exit(error.MISSING_HYBRID_WEIGHT)
+        else:
+            hybrid_weight = oasis_nml['oasis_send_nml']['hybrid_weight']
+        if not 'hybrid_rmp_mapping' in oasis_nml['oasis_send_nml']:
+            sys.stderr.write('[FAIL] entry hybrid_rmp_mapping missing '
+                             'from namelist oasis_send_nml.\n')
+            sys.exit(error.MISSING_HYBRID_RMP_MAPPING)
+        else:
+            rmp_mapping = oasis_nml['oasis_send_nml']['hybrid_rmp_mapping']
+            i_ext = rmp_mapping.find('_1st')
+            if i_ext > 0:
+                mapping_order = 1
+                rmp_mapping = rmp_mapping[0:i_ext]
+            else:
+                i_ext = rmp_mapping.find('_2nd')
+                if i_ext > 0:
+                    mapping_order = 2
+                    rmp_mapping = rmp_mapping[0:i_ext]
+
+        # Read the hybrid namelist
+        hybrid_nml = f90nml.read(hybrid_file_nml)
+
+        # Check we have the expected information
+        if not 'hybrid_cpl' in hybrid_nml:
+            sys.stderr.write('[FAIL] namelist hybrid_cpl is missing '
+                             'from %s.\n' % hybrid_nml)
+            sys.exit(error.MISSING_HYBRID_NML)
+        if not 'cpl_hybrid' in hybrid_nml['hybrid_cpl']:
+            sys.stderr.write('[FAIL] entry cpl_hybrid is missing '
+                             'from namelist hybrid_cpl in %s.\n' %
+                             hybrid_nml)
+            sys.exit(error.MISSING_HYBRID_SEND)
+
+        # Check that we have some hybrid fields to send
+        if hybrid_nml['hybrid_cpl']['cpl_hybrid']:
+            hybrid_weight, hybrid_snd_list = \
+                _add_hybrid_cpl(0, hybrid_nml['hybrid_cpl']['cpl_hybrid'],
+                                origin, dest, name_out_ident, rmp_mapping,
+                                mapping_order, hybrid_weight)
+
+            # Are there any extra stats to send
+            if 'l_hybrid_stats' in hybrid_nml['hybrid_cpl']:
+                if hybrid_nml['hybrid_cpl']['l_hybrid_stats'] and \
+                        'cpl_hybrid_stats' in hybrid_nml['hybrid_cpl']:
+                    hybrid_weight, hybrid_snd_stat_list = _add_hybrid_cpl(
+                        1, hybrid_nml['hybrid_cpl']['cpl_hybrid_stats'],
+                        origin, dest, name_out_ident, rmp_mapping,
+                        mapping_order, hybrid_weight)
+
+                    if hybrid_snd_stat_list:
+                        hybrid_snd_list.extend(hybrid_snd_stat_list)
+
+                # Need to store value of l_hybrid_stats in case it's
+                # true and any of the coupling frequencies need
+                # modifying as a consequence.
+                if hybrid_nml['hybrid_cpl']['l_hybrid_stats']:
+                    flag_name = 'l_hyb_stats_' + origin + '2' + dest
+                    run_info[flag_name] = True
+        else:
+            # No fields are being sent from this component
+            hybrid_snd_list = None
+    else:
+        # File is missing, so no coupling field are being sent to the
+        # other hybrid component.
+        hybrid_snd_list = None
+
+    return run_info, hybrid_snd_list
+
+def _sent_coupling_fields(run_info):
+    '''
+    Write the coupling fields sent from UM into model_snd_list.
+    This function is only used when creating the namcouple at run time.
+    '''
+    # Check that file specifying the coupling fields sent from
+    # UM is present
+    if not os.path.exists('OASIS_ATM_SEND'):
+        sys.stderr.write('[FAIL] OASIS_ATM_SEND is missing.\n')
+        sys.exit(error.MISSING_OASIS_ATM_SEND)
+
+    # Add toyatm to our list of executables
+    if not 'exec_list' in run_info:
+        run_info['exec_list'] = []
+    run_info['exec_list'].append('toyatm')
+
+    # Determine the atmosphere resolution
+    run_info = get_atmos_resol('ATM', 'SIZES', run_info)
+
+    # Determine the soil levels
+    run_info['ATM_soil_levels'] = get_jules_levels('SHARED')
+
+    # Read the namelist OASIS_ATM_SND (note that this must exist
+    # or run_info['l_namecouple'] wouldn't be false and we wouldn't
+    # be here)
+    oasis_nml = f90nml.read('OASIS_ATM_SEND')
+
+    # Check with have the expected namelist in this file
+    if not 'oasis_send_nml' in oasis_nml:
+        sys.stderr.write('[FAIL] namelist oasis_send_nml is '
+                         'missing from OASIS_ATM_SEND.\n')
+        sys.exit(error.MISSING_OASIS_SEND_NML_ATM)
+
+    # Store core namcouple options
+    # The namcoupled debug value
+    if 'nlogprt' in oasis_nml['oasis_send_nml']:
+        run_info['nlogprt'] = oasis_nml['oasis_send_nml']['nlogprt']
+        if isinstance(run_info['nlogprt'], int):
+            # Convert single integer to a list
+            run_info['nlogprt'] = [run_info['nlogprt']]
+    else:
+        run_info['nlogprt'] = 0
+    # Determine if any namcouple coupling should use EXPOUT
+    if 'expout' in oasis_nml['oasis_send_nml']:
+        if isinstance(oasis_nml['oasis_send_nml']['expout'], list):
+            run_info['expout'] = oasis_nml['oasis_send_nml']['expout']
+        else:
+            run_info['expout'] = [oasis_nml['oasis_send_nml']['expout']]
+    # Determine if any remapping file need to be created by OASIS-mct
+    if 'rmp_create' in oasis_nml['oasis_send_nml']:
+        if isinstance(oasis_nml['oasis_send_nml']['rmp_create'], list):
+            run_info['rmp_create'] = \
+                oasis_nml['oasis_send_nml']['rmp_create']
+        else:
+            run_info['rmp_create'] = \
+                [oasis_nml['oasis_send_nml']['rmp_create']]
+
+    # Create a list of fields sent from ATM
+    model_snd_list = None
+    if 'oasis_atm_send' in oasis_nml['oasis_send_nml']:
+        # Check that we have some fields in here
+        if oasis_nml['oasis_send_nml']['oasis_atm_send']:
+            model_snd_list = create_namcouple.add_to_cpl_list(
+                'ATM', False, 0,
+                oasis_nml['oasis_send_nml']['oasis_atm_send'])
+
+    # Add any hybrid coupling fields
+    run_info, hybrid_snd_list = read_hybrid_coupling('HYBRID_SNR2JNR',
+                                                     run_info, oasis_nml)
+    if hybrid_snd_list:
+        if model_snd_list:
+            model_snd_list.extend(hybrid_snd_list)
+        else:
+            model_snd_list = hybrid_snd_list
+
+    return run_info, model_snd_list
 
 def _finalize_executable(_):
     '''
@@ -311,7 +602,7 @@ def _finalize_executable(_):
                      stat.S_IRGRP | stat.S_IROTH)
 
 
-def run_driver(common_envar, mode):
+def run_driver(common_envar, mode, run_info):
     '''
     Run the driver, and return an instance of common.LoadEnvar and as string
     containing the launcher command for the UM component
@@ -319,8 +610,18 @@ def run_driver(common_envar, mode):
     if mode == 'run_driver':
         exe_envar = _setup_executable(common_envar)
         launch_cmd = _set_launcher_command(exe_envar)
+        if run_info['l_namcouple']:
+            model_snd_list = None
+        else:
+            run_info, model_snd_list = _sent_coupling_fields(run_info)
+            # We'll probably need the name of SHARED file later in
+            # MCT driver and we'll need the STASHmaster directory
+            run_info['SHARED_FILE'] = exe_envar['SHARED_NLIST']
+            run_info['STASHMASTER'] = exe_envar['STASHMASTER']
+            run_info['riv3'] = int(exe_envar['CPL_RIVER_COUNT'])
     elif mode == 'finalize':
         _finalize_executable(common_envar)
         exe_envar = None
         launch_cmd = None
-    return exe_envar, launch_cmd
+        model_snd_list = None
+    return exe_envar, launch_cmd, run_info, model_snd_list

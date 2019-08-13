@@ -108,6 +108,16 @@ def _get_datam_output_runonly(common_envar, cpmip_envar, timeout):
         else:
             failed_components.append('UM')
 
+    # Jnr UM files
+    if 'jnr' in cpmip_envar['models']:
+        jnr_path_gl = os.path.join(common_envar['DATAM'],
+                                  '%s*' % cpmip_envar['RUNID_JNR'])
+        jnr_usage = _get_glob_usage(jnr_path_gl, timeout)
+        if jnr_usage >= 0.0:
+            total_usage += jnr_usage
+        else:
+            failed_components.append('Jnr')
+
     # nemo files
     if 'nemo' in cpmip_envar['models']:
         nemo_path_gl = os.path.join(common_envar['DATAM'], 'NEMOhist', '*')
@@ -183,16 +193,10 @@ def _measure_xios_client_times(timeout=120):
     return mean_time, max_time
 
 
-def data_intensity_initial(common_envar, cpmip_envar):
+def data_intensity_setup_nemo(common_envar):
     '''
-    Setup for the data intensity metric, getting intial directory sizes,
-    and write to a placeholder file. Also set up IODEF file to produce
-    XIOS timing files
+    Set up IODEF file to produce XIOS timing files
     '''
-    size_k = _get_datam_output_runonly(common_envar, cpmip_envar,
-                                       FS_OPERATION_TIMEOUT)
-    with common.open_text_file('datam.size', 'w') as f_size:
-        f_size.write(str(size_k))
     with open('iodef.xml', 'r') as f_in, \
             open('iodef_out.xml', 'w') as f_out:
         update = False
@@ -213,20 +217,46 @@ def data_intensity_initial(common_envar, cpmip_envar):
                     update = True
     shutil.move('iodef_out.xml', 'iodef.xml')
 
+
+def data_intensity_initial(common_envar, cpmip_envar):
+    '''
+    Setup for the data intensity metric, getting intial directory sizes,
+    and write to a placeholder file.
+    '''
+    size_k = _get_datam_output_runonly(common_envar, cpmip_envar,
+                                       FS_OPERATION_TIMEOUT)
+    with common.open_text_file('datam.size', 'w') as f_size:
+        f_size.write(str(size_k))
+
+
 def data_intensity_final(core_hour_cycle, common_envar, cpmip_envar):
     '''
     Calculate the data intensity metric. This is the increase in size of
     DATAM between the start and end of the coupled app, as well as the
     total size of the NEMO output files in the coupled work directory
     '''
-    with common.open_text_file('datam.size', 'r') as f_size:
-        for line in f_size.readlines():
-            size_init = float(line)
-    size_final = _get_datam_output_runonly(common_envar, cpmip_envar,
-                                           FS_OPERATION_TIMEOUT)
-    size_wrkdir = _get_workdir_netcdf_output()
-    if size_final > -1.0 and size_init > -1.0 and size_wrkdir > -1.0:
-        data_produced_k = (size_final - size_init) + size_wrkdir
+    if 'um' in cpmip_envar['models']:
+        with common.open_text_file('datam.size', 'r') as f_size:
+            for line in f_size.readlines():
+                size_init = float(line)
+        size_final = _get_datam_output_runonly(common_envar, cpmip_envar,
+                                               FS_OPERATION_TIMEOUT)
+        datam_size = size_final - size_init
+    else:
+        datam_size = 0
+
+    if 'nemo' in cpmip_envar['models']:
+        size_wrkdir = _get_workdir_netcdf_output()
+    else:
+        size_wrkdir = 0
+
+    data_produced_k = 0
+    if datam_size > -1.0:
+        data_produced_k += datam_size
+    if size_wrkdir > -1.0:
+        data_produced_k += size_wrkdir
+
+    if data_produced_k > 0:
         data_produced_g = data_produced_k / (1024. * 1024.)
         data_intensity = data_produced_g / core_hour_cycle
     else:
@@ -240,7 +270,7 @@ def get_allocated_cpus(cpmip_envar):
     '''
     Grab the allocated nproc for the UM XC40
     '''
-    models = ['UM', 'NEMO', 'XIOS']
+    models = ['UM', 'JNR', 'NEMO', 'XIOS']
     allocated_cpu = {}
     mpi_tasks = {}
     for model in models:
@@ -396,9 +426,21 @@ def __get_um_info(pe0_output):
     spent in the UMs coupling routines
     '''
     get_times = False
+
+    # Zero times in case they're not in output
+    geto2a_time = 0
+    puta2o_time = 0
+    inita2o_time = 0
+    get_hyb_time = 0
+    put_hyb_time = 0
+    init_hyb_time = 0
+
     geto2a_regex = re.compile(r"\d+\s*oasis3_geto2a\s*(\d+.\d+)")
     puta2o_regex = re.compile(r"\d+\s*oasis3_puta2o\s*(\d+.\d+)")
     inita2o_regex = re.compile(r"\d+\s*oasis3_inita2o\s*(\d+.\d+)")
+    get_hyb_regex = re.compile(r"\d+\s*oasis3_get_hybrid\s*(\d+.\d+)")
+    put_hyb_regex = re.compile(r"\d+\s*oasis3_put_hybrid\s*(\d+.\d+)")
+    init_hyb_regex = re.compile(r"\d+\s*oasis_init_hybrid\s*(\d+.\d+)")
     um_shell_regex = re.compile(r"\d+\s*UM_SHELL\s*(\d+.\d+)")
     with open(pe0_output, 'r') as f_pe0:
         for line in f_pe0:
@@ -411,6 +453,9 @@ def __get_um_info(pe0_output):
                 geto2a_match = geto2a_regex.search(line)
                 puta2o_match = puta2o_regex.search(line)
                 inita2o_match = inita2o_regex.search(line)
+                get_hyb_match = get_hyb_regex.search(line)
+                put_hyb_match = put_hyb_regex.search(line)
+                init_hyb_match = init_hyb_regex.search(line)
                 um_shell_match = um_shell_regex.search(line)
                 if geto2a_match:
                     geto2a_time = float(geto2a_match.group(1))
@@ -418,16 +463,24 @@ def __get_um_info(pe0_output):
                     puta2o_time = float(puta2o_match.group(1))
                 if inita2o_match:
                     inita2o_time = float(inita2o_match.group(1))
+                if get_hyb_match:
+                    get_hyb_time = float(get_hyb_match.group(1))
+                if put_hyb_match:
+                    put_hyb_time = float(put_hyb_match.group(1))
+                if init_hyb_match:
+                    init_hyb_time = float(init_hyb_match.group(1))
                 if um_shell_match:
                     um_shell_time = float(um_shell_match.group(1))
     try:
-        coupling_time = geto2a_time + puta2o_time + inita2o_time
         model_time = um_shell_time
+        put_time = puta2o_time + put_hyb_time
+        coupling_time = put_time + geto2a_time + inita2o_time + \
+            get_hyb_time + init_hyb_time
     except NameError:
         sys.stderr.write('[FAIL] Unable to determine Oasis timings from'
                          ' the UM standard output\n')
         sys.exit(error.MISSING_CONTROLLER_FILE_ERROR)
-    return model_time, coupling_time
+    return model_time, coupling_time, put_time
 
 
 def __get_nemo_io(nemo_timing_output='timing.output'):
@@ -513,6 +566,7 @@ def __get_nemo_info(nemo_timing_output='timing.output'):
             (100.0 - rcv_percentge - init_percentge - snd_percentge) * 0.01
         coupling_time = total_time * \
             (rcv_percentge + init_percentge + snd_percentge) * 0.01
+        put_time = total_time * snd_percentge * 0.01
     except NameError:
         sys.stderr.write('[FAIL] Unable to determine Oasis timings from'
                          ' the NEMO standard output\n')
@@ -525,15 +579,15 @@ def __get_nemo_info(nemo_timing_output='timing.output'):
                          ' configuration')
         cice_time = False
 
-    return model_time, coupling_time, cice_time
+    return model_time, coupling_time, put_time, cice_time
 
 
-def __update_namelists_for_timing(cpmip_envar):
+def __update_namelists_for_timing_um(cpmip_envar, nml_shared, nml_ioscntl):
     '''
-    Update the UM and NEMO namelists to ensure that the timers are set
+    Update the UM namelists to ensure that the timers are set
     to be running
     '''
-    mod_shared_nl = common.ModNamelist('SHARED')
+    mod_shared_nl = common.ModNamelist(nml_shared)
     try:
         num_version = float(cpmip_envar['VN'])
     except ValueError:
@@ -562,13 +616,41 @@ def __update_namelists_for_timing(cpmip_envar):
     # avoid too much skewing of load balancing information. prnt_writers
     # takes integer values: 1 - all tasks, 2 - rank 0, 3 - rank 0 and head
     # IO servers
-    mod_ioscntl_nl = common.ModNamelist('IOSCNTL')
+    mod_ioscntl_nl = common.ModNamelist(nml_ioscntl)
     mod_ioscntl_nl.var_val('prnt_writers', 2)
     mod_ioscntl_nl.replace()
 
+    # Ocean needs to know about nn_timing_val
+    return nn_timing_val
+
+def __update_namelists_for_timing_nemo(cpmip_envar, nn_timing_val):
+    '''
+    Update NEMO namelist to ensure that timers are running
+    '''
     mod_namelist_cfg = common.ModNamelist(cpmip_envar['NEMO_NL'])
     mod_namelist_cfg.var_val('nn_timing', nn_timing_val)
     mod_namelist_cfg.replace()
+
+
+def __update_namelists_for_timing(cpmip_envar):
+    '''
+    Update the UM and NEMO namelists to ensure that the timers are set
+    to be running
+    '''
+    # Update namelists for UM
+    if 'um' in cpmip_envar['models']:
+        nn_timing_val = \
+            __update_namelists_for_timing_um(cpmip_envar, 'SHARED',
+                                             'IOSCNTL')
+
+    # Update namelists for Jnr
+    if 'jnr' in cpmip_envar['models']:
+        _ = __update_namelists_for_timing_um(cpmip_envar, 'SHARED_JNR',
+                                             'IOSCNTL_JNR')
+
+    # Update namelist for NEMO
+    if 'nemo' in cpmip_envar['models']:
+        __update_namelists_for_timing_nemo(cpmip_envar, nn_timing_val)
 
 
 def _get_component_resolution(nlist_file, resolution_variables):
@@ -607,6 +689,35 @@ def __increment_dump(datestr, resub, resub_units):
     return '%04d%02d%02d' % (year, month, day)
 
 
+def _get_complexity_um(model_name, runid, datam_dir, cycle_date,
+                       msg, total_complexity):
+    '''
+    Calculate the UM complexity
+    '''
+    dump_name = '%sa.da%s_00' % (runid, cycle_date)
+    dump_path = os.path.join(datam_dir, dump_name)
+
+    # Get the fraction of fields within the model that are prognostic
+    if MULE_AVAIL and os.path.isfile(dump_path):
+        umfile = mule.UMFile.from_file(dump_path,
+                                       remove_empty_lookups=True)
+        # What number of our fields are prognostics?
+        prog_fields = umfile.fixed_length_header.raw[153]
+        # How many levels are in the model (p_levels)
+        number_p_levels = umfile.integer_constants.raw[8]
+        # What is the resolution of the model?
+        um_res = umfile.integer_constants.raw[6] * \
+            umfile.integer_constants.raw[7] * number_p_levels
+        um_complexity = float(prog_fields) / float(number_p_levels)
+        msg += 'The %s complexity is %i, and total resolution %i\n' % \
+            (model_name, um_complexity, um_res)
+        total_complexity += um_complexity
+    else:
+        msg += 'Unable to calculate %s complexity and %s resolution\n' % \
+            (model_name, model_name)
+
+    return msg, total_complexity
+
 def _get_complexity(common_envar, cpmip_envar):
     '''
     Calculate the model complexity. Takes in the cpmip_envar object and
@@ -621,25 +732,16 @@ def _get_complexity(common_envar, cpmip_envar):
     cycle_date = __increment_dump(cycle_date, cpmip_envar['RESUB'],
                                   cpmip_envar['CYCLE'])
     if 'um' in cpmip_envar['models']:
-        dump_name = '%sa.da%s_00' % (common_envar['RUNID'], cycle_date)
-        dump_path = os.path.join(cpmip_envar['DATAM'], dump_name)
-        # Get the fraction of fields within the model that are prognostic
-        if MULE_AVAIL and os.path.isfile(dump_path):
-            umfile = mule.UMFile.from_file(dump_path,
-                                           remove_empty_lookups=True)
-            # What number of our fields are prognostics?
-            prog_fields = umfile.fixed_length_header.raw[153]
-            # how many levels are in the model (p_levels)
-            number_p_levels = umfile.integer_constants.raw[8]
-            # what is the resolution of the model?
-            um_res = umfile.integer_constants.raw[6] * \
-                umfile.integer_constants.raw[7] * number_p_levels
-            um_complexity = float(prog_fields) / float(number_p_levels)
-            msg += 'The UM complexity is %i, and total resolution %i\n' % \
-                (um_complexity, um_res)
-            total_complexity += um_complexity
-        else:
-            msg += 'Unable to calculate UM complexity and UM resolution\n'
+        msg, total_complexity = \
+            _get_complexity_um('UM', common_envar['RUNID'],
+                               cpmip_envar['DATAM'], cycle_date,
+                               msg, total_complexity)
+
+    if 'jnr' in cpmip_envar['models']:
+        msg, total_complexity = \
+            _get_complexity_um('Jnr', cpmip_envar['RUNID_JNR'],
+                               cpmip_envar['DATAM'], cycle_date,
+                               msg, total_complexity)
 
     if 'nemo' in cpmip_envar['models']:
         nemo_res = _get_component_resolution(cpmip_envar['NEMO_NL'],
@@ -679,7 +781,12 @@ def _load_environment_variables(cpmip_envar):
         sys.stderr.write('[FAIL] Environment variable VN containing the '
                          'UM version is not set\n')
         sys.exit(error.MISSING_EVAR_ERROR)
-    _ = cpmip_envar.load_envar('NEMO_NL', 'namelist_cfg')
+    if cpmip_envar.load_envar('models') != 0:
+        sys.stderr.write('[FAIL] Environment variable models containing the '
+                         'models used is not set\n')
+        sys.exit(error.MISSING_EVAR_ERROR)
+    if 'nemo' in cpmip_envar['models']:
+        _ = cpmip_envar.load_envar('NEMO_NL', 'namelist_cfg')
     _ = cpmip_envar.load_envar('IO_COST', 'False')
     _ = cpmip_envar.load_envar('DATA_INTENSITY', 'False')
     # Get the component models
@@ -687,6 +794,15 @@ def _load_environment_variables(cpmip_envar):
         sys.stderr.write('[FAIL] Environment variable models containing a list'
                          ' of component models is not set\n')
         sys.exit(error.MISSING_EVAR_ERROR)
+    # RUNID_JNR is required if Junior UM is running
+    if 'jnr' in cpmip_envar['models']:
+        if cpmip_envar.load_envar('RUNID_JNR') != 0:
+            sys.stderr.write('[FAIL] Environment variable RUNID_JNR is '
+                             'not set\n')
+            sys.exit(error.MISSING_EVAR_ERROR)
+
+    # Number of processes per node
+    _ = cpmip_envar.load_envar('PPN', '0')
 
     return cpmip_envar
 
@@ -696,8 +812,6 @@ def _load_environment_variables_finalise(cpmip_envar):
     Load the CPMIP environment variables required for the model finalize
     into the cpmip_envar container
     '''
-    _ = cpmip_envar.load_envar('NEMO_NL', 'namelist_cfg')
-
     _ = cpmip_envar.load_envar('TOTAL_POWER_CONSUMPTION', '')
     _ = cpmip_envar.load_envar('NODES_IN_HPC', '')
 
@@ -727,44 +841,89 @@ def _load_environment_variables_finalise(cpmip_envar):
                          ' of component models is not set\n')
         sys.exit(error.MISSING_EVAR_ERROR)
 
-    # Get the number of processors the components run on
-    # UM
-    if cpmip_envar.load_envar('UM_ATM_NPROCX') != 0:
-        sys.stderr.write('[FAIL] Environment variable UM_ATM_NPROCX containing '
-                         'the number of UM processors in the X direction '
-                         'is not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if cpmip_envar.load_envar('UM_ATM_NPROCY') != 0:
-        sys.stderr.write('[FAIL] Environment variable UM_ATM_NPROCY containing '
-                         'the number of UM processors in the Y direction '
-                         'is not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    _ = cpmip_envar.load_envar('FLUME_IOS_NPROC', '0')
-    # NEMO
-    if cpmip_envar.load_envar('NEMO_NPROC') != 0:
-        sys.stderr.write('[FAIL] Environment variable NEMO_NPROC containing '
-                         'the number of NEMO processors not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    # XIOS (If applicable)
-    _ = cpmip_envar.load_envar('XIOS_NPROC', '0')
+    # Get the number of processors that the UM runs on
+    if 'um' in cpmip_envar['models']:
+        if cpmip_envar.load_envar('UM_ATM_NPROCX') != 0:
+            sys.stderr.write('[FAIL] Environment variable UM_ATM_NPROCX '
+                             'containing the number of UM processors in '
+                             'the X direction is not set\n')
+            sys.exit(error.MISSING_EVAR_ERROR)
 
-    # CICE (If applicable)
-    _ = cpmip_envar.load_envar('CICE_ROW', '0')
-    _ = cpmip_envar.load_envar('CICE_COL', '0')
+        if cpmip_envar.load_envar('UM_ATM_NPROCY') != 0:
+            sys.stderr.write('[FAIL] Environment variable UM_ATM_NPROCY '
+                             'containing the number of UM processors in '
+                             'the Y direction is not set\n')
+            sys.exit(error.MISSING_EVAR_ERROR)
+        _ = cpmip_envar.load_envar('FLUME_IOS_NPROC', '0')
 
-    # Get the preopts for the various components
-    if cpmip_envar.load_envar('ROSE_LAUNCHER_PREOPTS_UM') != 0:
-        sys.stderr.write('[FAIL] Environment variable '
-                         'ROSE_LAUNCHER_PREOPTS_UM is not set\n')
-
-    if cpmip_envar.load_envar('ROSE_LAUNCHER_PREOPTS_NEMO') != 0:
-        sys.stderr.write('[FAIL] Environment variable '
-                         'ROSE_LAUNCHER_PREOPTS_NEMO is not set\n')
-
-    if cpmip_envar['XIOS_NPROC'] != '0':
-        if cpmip_envar.load_envar('ROSE_LAUNCHER_PREOPTS_XIOS') != 0:
+        if cpmip_envar.load_envar('ROSE_LAUNCHER_PREOPTS_UM') != 0:
             sys.stderr.write('[FAIL] Environment variable '
-                             'ROSE_LAUNCHER_PREOPTS_XIOS is not set\n')
+                             'ROSE_LAUNCHER_PREOPTS_UM is not set\n')
+            sys.exit(error.MISSING_EVAR_ERROR)
+
+        # Get the UM stdout file
+        if cpmip_envar.load_envar('STDOUT_FILE') != 0:
+            sys.stderr.write('[FAIL] Environment variable STDOUT_FILE '
+                             'containing the path to the UM standard out '
+                             'is not set\n')
+            sys.exit(error.MISSING_EVAR_ERROR)
+
+    # Get the number of processors that Jnr runs on
+    if 'jnr' in cpmip_envar['models']:
+        if cpmip_envar.load_envar('RUNID_JNR', '') != 0:
+            sys.stderr.write('[FAIL] Environment variable RUNID_JNR is '
+                             'not set\n')
+            sys.exit(error.MISSING_EVAR_ERROR)
+
+        if cpmip_envar.load_envar('UM_ATM_NPROCX_JNR') != 0:
+            sys.stderr.write('[FAIL] Environment variable UM_ATM_NPROCX_JNR '
+                             'containing the number of Jnr processors in '
+                             'the X direction is not set\n')
+            sys.exit(error.MISSING_EVAR_ERROR)
+
+        if cpmip_envar.load_envar('UM_ATM_NPROCY_JNR') != 0:
+            sys.stderr.write('[FAIL] Environment variable UM_ATM_NPROCY_JNR '
+                             'containing the number of Jnr processors in '
+                             'the Y direction is not set\n')
+            sys.exit(error.MISSING_EVAR_ERROR)
+        _ = cpmip_envar.load_envar('FLUME_IOS_NPROC_JNR', '0')
+
+        if cpmip_envar.load_envar('ROSE_LAUNCHER_PREOPTS_JNR') != 0:
+            sys.stderr.write('[FAIL] Environment variable '
+                             'ROSE_LAUNCHER_PREOPTS_JNR is not set\n')
+            sys.exit(error.MISSING_EVAR_ERROR)
+
+        # Get the Jnr stdout file
+        if cpmip_envar.load_envar('STDOUT_FILE_JNR') != 0:
+            sys.stderr.write('[FAIL] Environment variable STDOUT_FILE_JNR '
+                             'containing the path to the Jnr standard out '
+                             'is not set\n')
+            sys.exit(error.MISSING_EVAR_ERROR)
+
+    # NEMO
+    if 'nemo' in cpmip_envar['models']:
+        _ = cpmip_envar.load_envar('NEMO_NL', 'namelist_cfg')
+
+        if cpmip_envar.load_envar('NEMO_NPROC') != 0:
+            sys.stderr.write('[FAIL] Environment variable NEMO_NPROC '
+                             'containing the number of NEMO processors '
+                             'not set\n')
+            sys.exit(error.MISSING_EVAR_ERROR)
+        # XIOS (If applicable)
+        _ = cpmip_envar.load_envar('XIOS_NPROC', '0')
+
+        # CICE (If applicable)
+        _ = cpmip_envar.load_envar('CICE_ROW', '0')
+        _ = cpmip_envar.load_envar('CICE_COL', '0')
+
+        if cpmip_envar.load_envar('ROSE_LAUNCHER_PREOPTS_NEMO') != 0:
+            sys.stderr.write('[FAIL] Environment variable '
+                             'ROSE_LAUNCHER_PREOPTS_NEMO is not set\n')
+
+        if cpmip_envar['XIOS_NPROC'] != '0':
+            if cpmip_envar.load_envar('ROSE_LAUNCHER_PREOPTS_XIOS') != 0:
+                sys.stderr.write('[FAIL] Environment variable '
+                                 'ROSE_LAUNCHER_PREOPTS_XIOS is not set\n')
 
     # Get the time spent in aprun
     if cpmip_envar.load_envar('time_in_aprun') != 0:
@@ -779,12 +938,6 @@ def _load_environment_variables_finalise(cpmip_envar):
         sys.stderr.write('[FAIL] Environment variable TASKLENGTH not set\n')
         sys.exit(error.MISSING_EVAR_ERROR)
 
-    # Get the UM stdout file
-    if cpmip_envar.load_envar('STDOUT_FILE') != 0:
-        sys.stderr.write('[FAIL] Environment variable STDOUT_FILE containing '
-                         'the path to the UM standard out is not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-
     # Get the task jobfile
     if cpmip_envar.load_envar('CYLC_TASK_LOG_ROOT') != 0:
         sys.stderr.write('[FAIL] Environment variable CYLC_TASK_LOG_ROOT  is '
@@ -795,9 +948,6 @@ def _load_environment_variables_finalise(cpmip_envar):
     _ = cpmip_envar.load_envar('IO_COST', 'False')
     # Are we calculating data intensity
     _ = cpmip_envar.load_envar('DATA_INTENSITY', 'False')
-
-    # Number of processes per node
-    _ = cpmip_envar.load_envar('PPN', '0')
 
     return cpmip_envar
 
@@ -814,6 +964,7 @@ def _setup_cpmip_controller(common_envar):
     # Make sure we keep the standard out
     cpmip_envar['ATMOS_KEEP_MPP_STDOUT'] = 'true'
 
+    # Modify namelists, so information is available to plot later
     __update_namelists_for_timing(cpmip_envar)
 
     # Are we prerforming the data intensity calculations
@@ -822,7 +973,13 @@ def _setup_cpmip_controller(common_envar):
                          ' Whilst this will not affect the execution time'
                          ' of the model, it may increase time spent in the'
                          ' model drivers\n')
+        if 'nemo' in cpmip_envar['models']:
+            # Modify iodef.xml file so that timing files are produced
+            data_intensity_setup_nemo(common_envar)
+        # Get the intial data size for DATAM directory (for all model
+        # components)
         data_intensity_initial(common_envar, cpmip_envar)
+
 
     return cpmip_envar
 
@@ -835,6 +992,21 @@ def _set_launcher_command(_):
     return launch_cmd
 
 
+def _time_resources_um(cpmip_envar, mpi_tasks_total, stdout_file_str):
+    '''
+    Finalize code for UM
+    '''
+    # Determine the name of the UM pe0 output file.
+    pe0_suffix = '0'*(len(str(mpi_tasks_total - 1)))
+    um_pe0_stdout_file = '%s%s' % (cpmip_envar[stdout_file_str],
+                                   pe0_suffix)
+
+    # UM time is for one processor
+    um_time, um_coupling_time, um_put_time = __get_um_info(um_pe0_stdout_file)
+
+    return um_time, um_coupling_time, um_put_time, um_pe0_stdout_file
+
+
 def _finalize_cpmip_controller(common_envar):
     '''
     Finalize the CPMIP controller.
@@ -842,31 +1014,42 @@ def _finalize_cpmip_controller(common_envar):
     secs_to_hours = 1./3600.
     # Create the environment variable container
     cpmip_envar = common.LoadEnvar()
+
     # Load the environment variables required
     cpmip_envar = _load_environment_variables_finalise(cpmip_envar)
 
     cpus, mpi_tasks = get_allocated_cpus(cpmip_envar)
     # Processor resource for all components
     um_cpus = cpus['UM']
+    jnr_cpus = cpus['JNR']
     nemo_cpus = cpus['NEMO']
     xios_cpus = cpus['XIOS']
-    total_cpus = um_cpus + nemo_cpus + xios_cpus
+    total_cpus = um_cpus + jnr_cpus + nemo_cpus + xios_cpus
 
-    # Determine the name of the UM pe0 output file.
-    pe0_suffix = '0'*(len(str(mpi_tasks['UM'] - 1)))
-    um_pe0_stdout_file = '%s%s' % (cpmip_envar['STDOUT_FILE'],
-                                   pe0_suffix)
+    # Time resources for UM
+    if 'um' in cpmip_envar['models']:
+        um_time, um_coupling_time, um_put_time, um_pe0_stdout_file = \
+            _time_resources_um(cpmip_envar, mpi_tasks['UM'], 'STDOUT_FILE')
 
-    # Time resource for all components
-    # UM time is for one processor
-    um_time, um_coupling_time = __get_um_info(um_pe0_stdout_file)
+    # Time resources for Jnr
+    if 'jnr' in cpmip_envar['models']:
+        jnr_time, jnr_coupling_time, jnr_put_time, jnr_pe0_stdout_file = \
+            _time_resources_um(cpmip_envar, mpi_tasks['JNR'],
+                               'STDOUT_FILE_JNR')
+
     # NEMO time is integrated over all processors when returned from
     # __get_nemo_info()
-    nemo_time, nemo_coupling_time, cice_time = __get_nemo_info()
-    nemo_time /= nemo_cpus
-    nemo_coupling_time /= nemo_cpus
-    if cice_time:
-        cice_time /= nemo_cpus
+    if 'nemo' in cpmip_envar['models']:
+        nemo_time, nemo_coupling_time, nemo_put_time, cice_time = \
+            __get_nemo_info()
+        nemo_time /= nemo_cpus
+        nemo_coupling_time /= nemo_cpus
+        nemo_put_time /= nemo_cpus
+        if cice_time:
+            cice_time /= nemo_cpus
+    else:
+        cice_time = False
+
     # Get the arguments from the -l PBS directive
     pbs_l_dict = __get_jobfile_info(cpmip_envar['CYLC_TASK_LOG_ROOT'])
 
@@ -877,11 +1060,13 @@ def _finalize_cpmip_controller(common_envar):
     # number of cpus used per component to allow the CPMIP coupling metric
     # to be calculated, albiet with a slightly reduced accuracy.
     number_nodes = int(pbs_l_dict['select'])
-    if pbs_l_dict.has_key('coretype'):
+    if 'coretype' in pbs_l_dict.keys():
         plat_cores_per_node = \
             CORES_PER_NODE_UKMO_XC40[pbs_l_dict['coretype'].lower()]
         allocated_cpus = number_nodes * plat_cores_per_node
         allocated_um = int(math.ceil(um_cpus/float(plat_cores_per_node))) \
+            * plat_cores_per_node
+        allocated_jnr = int(math.ceil(jnr_cpus/float(plat_cores_per_node))) \
             * plat_cores_per_node
         allocated_nemo = int(math.ceil(nemo_cpus/float(plat_cores_per_node))) \
             * plat_cores_per_node
@@ -889,9 +1074,12 @@ def _finalize_cpmip_controller(common_envar):
             * plat_cores_per_node
     elif cpmip_envar['PPN'] > 0:
         plat_cores_per_node = int(cpmip_envar['PPN'])
-        sys.stdout.write('[INFO] plat_cores_per_node = %s\n' % plat_cores_per_node)
+        sys.stdout.write('[INFO] plat_cores_per_node = %s\n' %
+                         plat_cores_per_node)
         allocated_cpus = number_nodes * plat_cores_per_node
         allocated_um = int(math.ceil(um_cpus/float(plat_cores_per_node))) \
+            * plat_cores_per_node
+        allocated_jnr = int(math.ceil(jnr_cpus/float(plat_cores_per_node))) \
             * plat_cores_per_node
         allocated_nemo = int(math.ceil(nemo_cpus/float(plat_cores_per_node))) \
             * plat_cores_per_node
@@ -902,6 +1090,7 @@ def _finalize_cpmip_controller(common_envar):
         sys.stdout.write('[INFO] Can not determine coretype, unable to '
                          'calculate CHSY metric\n')
         allocated_um = um_cpus
+        allocated_jnr = jnr_cpus
         allocated_nemo = nemo_cpus
         allocated_xios = xios_cpus
 
@@ -912,15 +1101,27 @@ def _finalize_cpmip_controller(common_envar):
     # use allocated cores to ensure consistancy with the definition of the
     # metric
     total_resource = float(allocated_cpus * int(cpmip_envar['time_in_aprun']))
-    um_resource = float(allocated_um * um_time)
-    nemo_resource = float(allocated_nemo * nemo_time)
-    # we assume that XIOS takes the whole length of the model run. If XIOS
-    # is not used, or used in attatched mode xios_cpus will be 0, so this
-    # line still makes sense
-    xios_resource = float(allocated_xios * int(cpmip_envar['time_in_aprun']))
+    if 'um' in cpmip_envar['models']:
+        um_resource = float(allocated_um * um_time)
+    else:
+        um_resource = 0
+    if 'jnr' in cpmip_envar['models']:
+        jnr_resource = float(allocated_jnr * jnr_time)
+    else:
+        jnr_resource = 0
+    if 'nemo' in cpmip_envar['models']:
+        nemo_resource = float(allocated_nemo * nemo_time)
+        # we assume that XIOS takes the whole length of the model run. If
+        # XIOS is not used, or used in attatched mode xios_cpus will be 0,
+        # so this line still makes sense
+        xios_resource = float(allocated_xios *
+                              int(cpmip_envar['time_in_aprun']))
+    else:
+        nemo_resource = 0
+        xios_resource = 0
 
-    coupling_metric = (total_resource - um_resource - nemo_resource
-                       - xios_resource) / total_resource
+    coupling_metric = (total_resource - um_resource - jnr_resource
+                       - nemo_resource - xios_resource) / total_resource
 
     # Run in years per day (as measured by APRUN)
     years_run = tasklength_to_years(cpmip_envar['TASKLENGTH'])
@@ -928,16 +1129,26 @@ def _finalize_cpmip_controller(common_envar):
     years_per_day = years_run / runtime_days
 
     aprun_time_message = 'Time in APRUN: %s s\n' % cpmip_envar['time_in_aprun']
-    um_time_message = 'Time in UM model code: %i s\nTime in UM coupling' \
-        ' code: %i s\n' % (um_time, um_coupling_time)
-    if cice_time:
-        nemo_time_message = 'Time in NEMO model code: %i s\n   Including' \
-            ' %is in CICE\nTime in NEMO coupling code: %i s\n' % \
-            (nemo_time, cice_time, nemo_coupling_time)
-    else:
-        nemo_time_message = 'Time in NEMO model code: %i s\nTime in' \
-            ' NEMO coupling code: %i s\n' % \
-            (nemo_time, nemo_coupling_time)
+    if 'um' in cpmip_envar['models']:
+        um_time_message = 'Time in UM model code: %i s\nTime in UM' \
+            ' coupling code: %i s\n   Time in UM put code: %i s\n' % \
+            ((um_time+0.5), (um_coupling_time+0.5), (um_put_time+0.5))
+    if 'jnr' in cpmip_envar['models']:
+        jnr_time_message = 'Time in Jnr model code: %i s\nTime in Jnr' \
+            ' coupling code: %i s\n   Time in Jnr put code: %i s\n' % \
+            ((jnr_time+0.5), (jnr_coupling_time+0.5), (jnr_put_time+0.5))
+    if 'nemo' in cpmip_envar['models']:
+        if cice_time:
+            nemo_time_message = 'Time in NEMO model code: %i s\n' \
+                '   Including %is in CICE\nTime in NEMO coupling code:' \
+                '%i s\n   Time in NEMO put code: %i s\n' % \
+                ((nemo_time+0.5), (cice_time+0.5), (nemo_coupling_time+0.5),
+                 (nemo_put_time+0.5))
+        else:
+            nemo_time_message = 'Time in NEMO model code: %i s\nTime in' \
+                ' NEMO coupling code: %i s\n   Time in NEMO put code: ' \
+                '%i s\n' % ((nemo_time+0.5), (nemo_coupling_time+0.5),
+                            (nemo_put_time+0.5))
     ypd_message = 'This equates to %.2f years per day run (SYPD)\n' % \
         years_per_day
 
@@ -957,24 +1168,38 @@ def _finalize_cpmip_controller(common_envar):
         '%.3f\n' % coupling_metric
 
     if cpmip_envar['IO_COST'] in ('true', 'True'):
-        # determine for the UM
-        um_io_time = __get_um_io(um_pe0_stdout_file)
-        um_io_frac = float(um_io_time) / float(um_time)
-        um_io_frac_mess = 'The UM spends %i s performing IO\n   This' \
-            ' is a fraction of %.2f\n' % (um_io_time, um_io_frac)
-        # determine for NEMO
-        nemo_io_time = __get_nemo_io()
-        nemo_io_time /= nemo_cpus
-        nemo_io_frac = float(nemo_io_time) / float(nemo_time)
-        nemo_io_frac_mess = 'NEMO spends %i s performing IO\n   This' \
-            ' is a fraction of %.2f\n' % (nemo_io_time, nemo_io_frac)
-        # determine XIOS client
-        xios_client_mean, xios_client_max = _measure_xios_client_times()
-        xios_io_mess = 'XIOS spends on average %i s in each client, and' \
-            ' a maxiumum time of %i s\n' % (xios_client_mean,
-                                            xios_client_max)
+
+        # Determine for the UM
+        if 'um' in cpmip_envar['models']:
+            um_io_time = __get_um_io(um_pe0_stdout_file)
+            um_io_frac = float(um_io_time) / float(um_time)
+            um_io_frac_mess = 'The UM spends %i s performing IO\n   This' \
+                ' is a fraction of %.2f\n' % (um_io_time, um_io_frac)
+
+        # Determine for Jnr
+        if 'jnr' in cpmip_envar['models']:
+            jnr_io_time = __get_um_io(jnr_pe0_stdout_file)
+            jnr_io_frac = float(jnr_io_time) / float(jnr_time)
+            jnr_io_frac_mess = 'Jnr spends %i s performing IO\n   This' \
+                ' is a fraction of %.2f\n' % (jnr_io_time, jnr_io_frac)
+
+        # Determine for NEMO
+        if 'nemo' in cpmip_envar['models']:
+            nemo_io_time = __get_nemo_io()
+            nemo_io_time /= nemo_cpus
+            nemo_io_frac = float(nemo_io_time) / float(nemo_time)
+            nemo_io_frac_mess = 'NEMO spends %i s performing IO\n   This' \
+                ' is a fraction of %.2f\n' % (nemo_io_time, nemo_io_frac)
+
+        # Determine XIOS client
+        if 'xios' in cpmip_envar['models']:
+            xios_client_mean, xios_client_max = _measure_xios_client_times()
+            xios_io_mess = 'XIOS spends on average %i s in each client, and' \
+                ' a maxiumum time of %i s\n' % (xios_client_mean,
+                                                xios_client_max)
     else:
         um_io_frac_mess = ''
+        jnr_io_frac_mess = ''
         nemo_io_frac_mess = ''
         xios_io_mess = ''
 
@@ -1011,16 +1236,26 @@ def _finalize_cpmip_controller(common_envar):
     sys.stdout.write(cores_message)
     sys.stdout.write('%s\n' % ('-'*80,))
     sys.stdout.write(aprun_time_message)
-    sys.stdout.write(um_time_message)
-    sys.stdout.write(nemo_time_message)
+    if 'um' in cpmip_envar['models']:
+        sys.stdout.write(um_time_message)
+    if 'jnr' in cpmip_envar['models']:
+        sys.stdout.write(jnr_time_message)
+    if 'nemo' in cpmip_envar['models']:
+        sys.stdout.write(nemo_time_message)
     if xios_cpus:
         sys.stdout.write('It is assumed that XIOS takes the same time as '
                          'APRUN\n')
     sys.stdout.write(ypd_message)
     sys.stdout.write('\nResource for components in units of core hours\n')
-    sys.stdout.write('  UM Resource %.2f\n' % (um_resource * secs_to_hours,))
-    sys.stdout.write('  NEMO Resource %.2f\n' %
-                     (nemo_resource * secs_to_hours,))
+    if 'um' in cpmip_envar['models']:
+        sys.stdout.write('  UM Resource %.2f\n' % (um_resource * 
+                                                   secs_to_hours,))
+    if 'jnr' in cpmip_envar['models']:
+        sys.stdout.write('  Jnr Resource %.2f\n' % (jnr_resource *
+                                                    secs_to_hours,))
+    if 'nemo' in cpmip_envar['models']:
+        sys.stdout.write('  NEMO Resource %.2f\n' %
+                         (nemo_resource * secs_to_hours,))
     if xios_cpus:
         sys.stdout.write('  XIOS Resource %.2f\n' %
                          (xios_resource * secs_to_hours,))
@@ -1032,10 +1267,14 @@ def _finalize_cpmip_controller(common_envar):
     sys.stdout.write(complexity_msg)
     sys.stdout.write(jpsy_msg)
     sys.stdout.write(data_intensity_msg)
-    sys.stdout.write('\n%s' % um_io_frac_mess)
-    sys.stdout.write('\n%s' % nemo_io_frac_mess)
-    sys.stdout.write('\n%s' % xios_io_mess)
-    sys.stdout.write('%s\n' % ('-'*80,))
+    if 'um' in cpmip_envar['models']:
+        sys.stdout.write('\n%s' % um_io_frac_mess)
+    if 'jnr' in cpmip_envar['models']:
+        sys.stdout.write('\n%s' % jnr_io_frac_mess)
+    if 'nemo' in cpmip_envar['models']:
+        sys.stdout.write('\n%s' % nemo_io_frac_mess)
+        sys.stdout.write('\n%s' % xios_io_mess)
+        sys.stdout.write('%s\n' % ('-'*80,))
 
     # Write an output file containing runtime and processor number information
     # gleaned from the model output file to enable further analysis on this
@@ -1045,15 +1284,29 @@ def _finalize_cpmip_controller(common_envar):
     with common.open_text_file(output_file, 'w') as cpmip_f:
         if allocated_cpus:
             cpmip_f.write('%s' % cores_message)
-        cpmip_f.write('%s%s%s%s%s%s' % (aprun_time_message, um_time_message,
-                                        nemo_time_message, ypd_message,
-                                        chsy_message, coupling_metric_message))
-        cpmip_f.write(um_io_frac_mess)
-        cpmip_f.write(nemo_io_frac_mess)
-        cpmip_f.write(xios_io_mess)
+        cpmip_f.write('%s' % aprun_time_message)
+        if 'um' in cpmip_envar['models']:
+            cpmip_f.write('%s' % um_time_message)
+        if 'jnr' in cpmip_envar['models']:
+            cpmip_f.write('%s' % jnr_time_message)
+        if 'nemo' in cpmip_envar['models']:
+            cpmip_f.write('%s' % nemo_time_message)
+        cpmip_f.write('%s%s%s' % (ypd_message, chsy_message,
+                                  coupling_metric_message))
+        if 'um' in cpmip_envar['models']:
+            cpmip_f.write(um_io_frac_mess)
+        if 'jnr' in cpmip_envar['models']:
+            cpmip_f.write(jnr_io_frac_mess)
+        if 'nemo' in cpmip_envar['models']:
+            cpmip_f.write(nemo_io_frac_mess)
+            cpmip_f.write(xios_io_mess)
         cpmip_f.write(data_intensity_msg)
-        cpmip_f.write('UM Processors: %i\n' % um_cpus)
-        cpmip_f.write('NEMO Processors: %i\n' % nemo_cpus)
+        if 'um' in cpmip_envar['models']:
+            cpmip_f.write('UM Processors: %i\n' % um_cpus)
+        if 'jnr' in cpmip_envar['models']:
+            cpmip_f.write('Jnr Processors: %i\n' % jnr_cpus)
+        if 'nemo' in cpmip_envar['models']:
+            cpmip_f.write('NEMO Processors: %i\n' % nemo_cpus)
         if xios_cpus:
             cpmip_f.write('XIOS Processors: %i\n' % xios_cpus)
         cpmip_f.write(complexity_msg)

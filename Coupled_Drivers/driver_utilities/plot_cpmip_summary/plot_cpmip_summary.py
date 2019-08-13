@@ -2,7 +2,7 @@
 
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2018 Met Office. All rights reserved.
+ (C) Crown copyright 2019 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -45,9 +45,10 @@ def _read_data(datafile):
     a component, and the third containing the time spent in the coupling
     routines of the component models.
     '''
-    timing_data = {'APRUN': 0, 'NEMO': 0, 'UM': 0, 'CICE': 0}
-    processors = {'UM': 0, 'XIOS': 0, 'NEMO': 0}
-    coupling_data = {'UM': 0, 'NEMO': 0}
+    timing_data = {'APRUN': 0, 'NEMO': 0, 'UM': 0, 'CICE': 0, 'Jnr': 0}
+    processors = {'UM': 0, 'Jnr': 0, 'XIOS': 0, 'NEMO': 0}
+    coupling_data = {'UM': 0, 'Jnr': 0, 'NEMO': 0}
+    put_data = {'UM': 0, 'Jnr': 0, 'NEMO': 0}
     if not os.path.isfile(datafile):
         sys.stderr.write('Can not find data file %s\n' % datafile)
         sys.exit(999)
@@ -61,29 +62,42 @@ def _read_data(datafile):
             if 'Time' in line and 'model code' in line:
                 if 'UM' in line:
                     timing_data['UM'] = int(match.group(1))
+                if 'Jnr' in line:
+                    timing_data['Jnr'] = int(match.group(1))
                 if 'NEMO' in line:
                     timing_data['NEMO'] = int(match.group(1))
             if 'Time' in line and 'coupling code' in line:
                 if 'UM' in line:
                     coupling_data['UM'] = int(match.group(1))
+                if 'Jnr' in line:
+                    coupling_data['Jnr'] = int(match.group(1))
                 if 'NEMO' in line:
                     coupling_data['NEMO'] = int(match.group(1))
+            if 'Time' in line and 'put code' in line:
+                if 'UM' in line:
+                    put_data['UM'] = int(match.group(1))
+                if 'Jnr' in line:
+                    put_data['Jnr'] = int(match.group(1))
+                if 'NEMO' in line:
+                    put_data['NEMO'] = int(match.group(1))
             if 'Processors' in line:
                 if 'XIOS' in line:
                     processors['XIOS'] = int(match.group(1))
                 if 'UM' in line:
                     processors['UM'] = int(match.group(1))
+                if 'Jnr' in line:
+                    processors['Jnr'] = int(match.group(1))
                 if 'NEMO' in line:
                     processors['NEMO'] = int(match.group(1))
             if 'allocated CPUS' in line:
                 allocated_match = re.search(r'\(\d+/(\d+)\)', line)
                 allocated_processors = int(allocated_match.group(1))
                 processors['allocated'] = allocated_processors
-    return timing_data, coupling_data, processors
+    return timing_data, coupling_data, put_data, processors
 
 
-def plot_summary(model_time, coupling_time, nproc, display=False, fname=False,
-                 graph_title=''):
+def plot_summary(model_time, coupling_time, put_time, nproc,
+                 display=False, fname=False, graph_title=''):
     '''
     Takes in 3 dictionaries determined from the function _read_data(), the
     times, coupling times, and number of processors. If the coupling times
@@ -108,66 +122,143 @@ def plot_summary(model_time, coupling_time, nproc, display=False, fname=False,
 
     _, axis_secs = pylab.subplots()
     #UM
-    axis_secs.add_patch(patches.Rectangle((0, 0),
-                                          nproc['UM'], model_time['UM'],
-                                          color='green',
-                                          label='UM model'))
+    if model_time['UM']:
+        axis_secs.add_patch(patches.Rectangle((0, 0),
+                                              nproc['UM'], model_time['UM'],
+                                              color='darkgreen',
+                                              label='UM model'))
+    #Jnr
+    if model_time['Jnr']:
+        axis_secs.add_patch(patches.Rectangle((nproc['UM'], 0),
+                                              nproc['Jnr'], model_time['Jnr'],
+                                              color='purple',
+                                              label='Jnr model'))
     #NEMO
-    axis_secs.add_patch(patches.Rectangle((nproc['UM'], 0),
-                                          nproc['NEMO'], model_time['NEMO'],
-                                          color='blue',
-                                          label='NEMO model'))
+    if model_time['NEMO']:
+        axis_secs.add_patch(patches.Rectangle((nproc['UM'] + nproc['Jnr'],
+                                               0),
+                                              nproc['NEMO'],
+                                              model_time['NEMO'],
+                                              color='midnightblue',
+                                              label='NEMO model'))
     # CICE
     # Remeber the NEMO time above is inclusive of CICE
     if model_time['CICE']:
-        axis_secs.add_patch(patches.Rectangle((nproc['UM'], 0),
+        axis_secs.add_patch(patches.Rectangle((nproc['UM'] + nproc['Jnr'],
+                                               0),
                                               nproc['NEMO'], model_time['CICE'],
                                               color='0.75',
                                               label='CICE model'))
 
     #XIOS
     if nproc['XIOS']:
-        axis_secs.add_patch(patches.Rectangle((nproc['NEMO'] + nproc['UM'],
-                                               0),
+        axis_secs.add_patch(patches.Rectangle((nproc['NEMO'] + nproc['UM'] +
+                                               nproc['Jnr'], 0),
                                               nproc['XIOS'],
                                               model_time['APRUN'],
                                               color='red',
                                               label='XIOS'))
     #Overheads
-    if not coupling_time['UM'] or not coupling_time['NEMO']:
-        overheads_label = 'Overheads (APRUN/Coupling)'
-    else:
+    if coupling_time['UM'] or coupling_time['Jnr'] or coupling_time['NEMO']:
         overheads_label = 'Overheads (APRUN)'
+    else:
+        overheads_label = 'Overheads (APRUN/Coupling)'
     #Overheads UM
-    axis_secs.add_patch(patches.Rectangle((0, model_time['UM']),
-                                          nproc['UM'],
-                                          model_time['APRUN'] - \
-                                              model_time['UM'],
-                                          color='yellow',
-                                          label=overheads_label))
+    if model_time['UM']:
+        axis_secs.add_patch(patches.Rectangle((0, model_time['UM']),
+                                              nproc['UM'],
+                                              model_time['APRUN'] - \
+                                                  model_time['UM'],
+                                              color='yellow',
+                                              label=overheads_label))
+    #Overheads Jnr
+    if model_time['Jnr']:
+        axis_secs.add_patch(patches.Rectangle((nproc['UM'],
+                                               model_time['Jnr']),
+                                              nproc['Jnr'],
+                                              model_time['APRUN'] - \
+                                                  model_time['Jnr'],
+                                              color='yellow'))
     #Overheads NEMO
-    axis_secs.add_patch(patches.Rectangle((nproc['UM'], model_time['NEMO']),
-                                          nproc['NEMO'],
-                                          model_time['APRUN'] - \
-                                              model_time['NEMO'],
-                                          color='yellow'))
+    if model_time['NEMO']:
+        axis_secs.add_patch(patches.Rectangle((nproc['UM'] + nproc['Jnr'],
+                                               model_time['NEMO']),
+                                              nproc['NEMO'],
+                                              model_time['APRUN'] - \
+                                                  model_time['NEMO'],
+                                              color='yellow'))
 
     #Superimpose the coupling times if avaliable
-    if coupling_time['UM'] and coupling_time['NEMO']:
-        #UM
+    # UM
+    if put_time['UM']:
+        axis_secs.add_patch(patches.Rectangle((0, model_time['UM']),
+                                              nproc['UM'],
+                                              put_time['UM'],
+                                              color='limegreen',
+                                              label='UM cpl put'))
+        axis_secs.add_patch(patches.Rectangle((0, (model_time['UM'] +
+                                                   put_time['UM'])),
+                                              nproc['UM'],
+                                              (coupling_time['UM'] -
+                                               put_time['UM']),
+                                              color='lightgreen',
+                                              label='UM cpl init + get'))
+    elif coupling_time['UM']:
         axis_secs.add_patch(patches.Rectangle((0, model_time['UM']),
                                               nproc['UM'],
                                               coupling_time['UM'],
                                               color='lightgreen',
                                               label='UM coupling'))
-        axis_secs.add_patch(patches.Rectangle((nproc['UM'], model_time['NEMO']),
+    # Jnr
+    if put_time['Jnr']:
+        axis_secs.add_patch(patches.Rectangle((nproc['UM'],
+                                               model_time['Jnr']),
+                                              nproc['Jnr'],
+                                              put_time['Jnr'],
+                                              color='deeppink',
+                                              label='Jnr cpl put'))
+        axis_secs.add_patch(patches.Rectangle((nproc['UM'],
+                                               (model_time['Jnr'] +
+                                                put_time['Jnr'])),
+                                              nproc['Jnr'],
+                                              (coupling_time['Jnr'] -
+                                               put_time['Jnr']),
+                                              color='pink',
+                                              label='Jnr cpl init + get'))
+    elif coupling_time['Jnr']:
+        axis_secs.add_patch(patches.Rectangle((nproc['UM'],
+                                               model_time['Jnr']),
+                                              nproc['Jnr'],
+                                              coupling_time['Jnr'],
+                                              color='pink',
+                                              label='Jnr coupling'))
+    # NEMO
+    if put_time['NEMO']:
+        axis_secs.add_patch(patches.Rectangle((nproc['UM'] + nproc['Jnr'],
+                                               model_time['NEMO']),
+                                              nproc['NEMO'],
+                                              put_time['NEMO'],
+                                              color='deepskyblue',
+                                              label='NEMO cpl put'))
+        axis_secs.add_patch(patches.Rectangle((nproc['UM'] + nproc['Jnr'],
+                                               (model_time['NEMO'] +
+                                                put_time['NEMO'])),
+                                              nproc['NEMO'],
+                                              (coupling_time['NEMO'] -
+                                               put_time['NEMO']),
+                                              color='lightblue',
+                                              label='NEMO cpl init + get'))
+    elif coupling_time['NEMO']:
+        axis_secs.add_patch(patches.Rectangle((nproc['UM'] + nproc['Jnr'],
+                                               model_time['NEMO']),
                                               nproc['NEMO'],
                                               coupling_time['NEMO'],
                                               color='lightblue',
                                               label='NEMO coupling'))
 
     #Plot the run envelope if appropriate
-    component_nproc = nproc['UM'] + nproc['NEMO'] + nproc['XIOS']
+    component_nproc = nproc['UM'] + nproc['Jnr'] + nproc['NEMO'] + \
+        nproc['XIOS']
     if component_nproc < nproc['allocated']:
         axis_secs.plot([nproc['allocated'], nproc['allocated']],
                        [0, model_time['APRUN']],
@@ -175,7 +266,7 @@ def plot_summary(model_time, coupling_time, nproc, display=False, fname=False,
         axis_secs.plot([component_nproc, nproc['allocated']],
                        [model_time['APRUN'], model_time['APRUN']],
                        color='0')
-    
+
     pylab.legend(loc='best')
     pylab.xlim([0, 1.2*(component_nproc)])
     pylab.ylim([0, 1.2*model_time['APRUN']])
@@ -235,8 +326,8 @@ def run_interactive():
                         default='')
     args = parser.parse_args()
 
-    times, coupling_times, nprocs = _read_data(args.inputfile)
-    plot_summary(times, coupling_times, nprocs, args.displayfig,
+    times, coupling_times, put_times, nprocs = _read_data(args.inputfile)
+    plot_summary(times, coupling_times, put_times, nprocs, args.displayfig,
                  args.plot_filename, args.graph_title)
 
 if __name__ == '__main__':

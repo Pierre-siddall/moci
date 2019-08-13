@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016 Met Office. All rights reserved.
+ (C) Crown copyright 2019 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -27,6 +27,7 @@ import os
 import argparse
 import error
 import common
+import create_namcouple
 
 def _check_drivers(models):
     '''
@@ -45,7 +46,7 @@ def _check_drivers(models):
             sys.exit(error.MISSING_DRIVER_ERROR)
     return models
 
-def _run_drivers(common_envars, mode):
+def _run_drivers(common_envars, mode, run_info):
     '''
     Run the driver modules, and return an instance of common.LoadEnvars
     containing environment variables for that module, and a string containing
@@ -61,16 +62,22 @@ def _run_drivers(common_envars, mode):
     models = _check_drivers(common_envars['models'])
     envinsts = [common_envars]
     launchcmds = []
+    coupling_list = []
     for model in models:
         # namespace dictionary for exec function
         driver_name = '%s_driver' % model
         driver_mod = importlib.import_module(driver_name)
-        model_envars, model_launch_cmd = driver_mod.run_driver(common_envars,
-                                                               mode)
+        model_envars, model_launch_cmd, run_info, model_snd_list \
+            = driver_mod.run_driver(common_envars, mode, run_info)
         envinsts.append(model_envars)
         launchcmds.append(model_launch_cmd)
+        if model_snd_list:
+            if coupling_list:
+                coupling_list.extend(model_snd_list)
+            else:
+                coupling_list = model_snd_list
         del driver_mod
-    return envinsts, launchcmds
+    return envinsts, launchcmds, run_info, coupling_list
 
 
 def _setup_common():
@@ -129,6 +136,9 @@ def _setup_common():
                          '  360day\n  365day\n  greogrian\n  integer\n' %
                          common_envars['CYLC_CYCLING_MODE'])
         sys.exit(error.INVALID_EVAR_ERROR)
+    # HYBRID_COMPONENT will indicate if namcouple should be generated.
+    _ = common_envars.load_envar('HYBRID_COMPONENT', 'none')
+
     return common_envars
 
 def _export_envar_str(envinsts):
@@ -197,12 +207,35 @@ if __name__ == '__main__':
         # Setup the environment variables required to all drivers
         common_envars = _setup_common()
 
+        # Determine if namcouple should be created
+        if common_envars['HYBRID_COMPONENT'] == 'none':
+            sys.stdout.write('[INFO] namcouple should exist in suite.\n')
+            run_info = {'l_namcouple': True}
+        else:
+            sys.stdout.write('[INFO] namcouple will be created.\n')
+            run_info = {'l_namcouple': False}
+            # Creating a namcouple on the fly will only work if the f90nml
+            # module is available
+            try:
+                import f90nml
+            except ImportError:
+                sys.stderr.write('[FAIL] The python f90nml module is '
+                                 'required to create the namcouple file '
+                                 'on the fly, and it is unavailable in '
+                                 'this setup.\n')
+                sys.exit(error.F90NML_UNAVAILABLE)
+
         # Create two lists by looping through all the required driver files:
         #    1. envinsts is a list of common.LoadEnvar() instances, each
         #      instance containing environment variables for a given driver
         #    2. launchcmds is a list of strings, containing options for each
         #      model to be passed to the parallel launcher on the system.
-        envinsts, launchcmds = _run_drivers(common_envars, mode)
+        envinsts, launchcmds, run_info, coupling_list \
+            = _run_drivers(common_envars, mode, run_info)
+
+	# Create the namcouple file
+        if not run_info['l_namcouple']:
+            create_namcouple.write_namcouple(run_info, coupling_list)
 
         # Create a string containing the export command and a list of
         # environment variable definitions that can be run by the shell
@@ -224,4 +257,5 @@ if __name__ == '__main__':
     elif args.finalize:
         mode = 'finalize'
         common_envars = _setup_common()
-        _, _ = _run_drivers(common_envars, mode)
+        run_info = {}
+        _, _, _, _ = _run_drivers(common_envars, mode, run_info)

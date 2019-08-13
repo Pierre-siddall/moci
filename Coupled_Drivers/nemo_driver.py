@@ -31,6 +31,11 @@ import shutil
 import inc_days
 import common
 import error
+import create_namcouple
+try:
+    import f90nml
+except ImportError:
+    pass
 
 # Here, "top" refers to the NEMO TOP passive tracer system. It does not
 # imply anything to do with being in overall control or at the head of
@@ -103,7 +108,7 @@ def _verify_nemo_rst(cyclepointstr, nemo_rst, nemo_nl, nemo_nproc):
         # number of nemo processors, or rebuilt file and processor files.
         if len(icb_restart_files) not in (1, nemo_nproc, nemo_nproc+1):
             sys.stderr.write('[FAIL] Unable to find iceberg restart files for'
-                             ' this cycle. Must either have one rebuilt file,' 
+                             ' this cycle. Must either have one rebuilt file,'
                              ' as many as there are nemo processors (%i) or'
                              ' both rebuilt and processor files.'
                              '[FAIL] Found %i iceberg restart files\n'
@@ -197,7 +202,7 @@ def _load_environment_variables(nemo_envar):
         sys.exit(error.MISSING_EVAR_ERROR)
     _ = nemo_envar.load_envar('NEMO_START', '')
     _ = nemo_envar.load_envar('NEMO_ICEBERGS_START', '')
-    _ = nemo_envar.load_envar('CONTINUE', '')    
+    _ = nemo_envar.load_envar('CONTINUE', '')
     _ = nemo_envar.load_envar('CPL_RIVER_COUNT', '0')
 
 
@@ -205,7 +210,7 @@ def _load_environment_variables(nemo_envar):
     _ = nemo_envar.load_envar('L_OCN_PASS_TRC', 'false')
 
     return nemo_envar
-    
+
 
 def _setup_dates(nemo_envar):
     '''
@@ -234,7 +239,6 @@ def _setup_dates(nemo_envar):
                                  run_length[0], run_length[1], run_length[2],
                                  calendar)
     return nleapy, model_basis, run_start, run_length, run_days
-                                                    
 
 
 def _setup_executable(common_envar):
@@ -632,7 +636,8 @@ def _setup_executable(common_envar):
     if ('T' in nemo_envar['L_OCN_PASS_TRC']) or \
        ('t' in nemo_envar['L_OCN_PASS_TRC']):
 
-        sys.stdout.write('[INFO] nemo_driver: Passive tracer code is active.')
+        sys.stdout.write('[INFO] nemo_driver: Passive tracer code is '
+                         'active.\n')
 
         controller_mode = "run_controller"
 
@@ -643,7 +648,8 @@ def _setup_executable(common_envar):
 				      nemo_dump_time,
 				      controller_mode)
     else:
-        sys.stdout.write('[INFO] nemo_driver: Passive tracer code not active.')
+        sys.stdout.write('[INFO] nemo_driver: Passive tracer code not '
+                         'active.\n')
 
     return nemo_envar
 
@@ -664,6 +670,90 @@ def _set_launcher_command(nemo_envar):
         nemo_envar['ROSE_LAUNCHER_PREOPTS_NEMO']
     return launch_cmd
 
+def get_ocean_resol(nemo_nl_file, run_info):
+    '''
+    Determine the ocean resolution.
+    This function is only used when creating the namcouple at run time.
+    '''
+
+    # Read in the resolution of ocean (existent of namelist_cfg has
+    # already been checked)
+    ocean_nml = f90nml.read(nemo_nl_file)
+
+    # Check the required entries exist
+    if not 'namcfg' in ocean_nml:
+        sys.stderr.write('[FAIL] namcfg not found in namelist_cfg\n')
+        sys.exit(error.MISSING_OCN_RESOL_NML)
+    if not 'jpiglo' in ocean_nml['namcfg'] or \
+            not 'jpjglo' in ocean_nml['namcfg'] or \
+            not 'cp_cfg' in ocean_nml['namcfg'] or \
+            not 'jp_cfg' in ocean_nml['namcfg']:
+        sys.stderr.write('[FAIL] cp_cfg, jp_cfg, jpiglo or jpjglo are '
+                         'missing from namelist namcf in namelist_cfg\n')
+        sys.exit(error.MISSING_OCN_RESOL)
+
+    # Check it is on orca grid
+    if ocean_nml['namcfg']['cp_cfg'] != 'orca':
+        sys.stderr.write('[FAIL] we can currently only handle the '
+                         'ORCA grid\n')
+        sys.exit(error.NOT_ORCA_GRID)
+
+    # Check this is a grid we recognise
+    if ocean_nml['namcfg']['jp_cfg'] == 25:
+        run_info['OCN_grid'] = 'orca025'
+    else:
+        run_info['OCN_grid'] = 'orca' + str(ocean_nml['namcfg']['jp_cfg'])
+
+    # Store the ocean resolution
+    run_info['OCN_resol'] = [ocean_nml['namcfg']['jpiglo'],
+                             ocean_nml['namcfg']['jpjglo']]
+
+    return run_info
+
+def _sent_coupling_fields(nemo_envar, run_info):
+    '''
+    Write the coupling fields sent from NEMO into model_snd_list.
+    This function is only used when creating the namcouple at run time.
+    '''
+    # Check that file specifying the coupling fields sent from
+    # NEMO is present
+    if not os.path.exists('OASIS_OCN_SEND'):
+        sys.stderr.write('[FAIL] OASIS_OCN_SEND is missing.\n')
+        sys.exit(error.MISSING_OASIS_OCN_SEND)
+
+    # Add toyatm to our list of executables
+    if not 'exec_list' in run_info:
+        run_info['exec_list'] = []
+    run_info['exec_list'].append('toyoce')
+
+    # Determine the ocean resolution
+    run_info = get_ocean_resol(nemo_envar['NEMO_NL'], run_info)
+
+    # If using the default coupling option, we'll need to read the
+    # NEMO namelist later
+    run_info['nemo_nl'] = nemo_envar['NEMO_NL']
+
+    # Read the namelist
+    oasis_nml = f90nml.read('OASIS_OCN_SEND')
+
+    # Check we have the expected information
+    if not 'oasis_ocn_send_nml' in oasis_nml:
+        sys.stderr.write('[FAIL] namelist oasis_ocn_send_nml is '
+                         'missing from OASIS_OCN_SEND.\n')
+        sys.exit(error.MISSING_OASIS_OCN_SEND_NML)
+    if not 'oasis_ocn_send' in oasis_nml['oasis_ocn_send_nml']:
+        sys.stderr.write('[FAIL] entry oasis_ocn_send is missing '
+                         'from namelist oasis_ocn_send_nml in '
+                         'OASIS_OCN_SEND.\n')
+        sys.exit(error.MISSING_OASIS_OCN_SEND)
+
+    # Create a list of fields sent from OCN
+    model_snd_list = \
+        create_namcouple.add_to_cpl_list( \
+        'OCN', False, 0,
+        oasis_nml['oasis_ocn_send_nml']['oasis_ocn_send'])
+
+    return run_info, model_snd_list
 
 def _finalize_executable(_):
     '''
@@ -715,7 +805,7 @@ def _finalize_executable(_):
         controller_mode = "finalize"
         top_controller.run_controller([], [], [], [], [], controller_mode)
 
-def run_driver(common_envar, mode):
+def run_driver(common_envar, mode, run_info):
     '''
     Run the driver, and return an instance of common.LoadEnvar and as string
     containing the launcher command for the NEMO model
@@ -723,8 +813,14 @@ def run_driver(common_envar, mode):
     if mode == 'run_driver':
         exe_envar = _setup_executable(common_envar)
         launch_cmd = _set_launcher_command(exe_envar)
+        if run_info['l_namcouple']:
+            model_snd_list = None
+        else:
+            run_info, model_snd_list = \
+                _sent_coupling_fields(exe_envar, run_info)
     elif mode == 'finalize':
         _finalize_executable(common_envar)
         exe_envar = None
         launch_cmd = None
-    return exe_envar, launch_cmd
+        model_snd_list = None
+    return exe_envar, launch_cmd, run_info, model_snd_list

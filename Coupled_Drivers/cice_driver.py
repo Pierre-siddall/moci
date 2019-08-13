@@ -362,7 +362,7 @@ def _finalize_executable(_):
     pass
 
 
-def run_driver(common_envar, mode):
+def run_driver(common_envar, mode, run_info):
     '''
     Run the driver, and return an instance of common.LoadEnvar and as string
     containing the launcher command for the CICE model
@@ -370,8 +370,10 @@ def run_driver(common_envar, mode):
     if mode == 'run_driver':
         exe_envar = _setup_executable(common_envar)
         launch_cmd = _set_launcher_command(exe_envar)
+        model_snd_list = None
     elif mode == 'finalize':
         _finalize_executable(common_envar)
         exe_envar = None
         launch_cmd = None
-    return exe_envar, launch_cmd
+        model_snd_list = None
+    return exe_envar, launch_cmd, run_info, model_snd_list

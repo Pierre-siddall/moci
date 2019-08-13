@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2019 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -111,7 +111,7 @@ class LoadEnvar(object):
 
     def __setitem__(self, var_name, value):
         '''
-        Allow an enivronment variable to be added to the container by
+        Allow an environment variable to be added to the container by
         using the syntax LoadEnvar['variable_name'] = x.
         '''
         self.add(var_name, value)

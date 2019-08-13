@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016 Met Office. All rights reserved.
+ (C) Crown copyright 2019 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -23,7 +23,7 @@ from __future__ import absolute_import
 import common
 
 
-def _setup_executable(common_envar):
+def _setup_executable(common_envar, run_info):
     '''
     Setup the environment and any files required by the executable
     '''
@@ -33,12 +33,21 @@ def _setup_executable(common_envar):
     return xxx_envar
 
 
-def _set_launcher_command(xxxx_envar):
+def _set_launcher_command(exe_envar):
     '''
     Setup the launcher command for the executable
     '''
     launch_cmd = ''
     return launch_cmd
+
+
+def _sent_coupling_fields(exe_envar, run_info):
+    '''
+    Add the coupling fields sent from this executable.
+    This function is only used when creating the namcouple at run time.
+    '''
+    model_snd_list = None
+    return run_info, model_snd_list
 
 
 def _finalize_executable(common_envar):
@@ -47,16 +56,21 @@ def _finalize_executable(common_envar):
     '''
 
 
-def run_driver(common_envar, mode):
+def run_driver(common_envar, mode, run_info):
     '''
     Run the driver, and return an instance of common.LoadEnvar and as string
     containing the launcher command for the XIOS component
     '''
     if mode == 'run_driver':
-        exe_envar = _setup_executable(common_envar)
+        exe_envar = _setup_executable(common_envar, run_info)
         launch_cmd = _set_launcher_command(exe_envar)
+        model_snd_list = None
+        if not run_info['l_namcouple']:
+            run_info, model_snd_list \
+                = _sent_coupling_fields(exe_envar, run_info)
     elif mode == 'finalize':
         _finalize_executable(common_envar)
         exe_envar = None
         launch_cmd = None
-    return exe_envar, launch_cmd
+        model_snd_list = None
+    return exe_envar, launch_cmd, run_info, model_snd_list

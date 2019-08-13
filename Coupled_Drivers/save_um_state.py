@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2017 Met Office. All rights reserved.
+ (C) Crown copyright 2019 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -29,7 +29,7 @@ import re
 import sys
 import common
 
-def save_state(common_envar, iscrun):
+def save_state(runid, common_envar, iscrun):
     '''
     Manage backup copies of the partial sum files, this allows for the UM
     to retrieve a previous state for the climate meaning, to reduce instances
@@ -43,7 +43,7 @@ def save_state(common_envar, iscrun):
     # to avoid restoring files from any previous cycles should they exist.
     if iscrun in ('', 'false'):
         sys.stdout.write('preparing to delete partial sums\n')
-        all_partial_sum_regex = r'.*%sa_s\d{1}(?:a|b)$' % common_envar['RUNID']
+        all_partial_sum_regex = r'.*%sa_s\d{1}(?:a|b)$' % runid
         previous_psums = [f for f in datam_files if \
                               re.match(all_partial_sum_regex, f)]
         for psum_to_delete in previous_psums:
@@ -51,7 +51,7 @@ def save_state(common_envar, iscrun):
                                             psum_to_delete))
 
     # Find the non backed up partial sum files
-    partial_sum_regex = r'^%sa_s\d{1}(?:a|b)$' % common_envar['RUNID']
+    partial_sum_regex = r'^%sa_s\d{1}(?:a|b)$' % runid
     partial_sum_files = [f for f in datam_files if \
                              re.match(partial_sum_regex, f)]
     # as each mean period has an a and b file
@@ -62,8 +62,8 @@ def save_state(common_envar, iscrun):
         # process
         # Check for backed up partial sum files from this cycle
         current_bup_regex = r'%s_%sa_s\d{1}(?:a|b)' % (cyclepoint,
-                                                       common_envar['RUNID'])
-        general_bup_regex = r'\S+_%sa_s\d{1}(?:a|b)' % common_envar['RUNID']
+                                                       runid)
+        general_bup_regex = r'\S+_%sa_s\d{1}(?:a|b)' % runid
         current_bup = [f for f in datam_files if \
                            re.match(current_bup_regex, f)]
         general_bup = [f for f in datam_files if \

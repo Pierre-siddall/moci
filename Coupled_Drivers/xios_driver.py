@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016 Met Office. All rights reserved.
+ (C) Crown copyright 2019 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -122,6 +122,19 @@ def _set_launcher_command(xios_envar):
 
     return launch_cmd
 
+def _sent_coupling_fields(run_info):
+    '''
+    Add XIOS executable to list of executables.
+    This function is only used when creating the namcouple at run time.
+    '''
+
+    # Add xios to our list of executables
+    if not 'exec_list' in run_info:
+        run_info['exec_list'] = []
+    run_info['exec_list'].append('xios.x')
+
+    return run_info
+
 def _finalize_executable(_):
     '''
     There is no finalization required for XIOS
@@ -129,7 +142,7 @@ def _finalize_executable(_):
     pass
 
 
-def run_driver(common_envar, mode):
+def run_driver(common_envar, mode, run_info):
     '''
     Run the driver, and return an instance of common.LoadEnvar and as string
     containing the launcher command for the XIOS component
@@ -137,8 +150,12 @@ def run_driver(common_envar, mode):
     if mode == 'run_driver':
         exe_envar = _setup_executable(common_envar)
         launch_cmd = _set_launcher_command(exe_envar)
+        model_snd_list = None
+        if not run_info['l_namcouple']:
+            run_info = _sent_coupling_fields(run_info)
     elif mode == 'finalize':
         _finalize_executable(common_envar)
         exe_envar = None
         launch_cmd = None
-    return exe_envar, launch_cmd
+        model_snd_list = None
+    return exe_envar, launch_cmd, run_info, model_snd_list
