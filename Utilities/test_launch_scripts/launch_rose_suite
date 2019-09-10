@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 """
 Script to rose test suites using a launcher rose suite.
 
@@ -32,7 +32,7 @@ def main():
     suite_rev = os.environ['SUITE_REV']
     suite_name = os.environ['SUITE_NAME']
     suite_local_dir = os.path.join(test_dir, suite_name)
-    header_msg = os.environ.get('HEADER_MSG','')
+    header_msg = os.environ.get('HEADER_MSG', '')
     try:
         # see module docstring for details on expected format
         add_opts_raw = eval(os.environ['ADD_OPTS'])
@@ -57,12 +57,13 @@ def main():
     msg1 = '{msg} test suite script {datetime}'
     msg1 = msg1.format(msg=header_msg,
                        datetime=str(datetime.datetime.now()))
-    print msg1
+    sys.stdout.write(msg1)
     sys.stdout.flush()
 
     # remove anything that exists at this location
     if os.path.exists(suite_local_dir):
-        print 'removing existing item at {0}'.format(suite_local_dir)
+        sys.stdout.write('removing existing item at {0}'.
+                         format(suite_local_dir))
         sys.stdout.flush()
         if os.path.isdir(suite_local_dir):
             shutil.rmtree(suite_local_dir)
@@ -74,7 +75,8 @@ def main():
     checkout_cmd = checkout_cmd.format(url=suite_url,
                                        rev=suite_rev,
                                        ldir=suite_local_dir)
-    print 'Extracting moci test suite with cmd: {0}'.format(checkout_cmd)
+    sys.stdout.write('Extracting moci test suite with cmd: {0}'.
+                     format(checkout_cmd))
     sys.stdout.flush()
     subprocess.call(checkout_cmd,
                     shell=True)
@@ -87,10 +89,16 @@ def main():
                                                   val=value1)
     suite_run_cmd = suite_run_cmd.format(suite_name)
 
-    print 'Launching moci test suite'
-    print 'command: {0}'.format(suite_run_cmd)
+    sys.stdout.write('Launching moci test suite')
+    sys.stdout.write('command: {0}'.format(suite_run_cmd))
     sys.stdout.flush()
-    subprocess.call(suite_run_cmd, shell=True)
+    rcode = subprocess.call(suite_run_cmd, shell=True)
+    if rcode != 0:
+        #The suite has failed to launch correctly
+        sys.stderr.write('The suite {0} has failed to launch, please see'
+                         ' output above for more details\n'.
+                         format(suite_name))
+        sys.exit(rcode)
 
 if __name__ == '__main__':
     main()
