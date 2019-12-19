@@ -42,6 +42,8 @@ except ImportError:
 # any form of control heirarchy.
 import top_controller
 
+import si3_controller
+
 # Define errors for the NEMO driver only
 SERIAL_MODE_ERROR = 99
 
@@ -71,6 +73,7 @@ def _get_nemorst(nemo_nl_file):
         if nemo_rst[-1] == '/':
             nemo_rst = nemo_rst[:-1]
         return nemo_rst
+    return None
 
 def _get_ln_icebergs(nemo_nl_file):
     '''
@@ -241,6 +244,7 @@ def _setup_dates(nemo_envar):
     return nleapy, model_basis, run_start, run_length, run_days
 
 
+
 def _setup_executable(common_envar):
     '''
     Setup the environment and any files required by the executable
@@ -308,7 +312,7 @@ def _setup_executable(common_envar):
     nemo_restart_files = [f for f in os.listdir(nemo_rst) if
                           re.findall(r'.+_\d{8}_restart(_\d+)?\.nc', f)]
     nemo_restart_files.sort()
-    if len(nemo_restart_files) > 0:
+    if nemo_restart_files:
         latest_nemo_dump = nemo_rst + '/' + nemo_restart_files[-1]
     else:
         latest_nemo_dump = 'unset'
@@ -343,7 +347,7 @@ def _setup_executable(common_envar):
         sys.stdout.write('[INFO] Sourcing namelist file from the work '
                          'directory of the previous cycle\n')
         # find the previous work directory
-        prev_workdir = common.find_previous_workdir ( \
+        prev_workdir = common.find_previous_workdir( \
             common_envar['CYLC_TASK_CYCLE_POINT'],
             common_envar['CYLC_TASK_WORK_DIR'],
             common_envar['CYLC_TASK_NAME'])
@@ -607,20 +611,21 @@ def _setup_executable(common_envar):
                  nemo_envar['CPL_RIVER_COUNT'])
     else:
         update_nl_cmd = '--file %s --runid %so --restart %s --restart_ctl %s' \
-            ' --next_step %i --final_step %s --start_date %s --leapyear %i' \
-            ' --iproc %s --jproc %s --ijproc %s  --cpl_river_count %s --verbose' % \
-            (nemo_envar['NEMO_NL'], \
-                 common_envar['RUNID'], \
-                 ln_restart, \
-                 restart_ctl, \
-                 nemo_next_step, \
-                 nemo_final_step, \
-                 nemo_ndate0, \
-                 nleapy, \
-                 nemo_envar['NEMO_IPROC'], \
-                 nemo_envar['NEMO_JPROC'], \
-                 nemo_envar['NEMO_NPROC'], \
-                 nemo_envar['CPL_RIVER_COUNT'])
+                        ' --next_step %i --final_step %s --start_date %s' \
+                        ' --leapyear %i --iproc %s --jproc %s --ijproc %s' \
+                        ' --cpl_river_count %s --verbose' % \
+                        (nemo_envar['NEMO_NL'], \
+                         common_envar['RUNID'], \
+                         ln_restart, \
+                         restart_ctl, \
+                         nemo_next_step, \
+                         nemo_final_step, \
+                         nemo_ndate0, \
+                         nleapy, \
+                         nemo_envar['NEMO_IPROC'], \
+                         nemo_envar['NEMO_JPROC'], \
+                         nemo_envar['NEMO_NPROC'], \
+                         nemo_envar['CPL_RIVER_COUNT'])
 
     update_nl_cmd = './update_nemo_nl %s' % update_nl_cmd
 
@@ -648,8 +653,19 @@ def _setup_executable(common_envar):
 				      nemo_dump_time,
 				      controller_mode)
     else:
-        sys.stdout.write('[INFO] nemo_driver: Passive tracer code not '
-                         'active.\n')
+        sys.stdout.write('[INFO] nemo_driver: '
+                         'Passive tracer code not active\n.')
+
+    use_si3 = 'si3' in common_envar['models']
+    if use_si3:
+        sys.stdout.write('[INFO] nemo_driver: SI3 code is active.\n')
+        controller_mode = "run_controller"
+        si3_controller.run_controller(restart_ctl,
+                                      int(nemo_envar['NEMO_NPROC']),
+                                      common_envar['RUNID'],
+                                      common_envar['DRIVERS_VERIFY_RST'],
+                                      nemo_dump_time,
+                                      controller_mode)
 
     return nemo_envar
 
@@ -755,7 +771,7 @@ def _sent_coupling_fields(nemo_envar, run_info):
 
     return run_info, model_snd_list
 
-def _finalize_executable(_):
+def _finalize_executable(common_envar):
     '''
     Finalize the NEMO run, copy the nemo namelist to the restart directory
     for the next cycle, update standard out, and ensure that no errors
@@ -766,10 +782,13 @@ def _finalize_executable(_):
 
     # append the ocean output and solver stat file to standard out. Use an
     # iterator to read the files, incase they are too large to fit into
-    # memory
+    # memory. Try to find both the NEMO 3.6 and NEMO 4.0 solver files for
+    # compatiblilty reasons
     nemo_stdout_file = 'ocean.output'
-    nemo_solver_file = 'solver.stat'
-    for nemo_output_file in (nemo_stdout_file, nemo_solver_file):
+    nemo36_solver_file = 'solver.stat'
+    nemo40_solver_file = 'run.stat'
+    for nemo_output_file in (nemo_stdout_file,
+                             nemo36_solver_file, nemo40_solver_file):
         if os.path.isfile(nemo_output_file):
             with open(nemo_output_file, 'r') as n_out:
                 for line in n_out:
@@ -805,7 +824,13 @@ def _finalize_executable(_):
         controller_mode = "finalize"
         top_controller.run_controller([], [], [], [], [], controller_mode)
 
-def run_driver(common_envar, mode, run_info):
+    use_si3 = 'si3' in common_envar['models']
+    if use_si3:
+        sys.stdout.write('[INFO] nemo_driver: Finalise SI3 controller\n')
+        controller_mode = "finalize"
+        si3_controller.run_controller([], [], [], [], [], controller_mode)
+
+def run_driver(common_envar, mode):
     '''
     Run the driver, and return an instance of common.LoadEnvar and as string
     containing the launcher command for the NEMO model

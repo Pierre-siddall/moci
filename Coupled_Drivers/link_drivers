@@ -40,10 +40,15 @@ def _check_drivers(models):
     for model in models:
         drivername = '%s_driver.py' % model
         if not os.path.isfile(drivername):
-            sys.stderr.write('[FAIL] Can not find driver file for model %s.'
-                             ' The driver file should be named %s\n' %
-                             (model, drivername))
-            sys.exit(error.MISSING_DRIVER_ERROR)
+            # check to see if this is a controller rather than a driver
+            controllername = '%s_controller.py' % model
+            if os.path.isfile(controllername):
+                models.remove(model)
+            else:
+                sys.stderr.write('[FAIL] Can not find driver file for model %s.'
+                                 ' The driver file should be named %s\n' %
+                                 (model, drivername))
+                sys.exit(error.MISSING_DRIVER_ERROR)
     return models
 
 def _run_drivers(common_envars, mode, run_info):
