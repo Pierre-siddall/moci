@@ -830,7 +830,7 @@ def _finalize_executable(common_envar):
         controller_mode = "finalize"
         si3_controller.run_controller([], [], [], [], [], controller_mode)
 
-def run_driver(common_envar, mode):
+def run_driver(common_envar, mode, run_info):
     '''
     Run the driver, and return an instance of common.LoadEnvar and as string
     containing the launcher command for the NEMO model
