@@ -30,19 +30,19 @@ for cp in copydata:
         dest[cp] = os.environ[copydata[cp]]
     except KeyError:
         # variable not available in the environment
-        print >> sys.stderr, '[ERROR] Unable to access environment variable: ' + \
-            copydata[cp]
+        sys.stderr.write('[ERROR] Unable to access environment variable: ' + \
+            copydata[cp])
         sys.exit(-1)
 
     if not os.path.isdir(dest[cp]):
-        print '[INFO] Creating output directory: ', dest[cp]
+        sys.stdout.write('[INFO] Creating output directory: ' + dest[cp])
         os.makedirs(dest[cp])
 
-    print '[INFO] Copying data from: ', cp
+    sys.stdout.write('[INFO] Copying data from: ' + cp)
     try:
         files = os.listdir(cp)
     except OSError:
-        print >> sys.stderr, '[ERROR] Failed to find source directory: ' + cp
+        sys.stderr.write('[ERROR] Failed to find source directory: ' + cp)
         sys.exit(-2)
 
     for fn in files:
@@ -53,5 +53,5 @@ for cp in copydata:
             with tarfile.open(full_fn, 'r') as z:
                 z.extractall(dest[cp], members=tar_filter(z))
         else:
-#            print >> sys.stderr, "not valid zip: " + full_fn 
+#            sys.stderr.write("not valid zip: " + full_fn)
             pass

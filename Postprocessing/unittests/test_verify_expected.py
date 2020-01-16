@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2020 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -111,7 +111,7 @@ class ArchivedFilesTests(unittest.TestCase):
             [1988, 1, 1]
             )
         self.assertListEqual(
-            self.files.extract_date('lim_runidi_1s_198812-198903_grid.nc'),
+            self.files.extract_date('si3_runidi_1s_198812-198903_grid.nc'),
             [1988, 12, 1]
             )
         self.assertListEqual(
@@ -236,7 +236,7 @@ class ArchivedFilesTests(unittest.TestCase):
         mock_cmp.return_value = ('ncf_mean', 'o', 'medusa')
         self.assertEqual(self.files.get_collection(period='1m', stream='grid'),
                          'onm.nc.file')
-        mock_cmp.return_value = ('ncf_mean', 'i', 'lim')
+        mock_cmp.return_value = ('ncf_mean', 'i', 'si3')
         self.assertEqual(self.files.get_collection(period='1s', stream='grid'),
                          'ins.nc.file')
 
@@ -1055,11 +1055,11 @@ class DiagnosticFilesTests(unittest.TestCase):
                             'medusa_prefixo_1m_19960201-19960301_diad-T.nc'],
             'ons.nc.file': ['nemo_prefixo_1s_19950901-19951201_grid-W.nc',
                             'medusa_prefixo_1s_19950901-19951201_diad-T.nc'],
-            'inm.nc.file': ['lim_prefixi_1m_19950901-19951001_icemod.nc',
-                            'lim_prefixi_1m_19951001-19951101_icemod.nc',
-                            'lim_prefixi_1m_19951101-19951201_icemod.nc',
-                            'lim_prefixi_1m_19951201-19960101_icemod.nc'],
-            'ins.nc.file': ['lim_prefixi_1s_19950901-19951201_icemod.nc']
+            'inm.nc.file': ['si3_prefixi_1m_19950901-19951001_icemod.nc',
+                            'si3_prefixi_1m_19951001-19951101_icemod.nc',
+                            'si3_prefixi_1m_19951101-19951201_icemod.nc',
+                            'si3_prefixi_1m_19951201-19960101_icemod.nc'],
+            'ins.nc.file': ['si3_prefixi_1s_19950901-19951201_icemod.nc']
             }
 
         expected = self.files.expected_diags()
@@ -1077,11 +1077,11 @@ class DiagnosticFilesTests(unittest.TestCase):
                             'medusa_prefixo_1m_19960401-19960501_diad-T.nc'],
             'ons.nc.file': ['nemo_prefixo_1s_19951201-19960301_grid-W.nc',
                             'medusa_prefixo_1s_19951201-19960301_diad-T.nc'],
-            'inm.nc.file': ['lim_prefixi_1m_19960101-19960201_icemod.nc',
-                            'lim_prefixi_1m_19960201-19960301_icemod.nc',
-                            'lim_prefixi_1m_19960301-19960401_icemod.nc',
-                            'lim_prefixi_1m_19960401-19960501_icemod.nc'],
-            'ins.nc.file': ['lim_prefixi_1s_19951201-19960301_icemod.nc']
+            'inm.nc.file': ['si3_prefixi_1m_19960101-19960201_icemod.nc',
+                            'si3_prefixi_1m_19960201-19960301_icemod.nc',
+                            'si3_prefixi_1m_19960301-19960401_icemod.nc',
+                            'si3_prefixi_1m_19960401-19960501_icemod.nc'],
+            'ins.nc.file': ['si3_prefixi_1s_19951201-19960301_icemod.nc']
             }
 
         expected = self.files.expected_diags()

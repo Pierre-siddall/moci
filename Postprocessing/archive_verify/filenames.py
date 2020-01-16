@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2017 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2020 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -30,7 +30,7 @@ MODEL_COMPONENTS = {
                             'diaptr', 'trnd3d', 'scalar',
                             'UK-shelf-T', 'UK-shelf-U', 'UK-shelf-V']),
              'medusa': ('o', ['ptrc-T', 'diad-T', 'ptrd-T']),
-             'lim': ('i', ['icemod'])},
+             'si3': ('i', ['icemod'])},
     'cice': {'cice': ('i', '')},
     }
 

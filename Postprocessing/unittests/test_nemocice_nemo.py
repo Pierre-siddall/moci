@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2020 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -66,13 +66,13 @@ class StencilTests(unittest.TestCase):
                          [fname for fname in self.files if 'restart' in fname
                           and '_ice' not in fname and '_trc' not in fname])
 
-    def test_rst_set_stencil_lim(self):
-        '''Test the regex of the rst_set_stencil method - lim restarts'''
+    def test_rst_set_stencil_si3(self):
+        '''Test the regex of the rst_set_stencil method - si3 restarts'''
         func.logtest('Assert tracer pattern matching of rst_set_stencil:')
         patt = re.compile(self.nemo.rst_set_stencil(self.nemo.rsttypes[1]))
-        lim_rst = [fname for fname in self.files if patt.search(fname)]
+        si3_rst = [fname for fname in self.files if patt.search(fname)]
         self.assertEqual(
-            lim_rst, [fname for fname in self.files if 'restart_ice' in fname]
+            si3_rst, [fname for fname in self.files if 'restart_ice' in fname]
             )
 
     def test_rst_set_stencil_iceberg(self):
@@ -1396,7 +1396,7 @@ class UtilityMethodTests(unittest.TestCase):
         func.logtest('Assert NEMO in model identification:')
         with mock.patch('nemo.NemoPostProc.model_components',
                         new_callable=mock.PropertyMock,
-                        return_value={'nemo': ['GRID', 'FIELD'], 'lim': []}):
+                        return_value={'nemo': ['GRID', 'FIELD'], 'si3': []}):
             ncf = self.nemo.filename_components(
                 'RUNIDo_10d_20001201_20011210_FIELD.nc'
                 )
@@ -1411,7 +1411,7 @@ class UtilityMethodTests(unittest.TestCase):
         func.logtest('Assert MEDUSA in model identification:')
         with mock.patch('nemo.NemoPostProc.model_components',
                         new_callable=mock.PropertyMock,
-                        return_value={'medusa': ['GRID', 'FIELD'], 'lim': []}):
+                        return_value={'medusa': ['GRID', 'FIELD'], 'si3': []}):
             self.nemo.filename_components(
                 'RUNIDo_1m_11112233_44445566_FIELD.nc'
                 )
@@ -1420,16 +1420,16 @@ class UtilityMethodTests(unittest.TestCase):
                                          custom='FIELD')
 
     @mock.patch('nemo.netcdf_filenames.NCFilename')
-    def test_components_lim_model(self, mock_ncf):
-        '''Test component extraction - lim model identification'''
-        func.logtest('Assert LIM in model identification:')
+    def test_components_si3_model(self, mock_ncf):
+        '''Test component extraction - si3 model identification'''
+        func.logtest('Assert si3 in model identification:')
         with mock.patch('nemo.NemoPostProc.model_components',
                         new_callable=mock.PropertyMock,
-                        return_value={'lim': ['GRID', 'FIELD']}):
+                        return_value={'si3': ['GRID', 'FIELD']}):
             self.nemo.filename_components(
                 'RUNIDo_1m_11112233_44445566_FIELD.nc'
                 )
-        mock_ncf.assert_called_once_with('lim', 'RUNID', 'i', base='1m',
+        mock_ncf.assert_called_once_with('si3', 'RUNID', 'i', base='1m',
                                          start_date=('1111', '22', '33'),
                                          custom='FIELD')
 

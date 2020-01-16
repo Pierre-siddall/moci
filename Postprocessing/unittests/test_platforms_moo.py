@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2020 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -133,16 +133,18 @@ class MooseTests(unittest.TestCase):
         if 'iceberg' in self.id():
             cmd['CURRENT_RQST_NAME'] = \
                 'nemo_testpo_icebergs_YYYYMMDD_restart.nc'
-        elif 'ocean' in self.id():
+        elif '_tracer_' in self.id():
+            cmd['CURRENT_RQST_NAME'] = 'TESTPo_YYYYMMDD_restart_trc.nc'
+        elif '_SI3_' in self.id():
+            cmd['CURRENT_RQST_NAME'] = 'TESTPo_YYYYMMDD_restart_ice.nc'
+        elif '_ocean_' in self.id():
             cmd['FILENAME_PREFIX'] = 'u-TESTP'
             cmd['CURRENT_RQST_NAME'] = 'u-TESTPo_YYYYMMDD_restart.nc'
-        elif 'seaice' in self.id():
+        elif '_seaice_' in self.id():
             cmd['FILENAME_PREFIX'] = 'u_TESTP'
             cmd['CURRENT_RQST_NAME'] = 'u_TESTPi.restart.YYYY-MM-DD-00000.nc'
-        elif 'oi_fail' in self.id():
+        elif '_oi_fail' in self.id():
             cmd['CURRENT_RQST_NAME'] = 'TESTPo.YYYY-MM-DD-00000.nc'
-        elif 'tracer' in self.id():
-            cmd['CURRENT_RQST_NAME'] = 'TESTPo_YYYYMMDD_restart_trc.nc'
         with mock.patch('moo.utils.exec_subproc', return_value=(0, '')):
             with mock.patch.dict('moo.os.environ', {'PREFIX': 'PATH/'}):
                 self.inst = moo._Moose(cmd)
@@ -310,6 +312,20 @@ class MooseTests(unittest.TestCase):
         self.assertEqual(collection, 'oda.file')
         self.assertFalse(self.inst.fl_pp)
 
+    def test_collection_ocean_tracer_restart(self):
+        '''Test formation of collection name - NEMO passive tracer restart'''
+        func.logtest('test formation of collection name with tracer restart:')
+        collection = self.inst._collection()
+        self.assertEqual(collection, 'oda.file')
+        self.assertFalse(self.inst.fl_pp)
+
+    def test_collection_ocean_SI3_restart(self):
+        '''Test formation of collection name - NEMO SI3 restart'''
+        func.logtest('test formation of collection name with SI3 restart:')
+        collection = self.inst._collection()
+        self.assertEqual(collection, 'ida.file')
+        self.assertFalse(self.inst.fl_pp)
+
     def test_collection_seaice_restart(self):
         '''Test formation of collection name - CICE restart'''
         func.logtest('test formation of collection name with CICE restart:')
@@ -356,13 +372,6 @@ class MooseTests(unittest.TestCase):
         self.inst._file_id = '1x'
         collection = self.inst._collection()
         self.assertEqual(collection, 'onx.nc.file')
-        self.assertFalse(self.inst.fl_pp)
-
-    def test_collection_passive_tracer(self):
-        '''Test formation of collection name - passive tracer'''
-        func.logtest('test formation of collection name with passive tracer:')
-        collection = self.inst._collection()
-        self.assertEqual(collection, 'oda.file')
         self.assertFalse(self.inst.fl_pp)
 
     def test_collection_ice_season_mean(self):

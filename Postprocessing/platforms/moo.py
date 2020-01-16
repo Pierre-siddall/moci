@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2020 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -38,7 +38,7 @@ import utils
 import timer
 
 # Dictionary of models which Moose is set up to accept
-MODELS = ['atmos', 'jules', 'nemo', 'medusa', 'cice', 'lim']
+MODELS = ['atmos', 'jules', 'nemo', 'medusa', 'cice', 'si3']
 
 
 @timer.run_timer
@@ -190,6 +190,8 @@ class _Moose(object):
                 file_id = 'n' + file_id[0][-1]
             elif 'restart' in file_id:
                 ext = '.file'
+                if 'ice' in file_id:
+                    model_id = 'i' # NEMO SI3 rst files - send to ida.file
                 file_id = 'da'  # These are restart dumps - reassign ID
             elif 'trajectory' in file_id:
                 ext = '.nc.file'

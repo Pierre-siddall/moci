@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2020 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -96,7 +96,7 @@ class NemoPostProc(mt.ModelTemplate):
             'nemo': ['grid_T', 'grid_U', 'grid_V',
                      'grid_W', 'diaptr', 'trnd3d', 'scalar',
                      'UK_shelf_T', 'UK_shelf_U', 'UK_shelf_V'],
-            'lim': ['icemod'],
+            'si3': ['icemod'],
             'medusa': ['ptrc_T', 'diad_T', 'ptrd_T']
             }
 
@@ -155,7 +155,7 @@ class NemoPostProc(mt.ModelTemplate):
 
     def model_realm(self, field):
         ''' Return the standard realm ID character for the model: o=ocean '''
-        return 'i' if field in self.model_components['lim'] else 'o'
+        return 'i' if field in self.model_components['si3'] else 'o'
 
     def rst_set_stencil(self, rsttype):
         '''
