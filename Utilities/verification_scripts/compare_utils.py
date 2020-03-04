@@ -175,15 +175,14 @@ def compare_cubes(cube1, cube2, ignore_halos, halo_size):
     if ignore_halos:
         if len(cube1.shape) < 2:
             num_mismatches = \
-                numpy.sum(numpy.abs(cube1.data-cube2.data)
-                          > ERROR_TOLERANCE)
+                numpy.sum(numpy.abs(cube1.data-cube2.data)) > ERROR_TOLERANCE
             max_error = numpy.max(numpy.abs(cube1.data-cube2.data))
         elif len(cube1.shape) == 2:
             num_mismatches = \
-                numpy.sum(numpy.abs(cube1.data[halo_size:-halo_size,
+                (numpy.sum(numpy.abs(cube1.data[halo_size:-halo_size,
                                                halo_size:-halo_size] -
                                     cube2.data[halo_size:-halo_size,
-                                               halo_size:-halo_size])
+                                               halo_size:-halo_size]))
                           > ERROR_TOLERANCE)
 
 
@@ -194,12 +193,12 @@ def compare_cubes(cube1, cube2, ignore_halos, halo_size):
                                                        halo_size:-halo_size]))
         elif len(cube1.shape) == 3:
             num_mismatches = \
-                numpy.sum(numpy.abs(cube1.data[:,
+                (numpy.sum(numpy.abs(cube1.data[:,
                                                halo_size:-halo_size,
                                                halo_size:-halo_size] -
                                     cube2.data[:,
                                                halo_size:-halo_size,
-                                               halo_size:-halo_size])
+                                               halo_size:-halo_size]))
                           > ERROR_TOLERANCE)
             max_error = numpy.max(numpy.abs(cube1.data[:,
                                                        halo_size:-halo_size,
@@ -209,14 +208,14 @@ def compare_cubes(cube1, cube2, ignore_halos, halo_size):
                                                        halo_size:-halo_size]))
         elif len(cube1.shape) == 4:
             num_mismatches = \
-                numpy.sum(numpy.abs(cube1.data[:,
+                (numpy.sum(numpy.abs(cube1.data[:,
                                                :,
                                                halo_size:-halo_size,
                                                halo_size:-halo_size] -
                                     cube2.data[:,
                                                :,
                                                halo_size:-halo_size,
-                                               halo_size:-halo_size])
+                                               halo_size:-halo_size]))
                           > ERROR_TOLERANCE)
             max_error = numpy.max(numpy.abs(cube1.data[:,
                                                        :,
@@ -230,7 +229,7 @@ def compare_cubes(cube1, cube2, ignore_halos, halo_size):
             raise test_common.DataSizeMismatchError()
     else:
         num_mismatches = \
-            numpy.sum(numpy.abs(cube1.data-cube2.data) > ERROR_TOLERANCE)
+            numpy.sum(numpy.abs(cube1.data-cube2.data)) > ERROR_TOLERANCE
         max_error = numpy.max(numpy.abs(cube1.data-cube2.data))
 
     if num_mismatches > 0:
