@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2020 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -51,10 +51,10 @@ class ClimateMean(object):
         period:      Climate mean period - one of climatemean.MEANPERIODS
         next_period: Subsequent period (if any), for which files of this period
                    may need to remain on disk as components.
-        component:   <type dict> keys: base_cmpt, inst_base (opt), fileid (opt)
+        component:   <type dict> keys: base_cmpt, base_buff (opt), fileid (opt)
                         base_cmpt: <type str>  period of the base component
-                        inst_base: <type bool> Flag to indicate that the base
-                                 component of the first mean is instantaneous
+                        base_buff: <type int> No. of base components retained
+                                 in a file buffer or not yet reinitialised
                         fileid:    <type str>  Required when the filename may
                                  not be discerned from the period (atmos only)
     '''
@@ -63,7 +63,7 @@ class ClimateMean(object):
         self.next = next_period
         self.previous = component['base_cmpt']
         self.component_stream = component.get('fileid', None)
-        self.instantaneous_base = component.get('inst_base', False)
+        self.component_buffer = component.get('base_buff', 0)
 
     def get_availability(self, file_enddate, meanref):
         '''
@@ -78,7 +78,7 @@ class ClimateMean(object):
                           [YY,MM,DD] Mean reference date
         '''
         # 10day mean only relevant for 360d calendar - use range(1,31)
-        days10 = range(meanref[2], 31, 10)
+        days10 = list(range(meanref[2], 31, 10))
         if len(days10) < 3:
             days10.append(meanref[2] - 10)
         conditions = {
@@ -493,27 +493,51 @@ class DiagnosticFiles(ArchivedFiles):
 
         return sdate
 
+    def expected_means(self):
+        '''
+        Return <type tuple> :
+           ( <type dict> : {period: <type CLimateMean>} -
+                  Dictionary of ClimateMeans,
+             <type ClimateMean> -
+                   A pseudo-ClimateMean representing the base component )
+
+        The base component representation is <type None> if the base component
+        is a member of the requested means
+        '''
+        meanperiods = utils.ensure_list(self.naml.meanstreams)
+        if not meanperiods:
+            # No means requested.  Turn off climate mean verification
+            self.naml.pp_climatemeans = False
+
+        base_cm = None
+        if self.naml.pp_climatemeans:
+            mean_streams = self.climate_meanfiles(meanperiods)
+            period1 = mean_streams[meanperiods[0]]
+            if period1.previous not in meanperiods:
+                component = {'base_cmpt': period1.previous,
+                             'base_buff': period1.component_buffer,
+                             'fileid': period1.component_stream}
+                if period1.component_stream:
+                    component['fileid'] = period1.component_stream
+                else:
+                    component['fileid'] = '|'.join(self.meanfields)
+
+                base_cm = ClimateMean(period1.previous, period1.period,
+                                      component)
+        else:
+            mean_streams = {k: None for k in meanperiods}
+
+        return mean_streams, base_cm
+
     def expected_diags(self):
         ''' Generate a list of expected diagnostic output files '''
         all_files = {}
         intermittent_coll = {}
 
         all_streams = [a for a in dir(self.naml) if a.startswith('streams')]
-        meanperiods = utils.ensure_list(self.naml.meanstreams)
 
-        base_stream = None
-        if len(meanperiods) > 0:
-            all_streams += meanperiods
-            if self.naml.pp_climatemeans:
-                meanfiles = self.climate_meanfiles(meanperiods)
-                period1 = meanfiles[meanperiods[0]]
-                base_cm = ClimateMean(period1.previous, period1.period,
-                                      {'base_cmpt': period1.previous})
-                if period1.instantaneous_base:
-                    if period1.component_stream:
-                        base_stream = period1.component_stream
-                    else:
-                        base_stream = ''.join(self.meanfields)
+        mean_streams, base_cm = self.expected_means()
+        all_streams += mean_streams.keys()
 
         try:
             spawn_ncf = utils.ensure_list(self.naml.spawn_netcdf_streams)
@@ -533,40 +557,46 @@ class DiagnosticFiles(ArchivedFiles):
             edate = self.edate[:]
             while len(edate) < 5:
                 edate.append(0)
-            base_edate = edate[:]
 
             if not self.finalcycle:
-                try:
-                    file_buffer = self.naml.buffer_mean
-                except AttributeError:
-                    file_buffer = 0
-                if self.naml.pp_climatemeans and descript == 'mean':
-                    if meanfiles[delta].instantaneous_base:
-                        # Adjust for instantaneous component not being available
-                        # at the end of the validation period
-                        if self.model == 'atmos':
-                            file_buffer += 1
-                        while file_buffer > 0:
-                            edate = utils.add_period_to_date(
-                                edate, '-' + period1.previous
-                                )
-                            file_buffer -= 1
+                if base_cm is None:
+                    try:
+                        file_buffer = self.naml.buffer_mean
+                    except AttributeError:
+                        file_buffer = 0
+                else:
+                    file_buffer = base_cm.component_buffer
 
-                    while not meanfiles[delta].get_availability(edate,
-                                                                self.meanref):
-                        edate = utils.add_period_to_date(edate, '-1d')
+                if self.naml.pp_climatemeans:
+                    cm_edate = edate[:]
+                    try:
+                        # Base component is not in the requested mean periods
+                        base_period = base_cm.period
+                    except AttributeError:
+                        base_period = [p for p, m in mean_streams.items()
+                                       if m.previous == m.period][0]
+
+                    while file_buffer > 0:
+                        cm_edate = utils.add_period_to_date(
+                            cm_edate, '-' + base_period
+                            )
+                        file_buffer -= 1
+
+                    deltamean = mean_streams.get(delta, base_cm)
+                    try:
+                        while not deltamean.get_availability(cm_edate,
+                                                             self.meanref):
+                            cm_edate = utils.add_period_to_date(cm_edate, '-1d')
+                    except AttributeError:
+                        # delta is neither a mean period nor a base component
+                        pass
+
+                    if descript == 'mean':
+                        edate = cm_edate[:]
 
                 while file_buffer > 0:
                     edate = utils.add_period_to_date(edate, '-' + delta)
                     file_buffer -= 1
-
-                try:
-                    while not base_cm.get_availability(base_edate,
-                                                       self.meanref):
-                        base_edate = utils.add_period_to_date(base_edate, '-1d')
-                except NameError:
-                    # No mean base
-                    pass
 
             while date <= edate:
                 newdate = utils.add_period_to_date(date, delta)
@@ -588,7 +618,9 @@ class DiagnosticFiles(ArchivedFiles):
 
                     for stream in streams:
                         stream = str(stream)
-                        if stream in str(base_stream) and date >= base_edate:
+                        if not self.finalcycle and descript == 'instantaneous' and \
+                           base_cm and stream in base_cm.component_stream and \
+                           date >= cm_edate:
                             # Base component stream - awaiting higher mean
                             continue
 
@@ -665,8 +697,6 @@ class DiagnosticFiles(ArchivedFiles):
         if str(component[0]).isdigit():
             component = self.naml.base_mean
             component_id = None
-            if component not in meanperiods:
-                file_buffer += 1
         else:
             # Establish the period of the base mean, where the base_mean is
             # a stream ID rather than a period (Atmosphere)
@@ -696,8 +726,6 @@ class DiagnosticFiles(ArchivedFiles):
                                       level='ERROR')
                         component = '1m'
 
-        instantaneous_base = file_buffer > 0
-
         meanfiles = {}
         for i, m_period in enumerate(meanperiods[:]):
             try:
@@ -706,7 +734,7 @@ class DiagnosticFiles(ArchivedFiles):
                 next_period = None
 
             m_component = {'base_cmpt': component,
-                           'inst_base': instantaneous_base}
+                           'base_buff': file_buffer}
             try:
                 m_component['fileid'] = component_id
             except NameError:

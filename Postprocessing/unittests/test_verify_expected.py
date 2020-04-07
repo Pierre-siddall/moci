@@ -783,8 +783,8 @@ class DiagnosticFilesTests(unittest.TestCase):
     def test_expected_atmos_ppcmean(self):
         ''' Assert correct list of expected atmos files - pp climate means '''
         func.logtest('Assert correct return of atmos files - pp c.means:')
-        # startdate: 19950811, enddate: 20150501, meanref: ???01201
-        self.files.edate = [2015, 5, 1]
+        # startdate: 19950811, enddate: 20150601, meanref: ???01201
+        self.files.edate = [2015, 6, 1]
         self.files.naml.pp_climatemeans = True
         self.files.naml.meanstreams = ['1s', '1y', '1x']
         self.files.naml.base_mean = 'ma'
@@ -1150,7 +1150,7 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.assertListEqual(sorted(expected['onm.nc.file']),
                              sorted(gridw_m[:-2] + diadt_m[:-2]))
         self.assertListEqual(sorted(expected['ond.nc.file']),
-                             sorted(gridw_d[:-6] + diadt_d[:-6] + my10d[:-4]))
+                             sorted(gridw_d[:-6] + diadt_d[:-6] + my10d))
 
         self.files.finalcycle = True
         expected = self.files.expected_diags()
@@ -1220,25 +1220,65 @@ class DiagnosticFilesTests(unittest.TestCase):
         self.files.naml.streams_1d_1m = True
         self.files.sdate = [1995, 9, 1]
         self.files.finalcycle = True
-        outfiles = {
-            'ind.nc.file': ['cice_prefixi_1d_19950901-19951001.nc',
-                            'cice_prefixi_1d_19951001-19951101.nc',
-                            'cice_prefixi_1d_19980901-19981001.nc',
-                            'cice_prefixi_1d_19981001-19981101.nc'],
-            }
-        expected = self.files.expected_diags()
-        for key in outfiles:
-            self.assertListEqual(expected[key][:2], outfiles[key][:2])
-            self.assertListEqual(expected[key][-2:], outfiles[key][-2:])
-        self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
 
+        concat_files = ['cice_prefixi_1d_19950901-19951001.nc',
+                        'cice_prefixi_1d_19951001-19951101.nc',
+                        'cice_prefixi_1d_19980901-19981001.nc',
+                        'cice_prefixi_1d_19981001-19981101.nc']
+
+        expected = self.files.expected_diags()
+        self.assertListEqual(sorted(expected['ind.nc.file'][:2]),
+                             sorted(concat_files[:2]))
+        self.assertListEqual(sorted(expected['ind.nc.file'][-2:]),
+                             sorted(concat_files[2:]))
+        self.assertListEqual(sorted(expected.keys()), ['ind.nc.file'])
+
+    def test_expect_cice_concat_meanstr(self):
+        ''' Assert correct list of expected cice files - concat meanstream'''
+        func.logtest('Assert correct return of expected cice concat means:')
         self.files.naml.streams_1d_1m = False
         self.files.naml.meanstreams = ['1d_1m']
+        self.files.sdate = [1995, 9, 1]
+        self.files.finalcycle = True
+
+        concat_files = ['cice_prefixi_1d_19950901-19951001.nc',
+                        'cice_prefixi_1d_19951001-19951101.nc',
+                        'cice_prefixi_1d_19980901-19981001.nc',
+                        'cice_prefixi_1d_19981001-19981101.nc']
+
         expected = self.files.expected_diags()
-        for key in outfiles:
-            self.assertListEqual(expected[key][:2], outfiles[key][:2])
-            self.assertListEqual(expected[key][-2:], outfiles[key][-2:])
-        self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
+        self.assertListEqual(sorted(expected['ind.nc.file'][:2]),
+                             sorted(concat_files[:2]))
+        self.assertListEqual(sorted(expected['ind.nc.file'][-2:]),
+                             sorted(concat_files[2:]))
+
+    def test_expected_cice_concat_plus(self):
+        ''' Assert correct list of expected cice files - concat means plus 1m'''
+        func.logtest('Assert correct return of expected cice concat means:')
+        self.files.naml.meanstreams = ['1m']
+        self.files.naml.streams_1d_1m = True
+        self.files.sdate = [1995, 9, 1]
+        self.files.finalcycle = False
+
+        concat_files = ['cice_prefixi_1d_19950901-19951001.nc',
+                        'cice_prefixi_1d_19951001-19951101.nc',
+                        'cice_prefixi_1d_19980901-19981001.nc',
+                        'cice_prefixi_1d_19981001-19981101.nc']
+        mean_files = ['cice_prefixi_1m_19950901-19951001.nc',
+                      'cice_prefixi_1m_19951001-19951101.nc',
+                      'cice_prefixi_1m_19980901-19981001.nc',
+                      'cice_prefixi_1m_19981001-19981101.nc']
+        expected = self.files.expected_diags()
+        self.assertListEqual(sorted(expected['ind.nc.file'][:2]),
+                             sorted(concat_files[:2]))
+        self.assertListEqual(sorted(expected['ind.nc.file'][-2:]),
+                             sorted(concat_files[2:]))
+        self.assertListEqual(sorted(expected['inm.nc.file'][:2]),
+                             sorted(mean_files[:2]))
+        self.assertListEqual(sorted(expected['inm.nc.file'][-2:]),
+                             sorted(mean_files[2:]))
+        self.assertListEqual(sorted(expected.keys()),
+                             ['ind.nc.file', 'inm.nc.file'])
 
     def test_expected_nemo_concat_6h_1m(self):
         ''' Assert correct list of expected concatenated files - hours -> 1m'''
