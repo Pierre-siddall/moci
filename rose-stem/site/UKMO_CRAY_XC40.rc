@@ -17,15 +17,14 @@
             --partition=rhel7
 
     [[POSTPROC_RESOURCE]]
-        inherit = LINUX
-        pre-script = "ulimit -s unlimited ; module load scitools/production-os41-1"
+        inherit = LINUX, PYTHON_ENV
+        pre-script = "run_python_env.sh"
 
     [[VERIFY_RESOURCE]]
         inherit = POSTPROC_RESOURCE
 	
     [[UNITTESTS_RESOURCE]]
-        inherit = LINUX
-	pre-script = "module load scitools/production-{{ 'os42-1' if PYTHON3 else 'os41-1' }}"
+        inherit = POSTPROC_RESOURCE
 
     [[HOUSEKEEP_RESOURCE]]
         inherit = LINUX
@@ -278,11 +277,9 @@ module load {{XIOS}}-PrgEnv/{{XIOS_PRGENV_VERSION}}-nooasis/{{ROSE_SUITE_REV_NO}
     [[PYTHON_ENV]]
         [[[environment]]]
             PYTHON_ENVIRONMENT = """
+module unload scitools um_tools
 {% if PYTHON3 %}
-module load scitools/production-os42-1 > /dev/null 2>&1 ;
-module swap scitools/production-os42-1 ;
-source $UMDIR/mule/modules/setup ;
-module swap ifort/16.0_64 ;
+module load scitools scitools/default-current ;
 module load um_tools ;
 {% else %}
 module load scitools/production-os41-1

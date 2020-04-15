@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2020 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -534,6 +534,7 @@ class AtmosPostProc(control.RunPostProc):
                         fname = transform.convert_to_pp(
                             fname,
                             self.naml.atmospp.um_utils,
+                            self.naml.atmospp.mule_utils,
                             finalcycle is True
                             )
 

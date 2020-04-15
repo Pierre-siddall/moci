@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2020 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -710,21 +710,6 @@ class AtmosTransformTests(unittest.TestCase):
             except OSError:
                 pass
 
-    def test_convert_convpp(self):
-        '''Test convert_to_pp functionality with um-convpp'''
-        func.logtest('Assert functionality of the convert_to_pp method:')
-        um_utils_path = 'UMDIR/vn10.4/machine/utilities'
-        with mock.patch('utils.exec_subproc') as mock_exec:
-            with mock.patch('utils.remove_files') as mock_rm:
-                mock_exec.return_value = (0, '')
-                ppfile = atmos_transform.convert_to_pp('Filename',
-                                                       um_utils_path,
-                                                       False)
-                mock_rm.assert_called_with('Filename', path='')
-            cmd = um_utils_path + '/um-convpp Filename Filename.pp'
-            mock_exec.assert_called_with(cmd, cwd='')
-        self.assertEqual(ppfile, 'Filename.pp')
-
     def test_convert_to_pp(self):
         '''Test convert_to_pp functionality - default utility, keeping ffile'''
         func.logtest('Assert functionality of the convert_to_pp method:')
@@ -732,7 +717,22 @@ class AtmosTransformTests(unittest.TestCase):
             with mock.patch('utils.remove_files') as mock_rm:
                 mock_exec.return_value = (0, '')
                 ppfile = atmos_transform.convert_to_pp('Here/Filename',
-                                                       self.umutils, True)
+                                                       self.umutils, None,
+                                                       True)
+                self.assertListEqual(mock_rm.mock_calls, [])
+            cmd = 'mule-convpp Here/Filename Here/Filename.pp'
+            mock_exec.assert_called_with(cmd, cwd='Here')
+        self.assertEqual(ppfile, 'Here/Filename.pp')
+
+    def test_convert_umconvpp(self):
+        '''Test convert_to_pp functionality - default utility, keeping ffile'''
+        func.logtest('Assert functionality of the convert_to_pp method:')
+        with mock.patch('utils.exec_subproc') as mock_exec:
+            with mock.patch('utils.remove_files') as mock_rm:
+                mock_exec.return_value = (0, '')
+                ppfile = atmos_transform.convert_to_pp('Here/Filename',
+                                                       self.umutils,
+                                                       'NoMule', True)
                 self.assertListEqual(mock_rm.mock_calls, [])
             cmd = self.umutils + '/um-convpp Here/Filename Here/Filename.pp'
             mock_exec.assert_called_with(cmd, cwd='Here')
@@ -746,7 +746,8 @@ class AtmosTransformTests(unittest.TestCase):
             with mock.patch('utils.remove_files') as mock_rm:
                 mock_exec.return_value = (0, '')
                 ppfile = atmos_transform.convert_to_pp('Here/Filename',
-                                                       um_utils_path, False)
+                                                       um_utils_path,
+                                                       'NoMule', False)
                 mock_rm.assert_called_with('Here/Filename', path='Here')
             cmd = um_utils_path + '/um-ff2pp Here/Filename Here/Filename.pp'
             mock_exec.assert_called_with(cmd, cwd='Here')
@@ -758,8 +759,8 @@ class AtmosTransformTests(unittest.TestCase):
         with mock.patch('utils.exec_subproc') as mock_exec:
             mock_exec.return_value = (1, 'I failed')
             with self.assertRaises(SystemExit):
-                atmos_transform.convert_to_pp('Filename', 'TestDir',
-                                              self.umutils)
+                atmos_transform.convert_to_pp('Filename', 'umutils',
+                                              None, False)
         self.assertIn('Conversion to pp format failed', func.capture('err'))
         self.assertIn('I failed', func.capture('err'))
 
@@ -938,7 +939,8 @@ class AtmosTransformTests(unittest.TestCase):
             self.assertEqual(icode, 0)
 
         expected_cmd_str = 'mule-cutout -CTYPE FNAME FNAME.cut 1 2 3 4'
-        call_list1 = [mock.call(HousekeepTests.MULE_CUTOUT_CHECK_CMD),
+        call_list1 = [mock.call(HousekeepTests.MULE_CUTOUT_CHECK_CMD,
+                                verbose=False),
                       mock.call(expected_cmd_str)]
         mock_exec.assert_has_calls(call_list1)
 

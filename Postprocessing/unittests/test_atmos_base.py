@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2020 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -331,10 +331,10 @@ class ArchiveDeleteTests(unittest.TestCase):
         for fname in self.ffiles[1:]:
             func.logtest('Testing filename: ' + fname)
             if fname == self.ffiles[-1]:
-                self.assertNotIn(mock.call(fname, mock.ANY, False),
+                self.assertNotIn(mock.call(fname, mock.ANY, None, False),
                                  mock_convpp.mock_calls)
             else:
-                self.assertIn(mock.call(fname, mock.ANY, False),
+                self.assertIn(mock.call(fname, mock.ANY, None, False),
                               mock_convpp.mock_calls)
 
     @mock.patch('atmos.AtmosPostProc.diags_to_process')

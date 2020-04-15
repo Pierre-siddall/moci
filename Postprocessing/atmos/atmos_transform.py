@@ -83,24 +83,50 @@ if MULE_AVAIL:
 
 
 @timer.run_timer
-def convert_to_pp(fieldsfile, umutils, keep_ffile):
+def get_mule_util(mule_path, utility):
+    '''
+    Return the path to the given Mule utility providing the exec is available.
+    Otherwise return None
+    '''
+    exec_path = str(utility)
+    exec_present = False
+    if mule_path and MULE_AVAIL:
+        # If a path is passed in, create a full path to the executable
+        exec_path = os.path.expandvars(os.path.join(mule_path, exec_path))
+        exec_present = os.path.exists(exec_path)
+    else:
+        # Assume path the mule utilities is on the system $PATH
+        ret_val, _ = utils.exec_subproc(utility + ' --help', verbose=False)
+        exec_present = ret_val == 0
+
+    return exec_path if exec_present else None
+
+
+@timer.run_timer
+def convert_to_pp(fieldsfile, umutils, muleutils, keep_ffile):
     '''
     Create the command to call the appropriate UM utility for file
     conversion to pp format.
+        If Mule is available    : mule-convpp
         UM versions up to vn10.3: um-ff2pp
         UM versions 10.4 onwards: um-convpp
     '''
     ppfname = fieldsfile + '.pp'
     sharedir = os.path.dirname(fieldsfile)
-    try:
-        version = re.match(r'.*/(vn|VN)(\d+\.\d+).*', umutils).group(2)
-        conv_exec = 'um-convpp' if float(version) > 10.3 else 'um-ff2pp'
-    except AttributeError:
-        # Version number not in path
-        conv_exec = 'um-convpp'
 
-    cmd = ' '.join([os.path.join(umutils, conv_exec),
-                    fieldsfile, ppfname])
+    convpp = get_mule_util(muleutils, 'mule-convpp')
+    if convpp:
+        conv_exec = convpp
+    else:
+        try:
+            version = re.match(r'.*/(vn|VN)(\d+\.\d+).*', umutils).group(2)
+            conv_exec = 'um-convpp' if float(version) > 10.3 else 'um-ff2pp'
+        except AttributeError:
+            # Version number not in path
+            conv_exec = 'um-convpp'
+        conv_exec = os.path.join(umutils, conv_exec)
+
+    cmd = ' '.join([conv_exec, fieldsfile, ppfname])
     ret_code, output = utils.exec_subproc(cmd, cwd=sharedir)
 
     if ret_code == 0:
@@ -187,27 +213,15 @@ def cutout_subdomain(full_fname, mule_utils, coord_type, coords):
                      indices: zx,zy,nz,ny
                      coords : SW_lon,SW_lat,NE_lon,NE_lat
     '''
-    cutout_exec_present = False
-    if mule_utils:
-        # if a path is passed in, create a full path to the cutout executable
-        cutout = os.path.expandvars(os.path.join(mule_utils, 'mule-cutout'))
-        cutout_exec_present = os.path.exists(cutout)
-    else:
-        # if no path is passed in, we expect mule-cutout to be on the
-        # system $PATH
-        ret_val, _ = utils.exec_subproc('mule-cutout --help')
-        cutout = 'mule-cutout'
-        cutout_exec_present = ret_val == 0
-
+    cutout = get_mule_util(mule_utils, 'mule-cutout')
 
     outfile = full_fname + '.cut'
-
     mlevel = 'ERROR'
     if os.path.exists(full_fname + '.cut'):
         # Cut out file already exists - skip to rename
         icode = 0
 
-    elif cutout_exec_present and MULE_AVAIL:
+    elif cutout:
         # mule-cutout requires the mule Python module to be available
         cmd = ' '.join([cutout, coord_type, full_fname, outfile] +
                        [str(x) for x in coords])
@@ -221,7 +235,8 @@ def cutout_subdomain(full_fname, mule_utils, coord_type, coords):
 
     else:
         msg = 'Unable to cut out subdomain - ' + \
-            '{} utility does not exist'.format(cutout)
+            '{} utility does not exist'.format(cutout if cutout else
+                                               'mule-cutout')
         icode = -99
 
     if icode == 0:
@@ -318,13 +333,13 @@ def create_um_mean(meanfile):
                 ff_out.fields.append(mean_operator(meanfields))
 
         utils.log_msg('\tPPheader STARTdate: {}'.format(
-                ','.join([str(i) for i in ff_out.fields[0].raw[1:7]]),
-                level='INFO'
-                ))
+            ','.join([str(i) for i in ff_out.fields[0].raw[1:7]]),
+            level='INFO'
+        ))
         utils.log_msg('\tPPheader ENDdate: {}'.format(
-                ','.join([str(i) for i in ff_out.fields[0].raw[7:13]]),
-                level='INFO'
-                ))
+            ','.join([str(i) for i in ff_out.fields[0].raw[7:13]]),
+            level='INFO'
+        ))
 
         try:
             # Try-except-else construct required here because Mule creates
