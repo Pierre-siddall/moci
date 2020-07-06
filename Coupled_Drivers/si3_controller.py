@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2020 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -62,7 +62,7 @@ def _verify_si3_rst(cyclepointstr, nemo_nproc, si3_restart_files):
     Verify that the SI3 restart files match what we expect from the number
     of NEMO processors.
     '''
-    si3_rst_regex = r'%s_restart_ice_in(_\d+)?\.nc' % cyclepointstr
+    si3_rst_regex = r'%s_restart_ice(_\d+)?\.nc' % cyclepointstr
     current_rst_files = [f for f in si3_restart_files if
                          re.findall(si3_rst_regex, f)]
     if len(current_rst_files) not in (1, nemo_nproc, nemo_nproc+1):
@@ -120,11 +120,11 @@ def _setup_si3_controller(restart_ctl,
 
     # Identify any relevant SI3 restart files in the suite data directory.
     # These should conform to the format:
-    # <some arbitrary name>_yyyymmdd_restart_ice_in_<PE rank>.nc" or
-    # <some arbitrary name>_yyyymmdd_restart_ice_in.nc" in the case
+    # <some arbitrary name>_yyyymmdd_restart_ice<PE rank>.nc" or
+    # <some arbitrary name>_yyyymmdd_restart_ice.nc" in the case
     # of the restart file having been rebuilt.
     si3_restart_files = [f for f in os.listdir(si3_rst) if
-                         re.findall(r'.+_\d{8}_restart_ice_in', f)]
+                         re.findall(r'.+_\d{8}_restart_ice', f)]
     si3_restart_files.sort()
 
     # Default position is that we're starting from a restart file and
@@ -144,9 +144,9 @@ def _setup_si3_controller(restart_ctl,
             # starting from climatology.
             latest_si3_dump = 'unset'
 
-    # If we have a link to restart_ice_in.nc left over from a previous run,
+    # If we have a link to restart_ice.nc left over from a previous run,
     # remove it for both NRUNs and CRUNs
-    common.remove_file('restart_ice_in.nc')
+    common.remove_file('restart_ice.nc')
 
     # Is this a CRUN or an NRUN?
     if si3_envar['CONTINUE'] == '':
@@ -159,7 +159,7 @@ def _setup_si3_controller(restart_ctl,
                              'restart data\n\n')
             # For NRUNS, get rid of any existing restart files from
             # previous runs.
-            for file_path in glob.glob(si3_rst+'/*restart_ice_in*'):
+            for file_path in glob.glob(si3_rst+'/*restart_ice*'):
                 # os.path.isfile will return true for symbolic links as well
                 # as physical files.
                 common.remove_file(file_path)
@@ -167,14 +167,14 @@ def _setup_si3_controller(restart_ctl,
         # If we do have a SI3 start dump.
         if si3_envar['SI3_START'] != '':
             if os.path.isfile(si3_envar['SI3_START']):
-                os.symlink(si3_envar['SI3_START'], 'restart_ice_in.nc')
+                os.symlink(si3_envar['SI3_START'], 'restart_ice.nc')
             elif os.path.isfile('%s_0000.nc' %
                                 si3_envar['SI3_START']):
                 for fname in glob.glob('%s_????.nc' %
                                        si3_envar['SI3_START']):
                     proc_number = fname.split('.')[-2][-4:]
-                    common.remove_file('restart_ice_in_%s.nc' % proc_number)
-                    os.symlink(fname, 'restart_ice_in_%s.nc' % proc_number)
+                    common.remove_file('restart_ice_%s.nc' % proc_number)
+                    os.symlink(fname, 'restart_ice_%s.nc' % proc_number)
         else:
             # If there's no SI3 restart we must be starting from climatology.
             sys.stdout.write('[INFO] si3_controller: SI3 is starting from'
@@ -184,7 +184,7 @@ def _setup_si3_controller(restart_ctl,
     elif os.path.isfile(latest_si3_dump):
         # We have a valid restart file so we're not starting from climatology
         # This could be a new run or a continutaion run.
-        si3_dump_time = re.findall(r'_(\d*)_restart_ice_in', latest_si3_dump)[0]
+        si3_dump_time = re.findall(r'_(\d*)_restart_ice', latest_si3_dump)[0]
 
         if verify_restart == 'True':
             _verify_si3_rst(nemo_dump_time, nemo_nproc, si3_restart_files)
@@ -208,9 +208,9 @@ def _setup_si3_controller(restart_ctl,
 
         for i_proc in range(nemo_nproc):
             tag = str(i_proc).zfill(4)
-            si3_rst_source = '%s/%so_%s_restart_ice_in_%s.nc' % \
+            si3_rst_source = '%s/%so_%s_restart_ice_%s.nc' % \
                 (si3_rst, runid, si3_dump_time, tag)
-            si3_rst_link = 'restart_ice_in_%s.nc' % tag
+            si3_rst_link = 'restart_ice_%s.nc' % tag
             common.remove_file(si3_rst_link)
             if os.path.isfile(si3_rst_source):
                 os.symlink(si3_rst_source, si3_rst_link)
@@ -220,13 +220,13 @@ def _setup_si3_controller(restart_ctl,
             sys.stdout.write('[INFO] No SI3 sub-PE restarts found\n')
             # We found no passive tracer restart sub-domain files let's
             # look for a full domain file.
-            si3_rst_source = '%s/%so_%s_restart_ice_in.nc' % \
+            si3_rst_source = '%s/%so_%s_restart_ice.nc' % \
                 (si3_rst, runid, si3_dump_time)
 
             if os.path.isfile(si3_rst_source):
                 sys.stdout.write('[INFO] Using rebuilt SI3 restart '\
                      'file: %s\n' % si3_rst_source)
-                si3_rst_link = 'restart_ice_in.nc'
+                si3_rst_link = 'restart_ice.nc'
                 common.remove_file(si3_rst_link)
                 os.symlink(si3_rst_source, si3_rst_link)
 
