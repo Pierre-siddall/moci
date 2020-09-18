@@ -364,17 +364,17 @@ def print_html_header():
     dt_str = DT_STR_TEMPLATE.format(dt=datetime.datetime.now())
     time_gen_str = '<p>Dashboard generated at {0}</p><br>'.format(dt_str)
 
-    print 'Content-Type: text/html;charset=utf-8\n'
-    print '''<html>\n \
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    print '''<!DOCTYPE html>
+<html>\n \
 <head>
+    <meta charset="utf-8">
     <title> MOCI test suite dashboard</title>
     <link rel="stylesheet" type="text/css" href="dashboard.css">
 </head>
 
 <body>
 
-        \n'
+        \n
 
 
 <div class="row">

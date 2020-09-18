@@ -28,21 +28,6 @@
 # set of cylc task dependencies
 {# name_graphs contains test_option-dependency key-value pairs -#}
 {%- set name_graphs = {
-    "XBS_base_build" : "fcm_make_xiosScript_remote => fcm_make2_xiosScript_remote => xbs_unitTests => buildOasis
-         fcm_make_oasis => buildOasis & xbs_unitTests
-         fcm_make_xios => buildXios & xbs_unitTests
-         buildOasis => buildXios => buildNemo",    
-    "test_oasis" :
-        "buildOasis => testOasis => validate_oasis => housekeeping_XBS",
-    "test_xios" :  
-        "buildXios => testXios => validate_xios => housekeeping_XBS", 
-    "test_nemo_gyre" :  
-        "buildNemo => testNemo => validate_nemo => housekeeping_XBS",
-    "test_xios_nemo_noOasis" :
-        "fcm_make2_xiosScript_remote => xbs_unitTests => buildXios_noOasis
-         fcm_make_xios => buildXios_noOasis
-         buildXios_noOasis => testXios_noOasis => validate_xios_noOasis => housekeeping_XBS
-         buildXios_noOasis => buildNemo_noOasis => testNemo_noOasis => validate_nemo_noOasis => housekeeping_XBS",
     "test_postproc" :
         "
          test_mule:succeed => !remove_mule_from_postproc
@@ -88,11 +73,8 @@
 {# groups contains group_option-trigger_list key-value pairs. -#}
 {# If a group option is set, each group or task in the trigger list will be set. -#}
 {%- set groups = {
-    "XBS_ALL"           : ["XBS_coupled", "XBS_xios_and_nemo"],
-    "XBS_coupled"       : ["XBS_base_build", "test_oasis", "test_xios",  "test_nemo_gyre","test_xios_nemo_noOasis"],
-    "XBS_xios_and_nemo" : ["XBS_base_build", "test_xios_nemo_noOasis"],
     "postproc"          : ["test_postproc"],
-    "ALL"               : ["XBS_ALL","postproc"]
+    "ALL"               : ["postproc"]
     }
 %}
 [cylc]
@@ -144,31 +126,19 @@
         inherit=LINUX_DESKTOP
 {% endif %}
 
-    [[NEMO_16x32]]
-        [[[environment]]]
-            CICE_COL   = 1440
-            CICE_ROW   = 1020
-            CICE_BLKX  = 90
-            CICE_BLKY  = 32
-            CICE_MAXBK = 1
-            NEMO_IPROC = 16
-            NEMO_JPROC = 32
-            NEMO_NPROC = 512
-            CICE_NPROC = 512
-
     [[default_task]]
         inherit = LINUX
         script = "echo [ERROR] Please select a valid group within the test suite to test the component that has been modified >&2; exit 1"
 
     [[HOUSEKEEPING]]
-{%- if HOUSEKEEPING == true %}
+{% if HOUSEKEEPING == true %}
         script = "rose task-run --verbose"
-{%- else %}
+{% else %}
         script = "echo Not deleting $RUNDIR"
-{%- endif %}
+{% endif %}
         [[[environment]]]
             ROSE_TASK_APP = housekeeping
-    
+
     [[fcm_make_pp]]
         inherit = LINUX
 
@@ -176,300 +146,7 @@
     [[fcm_make2_pp]]
         inherit = PPBUILD_RESOURCE
 {% endif %}
-            
-    [[XBS]]
-        env-script = "eval $(rose task-env)"
-        inherit = PYTHON_ENV
-        [[[environment]]]
-            SYSTEM_NAME={{SYSTEM_NAME}} 
-            {% if VERBOSE %}
-                VERBOSE = 'true'
-            {% else %}
-                VERBOSE = 'false'
-            {% endif %}
-            TASKS_PER_NODE={{TASKS_PER_NODE}}
-            OASIS3_MCT={{OASIS3_MCT}}
-            XIOS={{XIOS}}
-            NEMO={{NEMO}} 
-{% if USE_OASIS %}
-  {% if BUILD_OASIS %}
-      {% if DEPLOY_AS_MODULE == false %}
-              OASIS_ROOT=$CYLC_SUITE_SHARE_DIR/{{OASIS3_MCT}}
-      {% endif %}
-              BUILD_OASIS=true
-  {% else %}
-            OASIS_ROOT={{OASIS_ROOT}}
-            BUILD_OASIS=false
-  {% endif %}
-            USE_OASIS=true
-{% else %}
-            USE_OASIS=false
-            BUILD_OASIS=false
-{% endif %}
-	    ROSE_SUITE_URL={{ROSE_SUITE_URL}}
-	    ROSE_SUITE_REV_NO={{ROSE_SUITE_REV_NO}}
-	    XBS_PREREQ_MODULES = {{XBS_PREREQ_MODULES}}
-        XBS_PREREQ_MODULES_SWAP = {{XBS_PREREQ_MODULES_SWAP}}
-        
-    [[MODULE_DEPLOYMENT_APP]]
-        [[[environment]]]
-            {% if DEPLOY_AS_MODULE %}
-                DEPLOY_AS_MODULE=true
-            {% else %}
-                DEPLOY_AS_MODULE=false
-            {% endif %}
-            MODULE_INSTALL_PATH={{MODULE_INSTALL_PATH}}
-        
-    [[OASIS_SRC]]
-{% if USE_OASIS %}
-        [[[environment]]]
-            OASIS_MAKE_FILE_NAME = {{OASIS_MAKE_FILE_NAME}}
-            OASIS_REPO_URL={{OASIS_REPO_URL}}
-            OASIS_REV_NO={{OASIS_REV_NO}}
-            
-            {% if OASIS_SRC_LOCATION_TYPE == "URL" %}
-                {% if OASIS_SEPARATE_EXTRACTION %}
-                    OASIS_SRC_LOCATION_TYPE = local
-                    OASIS_SRC_CODE_DIR = $CYLC_SUITE_SHARE_DIR/fcm_make_oasis/extract/oa3mct/
-                {% else %}
-                    OASIS_SRC_LOCATION_TYPE = {{OASIS_SRC_LOCATION_TYPE}}
-                    {% if OASIS_SEPARATE_MAKEFILE %}
-                        OASIS_MAKE_REV_NO={{OASIS_MAKE_REV_NO}}
-                        OASIS_MAKE_REPO_URL={{OASIS_MAKE_REPO_URL}}
-                    {% endif %}
-                    {% if OASIS_SEPARATE_TUTORIAL %}
-                        OASIS_TUTORIAL_REPO_URL={{OASIS_TUTORIAL_REPO_URL}}
-                        OASIS_TUTORIAL_REV_NO={{OASIS_TUTORIAL_REV_NO}}
-                    {% endif %}
-                {% endif %}
-            {% elif OASIS_SRC_LOCATION_TYPE == "local" %}
-                OASIS_SRC_LOCATION_TYPE = {{OASIS_SRC_LOCATION_TYPE}}
-                OASIS_SRC_CODE_DIR = {{OASIS_SRC_CODE_DIR}}
-            {% endif %}
 
-{% endif %}
-            
-     [[OASIS_APP]]
-        inherit = OASIS_SRC
-        [[[environment]]]
-            {% if BUILD_OASIS %}
-                OASIS_OUTPUT_DIR=$CYLC_SUITE_SHARE_DIR/{{OASIS3_MCT}}
-            {% else %}
-                OASIS_PREBUILD_DIR={{OASIS_ROOT}}
-            {% endif %}
-            OASIS_PLATFORM_NAME={{OASIS_PLATFORM_NAME}}  
-            OASIS_MODULE_VERSION={{OASIS_MODULE_VERSION}}
-
-     [[fcm_make_oasis]]
-{% if OASIS_SEPARATE_EXTRACTION %}
-        inherit = None, LINUX, OASIS_SRC
-{% endif %}
-        
-     [[fcm_make2_oasis]]
-{% if OASIS_SEPARATE_EXTRACTION %}
-        inherit = None, XC40_serial
-{% endif %}
-     
-
-     [[fcm_make_xios]]
-{% if XIOS_SEPARATE_EXTRACTION %}
-        inherit = None, LINUX, XIOS_APP
-{% endif %}        
-        
-     [[fcm_make2_xios]]
-{% if XIOS_SEPARATE_EXTRACTION %}
-        inherit = None, XC40_serial
-{% endif %}
-
-    [[XIOS_APP]]
-        [[[environment]]]
-{% if XIOS_USE_PREBUILT_LIB %}
-            XIOS_USE_PREBUILT_LIB=true
-            XIOS_PREBUILT_DIR={{XIOS_PREBUILT_DIR}}
-{% else %}
-            XIOS_USE_PREBUILT_LIB=false
-{% endif %}
-            BUILD_PATH=$CYLC_SUITE_SHARE_DIR
-     	    
-            XIOS_REPO_URL={{XIOS_REPO_URL}}
-            XIOS_REV={{XIOS_REV}}
-            {% if XIOS_SRC_LOCATION_TYPE == "URL" %}
-                {% if XIOS_SEPARATE_EXTRACTION %}
-                    XIOS_SRC_LOCATION_TYPE = local
-                    XIOS_SRC_CODE_DIR = $CYLC_SUITE_SHARE_DIR/fcm_make_xios/extract/xios/
-                {% else %}
-                    XIOS_SRC_LOCATION_TYPE = {{XIOS_SRC_LOCATION_TYPE}}
-                {% endif %}
-            {% elif OASIS_SRC_LOCATION_TYPE == "local" %}
-                XIOS_SRC_CODE_DIR = {{XIOS_SRC_CODE_DIR}}
-                XIOS_SRC_LOCATION_TYPE = {{XIOS_SRC_LOCATION_TYPE}}
-            {% endif %}
-            XIOS_VERSION={{XIOS_VERSION}}
-
-    [[NEMO_APP]]
-        [[[environment]]]
-            NEMO_PATH=$CYLC_SUITE_SHARE_DIR/{{NEMO}}
-
-    [[OASIS_BUILD_APP]]
-        inherit = OASIS_APP
-        [[[environment]]]
-        {% if OASIS_BUILD_TUTORIAL %}
-            OASIS_BUILD_TUTORIAL=true
-        {% else %}
-            OASIS_BUILD_TUTORIAL=false
-        {% endif %}  
-        
-    [[XIOS_BUILD_APP]]
-        inherit = XIOS_APP
-        [[[environment]]]
-{% if XIOS_USE_PREBUILT_LIB == false %}
-            XIOS_NUM_CORES={{XIOS_NUM_CORES}}
-{% endif %}
-            XIOS_MODULE_VERSION={{XIOS_MODULE_VERSION}}
-            XIOS_PRGENV_VERSION={{XIOS_PRGENV_VERSION}}
-            
-    [[NEMO_BUILD_APP]]
-        inherit = NEMO_APP
-        [[[environment]]]
-            NEMO_SRC_LOCATION_TYPE = {{NEMO_SRC_LOCATION_TYPE}}
-            NEMO_REPO_URL = {{NEMO_REPO_URL}}
-            NEMO_REV = {{NEMO_REV}}
-            {% if NEMO_SRC_LOCATION_TYPE == 'local' %}
-                NEMO_SRC_CODE_DIR = {{NEMO_SRC_CODE_DIR}}
-            {% endif %}         
-            
-    [[fcm_make_xiosScript_remote]]
-        inherit = None, XBS, LINUX
-        [[[environment]]]
-            SOURCE_MOCI={{SOURCE_MOCI}}
-
-    [[fcm_make2_xiosScript_remote]]
-        inherit = None,XC40_serial
-        [[[environment]]]
-             SOURCE_MOCI={{SOURCE_MOCI}}
-            
-    [[xbs_unitTests]]
-        inherit = None, XBS, OASIS_BUILD_APP, XIOS_BUILD_APP, NEMO_BUILD_APP, MODULE_DEPLOYMENT_APP, XBS_UNIT_TEST_SETUP, XBS_UNIT_TEST_RESOURCE, TEST_NEMO, BUILD_NEMO
-        [[[environment]]]
-            VERBOSE='true'
-            XIOS_PATH='/path/to/xios/dir'
-            OASIS_ROOT = '/path/to/oasis3mct/dir'
-            NEMO_POST_BUILD_CLEANUP='false'
-            XIOS_DO_CLEAN_BUILD='false'
-            XIOS_EXTERNAL_REPO_URL='http://forge.ipsl.jussieu.fr/ioserver/svn/XIOS/trunk'
-            XIOS_POST_BUILD_CLEANUP='false'
-        
-    [[buildOasis]]
-        inherit = None, XBS, MODULE_DEPLOYMENT_APP, OASIS_BUILD_APP, BUILD_OASIS_RESOURCE, BUILD_OASIS_SETUP
-    
-    [[testOasis]]
-        inherit = None, XBS, OASIS_APP, TEST_OASIS_SETUP, TEST_OASIS_RESOURCE
-        [[[environment]]]
-            OASIS_RESULT_DIR=$ROSE_DATA/{{OASIS3_MCT}}
-            OASIS_TEST_NAME={{OASIS_TEST_NAME}}
-            OASIS_DATA_DIRECTORY = {{OASIS_DATA_DIRECTORY}}
-        
-    [[buildXios]]
-        inherit = None, XBS, XIOS_BUILD_APP, MODULE_DEPLOYMENT_APP, OASIS_SRC, BUILD_XIOS_SETUP, BUILD_XIOS_RESOURCE
-    
-    [[buildXios_noOasis]]
-        inherit = None, XBS, XIOS_BUILD_APP, MODULE_DEPLOYMENT_APP, BUILD_XIOS_SETUP, BUILD_XIOS_RESOURCE
-        [[[environment]]]
-            USE_OASIS=false
-            ROSE_TASK_APP=buildXios
-            XIOS_MODULE_VERSION='{{XIOS_MODULE_VERSION}}-nooasis'
-            XIOS_PRGENV_VERSION='{{XIOS_PRGENV_VERSION}}-nooasis'
-            BUILD_PATH=$CYLC_SUITE_SHARE_DIR/nooasis/
-
-
-    [[testXios]]
-        inherit = None, XBS, XIOS_APP, TEST_PRGENV_USER, TEST_XIOS_RESOURCE
-        [[[environment]]]
-            XIOS_RESULT_DIR=$ROSE_DATA/{{XIOS}}
-            
-    [[testXios_noOasis]]
-        inherit = None, XBS, XIOS_APP, TEST_NOOASIS_PRGENV_USER, TEST_XIOS_RESOURCE
-        [[[environment]]]
-            USE_OASIS=false
-            XIOS_RESULT_DIR=$ROSE_DATA/{{XIOS}}_NO
-            ROSE_TASK_APP=testXios
-            XIOS_MODULE_VERSION='{{XIOS_MODULE_VERSION}}-nooasis'
-            XIOS_PRGENV_VERSION='{{XIOS_PRGENV_VERSION}}-nooasis'
-            BUILD_PATH=$CYLC_SUITE_SHARE_DIR/nooasis/
-            
-            
-        
-    [[BUILD_NEMO]]
-    	[[[environment]]]
-
-    [[buildNemo]]
-        inherit = None, XBS, XIOS_APP, NEMO_BUILD_APP, BUILD_PRGENV_USER, BUILD_NEMO_RESOURCE, BUILD_NEMO
-
-    [[buildNemo_noOasis]]
-        inherit = None, XBS, XIOS_APP, NEMO_BUILD_APP, BUILD_NOOASIS_PRGENV_USER, BUILD_NEMO_RESOURCE, BUILD_NEMO
-        [[[environment]]]
-            USE_OASIS=false
-            ROSE_TASK_APP=buildNemo
-            XIOS_MODULE_VERSION='{{XIOS_MODULE_VERSION}}-nooasis'
-            XIOS_PRGENV_VERSION='{{XIOS_PRGENV_VERSION}}-nooasis'
-            BUILD_PATH=$CYLC_SUITE_SHARE_DIR/nooasis/
-
-
-    [[TEST_NEMO]]
-        [[[environment]]]
-{% if XIOS_USE_SERVER %}            
-            XIOS_USE_SERVER=true
-{% else %}
-            XIOS_USE_SERVER=false
-{% endif %}
-            NEMO_TASKS_JPI={{NEMO_TASKS_JPI}}
-            NEMO_TASKS_JPJ={{NEMO_TASKS_JPJ}}
-            XIOS_TASKS={{XIOS_TASKS}}
-            XIOS_TASKS_PER_NODE={{XIOS_TASKS_PER_NODE}}
-            NEMO_TEST_TIME={{ format_wallclock(NEMO_TEST_TIME) }}
-            NEMO_RESULT_DIR=$ROSE_DATA/{{NEMO}}
-
-    [[testNemo]]
-        inherit=None, XBS, NEMO_APP, XIOS_APP, TEST_PRGENV_USER, TEST_NEMO_RESOURCE, TEST_NEMO
-        
-    [[testNemo_noOasis]]
-        inherit=None, XBS, NEMO_APP, XIOS_APP, TEST_NOOASIS_PRGENV_USER, TEST_NEMO_RESOURCE, TEST_NEMO
-        [[[environment]]]
-            USE_OASIS=false
-            ROSE_TASK_APP=testNemo
-            NEMO_RESULT_DIR=$ROSE_DATA/{{NEMO}}_NO
-            XIOS_MODULE_VERSION='{{XIOS_MODULE_VERSION}}-nooasis'
-            XIOS_PRGENV_VERSION='{{XIOS_PRGENV_VERSION}}-nooasis'
-            BUILD_PATH=$CYLC_SUITE_SHARE_DIR/nooasis/
-
-    [[validate_oasis]]
-        inherit=VALIDATE_APP
-
-    [[validate_xios]]
-        inherit=VALIDATE_APP
-    
-    [[validate_nemo]]
-        inherit=VALIDATE_APP
-        
-    [[validate_xios_noOasis]]
-        inherit=VALIDATE_APP
-        [[[environment]]]
-            ROSE_APP_OPT_CONF_KEYS=noOasis
-            ROSE_TASK_APP=validate_xios
-    
-    [[validate_nemo_noOasis]]
-        inherit=VALIDATE_APP
-        [[[environment]]]
-            ROSE_APP_OPT_CONF_KEYS=noOasis
-            ROSE_TASK_APP=validate_nemo
-
-    [[housekeeping_XBS]]
-        inherit=None, XBS, XC40_serial, MODULE_DEPLOYMENT_APP
-        script = '''
-{% for dir1 in XBS_CLEANUP_DIRS %}
-rm -rf {{dir1}}
-{% endfor %}
-'''
     [[POSTPROC]]
         inherit=None, POSTPROC_RESOURCE, PYTHON_ENV
         [[[environment]]]
