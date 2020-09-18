@@ -1,0 +1,23 @@
+INTRODUCTION
+ This tool will validate the coupling setup of a UM-NEMO coupled model. The motivation for this was the potential of short stepping in a Coupled NWP CRUN, to ensure any coupling paramaters chosen with the shortened timestep remained appropriate.
+
+ The script peforms the following validations:
+  - Compare the coupling frequency from the UM SHARED namelist, against the UM
+    and NEMO timesteps.
+  - Compare the coupling frequency set by the UM against that set in the
+    OASIS3-MCT namcouple file
+  - Compare the coupling frequency against the (current) two STASH coupling
+    time profiles:
+      - TCOUPMN - Coupling of mean fields
+      - TCOUP - Coupling of instantaneous files. In practice this is currently
+                limited to the river routing fields.
+
+TO USE THE SCRIPT
+ The script can be included in any UM-NEMO suite, using OASIS3-MCT4.0 for coupling, by exporting the environment variable L_MCT_VALIDATE="True" from the suite. Please note the capital T.
+
+TESTING
+ The script has assosciated unit tests. To run them, please ensure that you
+are using Python3 and then:
+
+$ cd unittests
+$ ./test.py

@@ -29,6 +29,12 @@ DRIVER_EXTRACT_DIR=${DRIVER_EXTRACT_DIR:=$CYLC_SUITE_SHARE_DIR/fcm_make_drivers}
 
 echo "[DRIVER_TEST_SCRIPT] DRIVER_EXTRACT_DIR is $DRIVER_EXTRACT_DIR" 
 
+
+# Are we using the mct_validate utility to check on the coupled model setup
+# Must be set to true to run validation
+L_MCT_VALIDATE=${L_MCT_VALIDATE:=false}
+
+
 # Copy scripts to work directory so they can be found.
 cp $DRIVER_EXTRACT_DIR/build/bin/* ./
 
@@ -38,6 +44,13 @@ cp $DRIVER_EXTRACT_DIR/build/bin/* ./
 ./link_drivers --run
 
 echo '[DRIVER_TEST_SCRIPT] Drivers successfully linked'
+
+# Validate mct setup if required. This must be done after the link stage to
+# ensure that any dynamic namcouple setup, namelist setup, and file moving
+# had been completed
+if [ "$L_MCT_VALIDATE" = True ]; then
+    ./mct_validate.py
+fi
 
 # Export the enviromnent variables from all the drivers
 source driver_envar
