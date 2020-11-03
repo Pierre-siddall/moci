@@ -1,0 +1,24 @@
+/* Style the button that is used to open and close the collapsible content */
+.collapsible {
+  background-color: #b9dc0c;
+  color: black;
+  cursor: pointer;
+  padding: 18px;
+  width: 100%;
+  border: none;
+  text-align: left;
+  outline: none;
+  font-size: 20px;
+  font-weight:bold;
+}
+
+.active, .collapsible:hover {
+}
+
+/* Style the collapsible content. Note: hidden by default */
+.content {
+  padding: 0 18px;
+  display: none;
+  overflow: hidden;
+  background-color: white;
+}

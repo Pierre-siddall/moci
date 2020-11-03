@@ -1,0 +1,103 @@
+\documentclass[10pt]{article}
+\usepackage[toc]{appendix}
+\begin{document}
+
+\title{HPC Metric Generation for Node User Group}
+\author{Harry Shepherd}
+
+\maketitle
+\tableofcontents
+
+\section{Introduction}
+To provided optimum used of the supercomputer for climate production runs it is important to be able to monitor the usage in a clear and concise manner. It is also important to be able to present the data in a format that is useful to the group.
+A Postgres database has been recently populated with accounting details for model runs taken from the PBS scheduler.
+The database can be interacted with using SQL Alchemy and Pandas via python, and so a series of scripts are presented, along with the automatic generation of a html report.
+
+
+\section{Code Design}
+The code for calculating the metrics and generating the website is contained within this directory. This is summarised
+\begin{itemize}
+ \item[] \texttt{css/} Directory containing stylesheets for the report
+ \item[] \texttt{java\_script/} Directory containing java script for the report
+ \item[] \texttt{make\_report.py} The top level script to be executed
+ \item[] \texttt{metric*.py} A series for scripts each for a particular metric. This contains an SQL query, data processing, the generation of a segment of the html report, and the plotting of data if required. \texttt{make\_report.py} runs one or more of these scripts.
+ \item[] \texttt{params.py} User editable input
+ \item[] \texttt{query\_db.py} Common functions for querying the database
+\end{itemize}
+
+\section{Making a Report}
+\subsection{Changing user variables}
+To change the user variables, edit the \texttt{params.py} file, the variables in each of the sections are described below. \emph{Do not} edit below the `Not for user edit' line.
+\subsubsection{Paramaters}
+\begin{itemize}
+ \item[] \texttt{DB\_URL} URL of the Postgres database
+ \item[] \texttt{XCSR\_ALLOC\_NODES} Number of nodes allocated to climate on XCS
+  \item[] \texttt{XCEF\_ALLOC\_NODES} Number of nodes allocated to climate on XCE and XCF
+  \item[] \texttt{XCEF\_HASWELL\_NODES} The Haswell nodes on \emph{each} of XCE and XCF that are avaliable to climate science.
+\end{itemize}
+\subsubsection{Date Range}
+\begin{itemize}
+ \item[] \texttt{START\_DATE} \texttt{datetime.date} object of the start date for data query
+ \item[] \texttt{END\_DATE} \texttt{datetime.date} object of the end date for data query
+ \item[] \texttt{PAST\_N\_DAYS} How many days back from today do we want to collect data. For example setting this to 7 will give the past week. If this option is to be used both \texttt{START\_DATE} and \texttt{END\_DATE} must be set to \texttt{False}
+\end{itemize}
+\subsubsection{Reporting}
+The following variables take either \texttt{True} or \texttt{False}
+\begin{itemize}
+ \item[] \texttt{GROUP\_E\_F} Group the data collected for XCE and XCF if set to \texttt{True}
+ \item[] \texttt{MAKE\_HTML} Make HTML report
+ \item[] \texttt{MAKE\_PLOTS} Make plots for those metrics that can generate them
+\end{itemize}
+\subsubsection{Which Metrics}
+A list of boolean variables allowing a custom report to be constructed.
+\subsubsection{Variables for Individual Metrics}
+Some metrics require a set of variables to provide further control.
+\linebreak[4]\textbf{NODE\_USE\_SUMMARY}
+\begin{itemize}
+ \item[] \texttt{NUG\_LIMITS\_FILE} Path to MOCI limits file for HPC allocation
+ \item[] \texttt{RESOURCE\_USED\_EXE} Path to \texttt{./resource\_used} executable
+\end{itemize}
+\subsection{Building the report}
+To make the report, simply run the command \texttt{./make\_report.py}. If the \texttt{MAKE\_HTML} option is chosen, this will create a directoroy \texttt{report} in which will be a fully self contained html report. This can be read by opening the file \texttt{report/report.html}. Any plots can be found in the directory \texttt{report/images}.
+This directory can be copied as a whole to preserve the functionality.
+
+\section{Building the documentation}
+The source for this documentation can be found in \texttt{doc/README.tex}. It can be compiled using \LaTeX by running the script \texttt{doc/build\_doc.sh}, which will then overwrite the pdf file in the top level directory.
+
+\pagebreak[4]
+\appendix
+\section{Data avaliable from the database}
+\begin{verbatim}
+uid
+uuid
+core_count_req
+coretime_used
+coretype
+energy_used
+exec_host
+exec_vnode
+exit_status
+fairshare_weight
+group_costcode
+host_system
+job_id
+job_name
+memory_req
+node_count_req
+nodetime_used
+project
+queue
+queue_start_time
+start_time
+submit_time
+subproject
+rchar
+wchar
+user
+walltime_used
+walltime_req
+\end{verbatim}
+
+
+
+\end{document}
