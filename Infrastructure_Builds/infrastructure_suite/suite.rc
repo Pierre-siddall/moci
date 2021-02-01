@@ -66,8 +66,13 @@ MODULE_STR = {{ MODULES|join(' ') }}
             --mem=8G
         [[[environment]]]
             HPC_HOST_OASIS={{HPC_HOST_OASIS}}
+	    EXTRACT_OASIS={{EXTRACT_OASIS}}
+{% if EXTRACT_OASIS == true %}
 	    OASIS_BRANCH={{OASIS_BRANCH}}
 	    OASIS_REPOSITORY={{OASIS_REPOSITORY}}
+{% else %}
+            OASIS_WC_DIR={{OASIS_WC_DIR}}
+{% endif %}
     [[prepare_hpc_host]]
         inherit = HPC_SERIAL
 	script = 'echo Preparing HPC for file transfer'
@@ -94,8 +99,16 @@ MODULE_STR = {{ MODULES|join(' ') }}
     [[create_oasis_module]]
         inherit = None, HPC_SERIAL, OASIS
 	[[[environment]]]
+{% if OASIS_BRANCH is defined %}
 	    OASIS_BRANCH={{OASIS_BRANCH}}
+{% else %}
+            OASIS_BRANCH=working_copy
+{% endif %}
+{% if OASIS_REPOSITORY is defined %}
 	    OASIS_REPOSITORY={{OASIS_REPOSITORY}}
+{% else %}
+            OASIS_REPOSITORY=working_copy
+{% endif %}
 	    OASIS_MOD_NAME={{OASIS_MOD_NAME}}
 	    OASIS_MOD_VERSION={{OASIS_MOD_VERSION}}
 	    OASIS_BUILD_DIR={{OASIS_BUILD_DIR}}
