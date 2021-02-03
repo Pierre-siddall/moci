@@ -1,7 +1,7 @@
 #!/usr/bin/env python2.7
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2018 Met Office. All rights reserved.
+ (C) Crown copyright 2021 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -38,6 +38,8 @@ class JobList(object):
                         self.job_list.append(src.jobs.Job(jobid))
                     if 'Account_Name' in line:
                         self.job_list[-1].project = line.split('=')[1].strip()
+                    elif 'server' in line:
+                        self.job_list[-1].server = line.split('=')[1].strip()
                     elif 'queue' in line:
                         if 'shared' in line:
                             queue = 'shared'
@@ -70,8 +72,6 @@ class JobList(object):
                     elif 'Resource_List.nodect' in line:
                         self.job_list[-1].nodes = \
                         int(line.split('=')[1].strip())
-# This takes into account the MOM node so we remove 1
-                        self.job_list[-1].nodes = self.job_list[-1].nodes-1
                     elif 'Job_Owner' in line:
                         tmp = line.split('=')[1].strip()
                         self.job_list[-1].user = tmp.split('@')[0].strip()
@@ -88,12 +88,22 @@ class JobList(object):
                         if subproject_field:
                             self.job_list[-1].subproject = \
                              subproject_field[0].split('=')[1].rstrip('\n')
-
-#   Now sort by queue
+            # Apply the MOM node correction
+            self.job_list = map(self.apply_mom_correction, self.job_list)
+            #   Now sort by queue
             decorated = [(job.queue, job) for job in self.job_list]
             decorated.sort()
             tmp_l = [job for queue, job in decorated]
             self.job_list = tmp_l
+
+    def apply_mom_correction(self, jobitem):
+        '''
+        The MOM nodes are included in the nodedict on the XCS but not on the
+        XCE/F, apply correction if required
+        '''
+        if 'xcs' in jobitem.server:
+            jobitem.nodes = jobitem.nodes - 1
+        return jobitem
 
     def filtered(self, subproject_filter=None, user_filter=None,
                  account_filter=None, queue_filter=None, job_state_filter=None):
