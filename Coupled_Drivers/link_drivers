@@ -60,11 +60,18 @@ def _run_drivers(common_envars, mode, run_info):
     either run_driver to run the model, or finalize to run the finalization
     routines.
     '''
-    if mode not in ('run_driver', 'finalize'):
-        sys.stderr.write('[FAIL] driver only has run_driver or finalize'
-                         ' modes\n')
+    if mode not in ('run_driver', 'finalize', 'failure'):
+        sys.stderr.write('[FAIL] driver only has run_driver, finalize, or'
+                         ' failure modes\n')
         sys.exit(error.MISSING_EVAR_ERROR)
     models = _check_drivers(common_envars['models'])
+    if mode == 'failure':
+        # Only UM, NEMO and CICE drivers have failure mode
+        failure_mode_models = []
+        for model in models:
+            if model in ('um', 'nemo', 'cice'):
+                failure_mode_models.append(model)
+        models = failure_mode_models
     envinsts = [common_envars]
     launchcmds = []
     coupling_list = []
@@ -209,6 +216,8 @@ if __name__ == '__main__':
                         action="store_true")
     parser.add_argument("--finalize", help="run the model finalize routines",
                         action="store_true")
+    parser.add_argument("--failure", help="run the mode in failure mode",
+                        action="store_true")
     args = parser.parse_args()
     if args.run and args.finalize:
         sys.stderr.write('[FAIL] the run and finalize options are mutually'
@@ -268,6 +277,11 @@ if __name__ == '__main__':
         cmd_file.close()
     elif args.finalize:
         mode = 'finalize'
+        common_envars = _setup_common()
+        run_info = {}
+        _, _, _, _ = _run_drivers(common_envars, mode, run_info)
+    elif args.failure:
+        mode = 'failure'
         common_envars = _setup_common()
         run_info = {}
         _, _, _, _ = _run_drivers(common_envars, mode, run_info)

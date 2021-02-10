@@ -29,6 +29,8 @@ DRIVER_EXTRACT_DIR=${DRIVER_EXTRACT_DIR:=$CYLC_SUITE_SHARE_DIR/fcm_make_drivers}
 
 echo "[DRIVER_TEST_SCRIPT] DRIVER_EXTRACT_DIR is $DRIVER_EXTRACT_DIR" 
 
+# This lets us set up a failure mode
+export DRIVERS_FINALISED=false
 
 # Are we using the mct_validate utility to check on the coupled model setup
 # Must be set to true to run validation
@@ -52,6 +54,25 @@ if [ "$L_MCT_VALIDATE" = True ]; then
     ./mct_validate.py
 fi
 
+# Process after any failures
+SIGNALS='EXIT'
+FINALLY() {
+    echo "Finally!"
+    for S in $SIGNALS; do
+	trap '' $S #switch off traps
+    done
+    if [ "$DRIVERS_FINALISED" = true ]; then
+	echo "Completed successfully"
+    else
+	echo 'Trying to run driver in failure mode'
+	./link_drivers --failure
+    fi
+}
+
+for S in $SIGNALS; do
+    trap 'FINALLY' $S
+done
+
 # Export the enviromnent variables from all the drivers
 source driver_envar
 # Run the aprun command and provide timing information if required
@@ -67,6 +88,8 @@ export time_in_aprun
 
 # Run the drivers in finalize mode (after completion of the model). This deals
 # with model standard out / standard error, and also with any file details
-# required prior to the start of the next model cycle (if applicable)
+# required prior to the start of the next model cycle (if applicable). If
+# aprun has failed, we run the drivers in a stripped down failure mode
 echo '[DRIVER_TEST_SCRIPT] Finalizing drivers'
-./link_drivers --finalize
+./link_drivers --finalize;
+export DRIVERS_FINALISED=true

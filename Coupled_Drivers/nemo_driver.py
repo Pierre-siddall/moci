@@ -848,15 +848,10 @@ def _sent_coupling_fields(nemo_envar, run_info):
 
     return run_info, model_snd_list
 
-def _finalize_executable(common_envar):
+def write_ocean_out_to_stdout():
     '''
-    Finalize the NEMO run, copy the nemo namelist to the restart directory
-    for the next cycle, update standard out, and ensure that no errors
-    have been found in the NEMO execution.
+    Write the contents of ocean.output to stnadard out
     '''
-    sys.stdout.write('[INFO] finalizing NEMO')
-    sys.stdout.write('[INFO] running finalize in %s' % os.getcwd())
-
     # append the ocean output and solver stat file to standard out. Use an
     # iterator to read the files, incase they are too large to fit into
     # memory. Try to find both the NEMO 3.6 and NEMO 4.0 solver files for
@@ -869,9 +864,25 @@ def _finalize_executable(common_envar):
                              nemo36_solver_file, nemo40_solver_file,
                              icebergs_stat_file):
         if os.path.isfile(nemo_output_file):
+            sys.stdout.write('[INFO] Ocean output from file %s\n' %
+                             nemo_output_file)
             with open(nemo_output_file, 'r') as n_out:
                 for line in n_out:
                     sys.stdout.write(line)
+        else:
+            sys.stdout.write('[INFO] Nemo output file %s not avaliable\n'
+                             % nemo_output_file)
+
+def _finalize_executable(common_envar):
+    '''
+    Finalize the NEMO run, copy the nemo namelist to the restart directory
+    for the next cycle, update standard out, and ensure that no errors
+    have been found in the NEMO execution.
+    '''
+    sys.stdout.write('[INFO] finalizing NEMO\n')
+    sys.stdout.write('[INFO] running finalize in %s\n' % os.getcwd())
+
+    write_ocean_out_to_stdout()
 
     _, error_count = common.__exec_subproc_true_shell([ \
             'grep "E R R O R" ocean.output | wc -l'])
@@ -924,6 +935,12 @@ def run_driver(common_envar, mode, run_info):
                 _sent_coupling_fields(exe_envar, run_info)
     elif mode == 'finalize':
         _finalize_executable(common_envar)
+        exe_envar = None
+        launch_cmd = None
+        model_snd_list = None
+    elif mode == 'failure':
+        # subset of operations of the model fails
+        write_ocean_out_to_stdout()
         exe_envar = None
         launch_cmd = None
         model_snd_list = None

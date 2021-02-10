@@ -583,6 +583,7 @@ def _finalize_executable(_):
         sys.exit(error.MISSING_DRIVER_FILE_ERROR)
     else:
         # append the pe0 output to standard out
+        sys.stdout.write('[INFO] UM Output from file %s\n' % um_pe0_stdout_file)
         sys.stdout.write('%PE0 OUTPUT%\n')
         # use an iterator to avoid loading the pe0 file into memory
         with open(um_pe0_stdout_file, 'r') as f_pe0:
@@ -633,9 +634,10 @@ def run_driver(common_envar, mode, run_info):
             run_info['SHARED_FILE'] = exe_envar['SHARED_NLIST']
             run_info['STASHMASTER'] = exe_envar['STASHMASTER']
             run_info['riv3'] = int(exe_envar['CPL_RIVER_COUNT'])
-    elif mode == 'finalize':
+    elif mode == 'finalize' or mode == 'failure':
         _finalize_executable(common_envar)
         exe_envar = None
         launch_cmd = None
         model_snd_list = None
+        
     return exe_envar, launch_cmd, run_info, model_snd_list

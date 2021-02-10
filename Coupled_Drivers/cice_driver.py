@@ -419,9 +419,17 @@ def _set_launcher_command(_):
 
 def _finalize_executable(_):
     '''
-    CICE doesn't require any finalization processes
+    Write the Ice output to stdout
     '''
-    pass
+    ice_out_file = 'ice_diag.d'
+    if os.path.isfile(ice_out_file):
+        sys.stdout.write('[INFO] CICE output from file %s\n' % ice_out_file)
+        with open(ice_out_file, 'r') as i_out:
+            for line in i_out:
+                sys.stdout.write(line)
+    else:
+        sys.stdout.write('[INFO] CICE output file %s not avaliable\n'
+                         % ice_out_file)
 
 
 def run_driver(common_envar, mode, run_info):
@@ -433,7 +441,7 @@ def run_driver(common_envar, mode, run_info):
         exe_envar = _setup_executable(common_envar)
         launch_cmd = _set_launcher_command(exe_envar)
         model_snd_list = None
-    elif mode == 'finalize':
+    elif mode == 'finalize' or 'failure':
         _finalize_executable(common_envar)
         exe_envar = None
         launch_cmd = None
