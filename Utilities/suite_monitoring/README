@@ -1,0 +1,38 @@
+CONTENTS:
+ Introduction
+ Outputs
+ Testing
+
+
+INTRODUCTION:
+ This tool computes various rates for jobs in running cycling suites. The rates are computed for each cycle, and then interpolated onto a regular set of times which are then processed. This means that irregular timesteps in the original data can be ignored.
+
+TO RUN THE SCRIPT:
+ As a simple use of the test to find the data for a coupled job, first find the cycling period of the suite in months, then run using:
+ ./suite_run_rates.py -c <cycle_period> -r {summary|interpolated|raw|plot} /path/to/cylc/run/dir/
+
+OUTPUTS:
+ There are four rates computed:
+ - Effective rate: The time between successive submit points
+ - Job rate: based on the time of the job starting end ending. For a coupled job this is the fastest rate the suite could manage
+ - Job and queuing rate: The time from the coupled job being submitted and it ending
+ - Coupled and waiting: Time between sucessive cycle points with the queuing time subtracted.
+
+ The data can be reported in various ways, using the -r (--report-type) option:
+ - summary: a summary of the rates
+ - interpolated: prints the interpolated rates
+ - raw: prints the raw rates from the suite database
+ - plot: displays a graph showing the interpolated data
+
+All elapsed times are in days, and all rates are in years per day.
+
+TESTING:
+ The script contains unit tests and a system test.
+
+ To run the unit tests:
+ cd unit_tests
+ ./test.py
+
+ To run the system tests:
+ cd system_test
+ ./integration_test.sh

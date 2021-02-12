@@ -1,0 +1,10 @@
+Output key:
+  days: Number of days the suite has been running
+  last: Last cycle run
+  ravg: Avergage rate
+  decd: Last decayed value
+                         days     last     ravg     decd
+effective                 3.1     1.02     0.55     0.68
+coupled                   3.1     1.02     1.05     1.04
+coupled_queue             3.1     1.02     0.55     0.68
+coupled_wait              3.1     1.02     1.05     1.04
