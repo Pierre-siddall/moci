@@ -18,8 +18,8 @@ class UpgradeError(Exception):
 class drivers20_tXXX(rose.upgrade.MacroUpgrade):
 
     """Upgrade macro for ticket #XXXX by <author>."""
-    BEFORE_TAG = "drivers_2.0"
-    AFTER_TAG = "drivers_2.0_tXXX"
+    BEFORE_TAG = "drivers_2.0.1"
+    AFTER_TAG = "drivers_2.0.1_tXXX"
 
     def upgrade(self, config, meta_config=None):
         """Upgrade a Driver make app configuration."""
