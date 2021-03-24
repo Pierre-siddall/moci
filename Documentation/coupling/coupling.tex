@@ -1,0 +1,1924 @@
+\documentclass{article}
+
+\usepackage{latexsym}
+\usepackage[textwidth=18cm,textheight=25cm]{geometry}
+\usepackage[dvipdfm]{graphicx}
+\usepackage{bmpsize}
+
+\begin{document}
+
+% Explain how to hyphenate unusual words
+\hyphenation{MetUM}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Headers: titles, authors, etc.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\title{GC5 coupling}
+
+\maketitle
+
+\tableofcontents
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section: Introduction
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\pagebreak
+\section{Introduction}
+\label{sec:intro}
+
+This document describes all the coupling variables sent between the atmosphere
+(including land surface), ocean (including sea ice), waves and chemistry (UKESM)
+components of the Met Office's global coupled models. It is intended as a
+reference tool so developers can see what variables are sent between the
+components, what STASH codes they originate from (for UM diagnostics) and any
+pre or post processing applied to the data.
+
+The current coupling setup documented here is the GC5.0 coupling setup (including
+UKESM and wave components) but it is intended that this document will evolve with
+time as models develop.
+
+Sections \ref{sec:varrcv} to \ref{sec:varsndwv} list stash codes and variable names
+of all the coupling variables in the UM. Section \ref{sec:dataflow} shows how data
+is averaged in the UM and send to NEMO. Sections \ref{sec:O2A} and onwards show
+tables of all pre and post processing done on each coupling variable. They are
+written in such a way that they contain snippets of code so the developer should
+be able to easily find the source code.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section: Atmospheric variables that recieve data from the ocean
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Atmospheric variables that receive data from the ocean}
+\label{sec:varrcv}
+
+\begin{center}
+\begin{tabular}{| p{0.4\textwidth} | p{0.3\textwidth} | p{0.3\textwidth} |}
+\hline
+\textbf{Field to couple} & \textbf{STASH code} & \textbf{variable name} \\
+Sea surface temperature & 507 & tstar\_sea \\
+Sea ice layer temperature on categories & 415 & ti\_cat \\
+Sea ice fraction on categories & 413 & ice\_fract\_cat \\
+Sea ice thickness on categories & 414 & ice\_thick\_cat \\
+Snow thickness on categories & 416 & snodep\_sea\_cat \\
+Ocean zonal velocity & 28 & u\_sea \\
+Ocean meridional velocity & 29 & v\_sea \\
+Melt pond fraction on categories & 428 & pond\_frac\_cat \\
+Melt pond depth on categories & 429 & pond\_depth\_cat \\
+Sea ice conductivity on categories & 440 & ice\_k\_cat \\
+\hline
+\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section: Atmospheric variables that send data to the ocean
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Atmospheric variables that send data to the ocean}
+\label{sec:varsnd}
+
+\begin{center}
+\begin{tabular}{| p{0.4\textwidth} | p{0.3\textwidth} | p{0.3\textwidth} |}
+\hline
+\textbf{Field to couple} & \textbf{STASH code} & \textbf{variable name} \\
+Zonal wind stress & 3392 & taux\_ssi in diagnostics\_bl.F90 \\
+Meridional wind stress & 3394 & tauy\_ssi in diagnostics\_bl.F90 \\
+Surface net solar radiation & 1203 & netsea in riadnostics\_rad.F90 or swsea in rad\_ctl.F90 \\
+Sensible heat flux & 3228 & h\_sea in diagnstics\_bl.F90 \\
+Evaporation & 3232 & e\_sea in diagnstics\_bl.F90 \\
+Surface net longwave radiation & 2203 & netsea in diagnostics\_rad.F90 or lwsea in rad\_ctl.F90 \\
+Large scale rain & 4203 & ls\_rain in diagnostics\_lsrain.F90 \\
+Convective rain & 5205 & conv\_rain in diagnostics\_conf.F90 \\
+Large scale snow & 4204 & ls\_snow in diagnostics\_lsrain.F90 \\
+Convective rain & 5206 & conv\_snow in diagnostics\_conf.F90 \\
+Evaporation & 3232 & e\_sea in diagnstics\_bl.F90 \\
+Sublimation from sea ice on categories & 3509 & ei\_sice in diagnstics\_bl.F90 \\
+10m wind speed & 3230 & c\_w10 in d1 array (prognostic) \\
+Top melt from sea ice on categories & 3257 & sf\_diag\%sice\_mlt\_htf in diagnstics\_bl.F90 \\
+Surface skin temperature of sea ice on categories & 441 & tstar\_sice\_cat in d1 array (prognostic) or tstar\_sice\_sicat in surf\_couple\_implicit\_mod.F90 \\
+Surface conductive heat flux of sea ice on categories & 3510 & surf\_ht\_flux\_sice in diagnstics\_bl.F90 \\
+\hline
+\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section: Atmospheric (UKESM specific) variables that receive data from the ocean
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\pagebreak
+\section{UKESM specific atmospheric variables that receive data from the ocean}
+\label{sec:varrcvukesm}
+
+\begin{center}
+\begin{tabular}{| p{0.4\textwidth} | p{0.3\textwidth} | p{0.3\textwidth} |}
+\hline
+\textbf{Field to couple} & \textbf{STASH code} & \textbf{variable name} \\
+DMS concentration in seawater & 132 & dms\_conc \\
+CO2 ocean flux & 250 & CO2flux \\
+Ocean near surface chlorophyll & 96 & chloro\_sea \\
+\hline
+\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section: Atmospheric (UKESM specific) variables that send data to the ocean
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{UKESM specific atmospheric variables that send data to the ocean}
+\label{sec:varsndukesm}
+
+\begin{center}
+\begin{tabular}{| p{0.4\textwidth} | p{0.3\textwidth} | p{0.3\textwidth} |}
+\hline
+\textbf{Field to couple} & \textbf{STASH code} & \textbf{variable name} \\
+Total Greenland ice mass & 240 & snodep\_tile in ice\_sheet\_mass.F90 \\
+Total Antarctic ice mass & 240 & snodep\_tile in ice\_sheet\_mass.F90 \\
+Partial CO2 pressure in surface layer & 0,252 or fixed value & co2 in tracer\_restore.F90 or puta2o.F90 \\
+Total dust flux & 3,440 & c\_dust\_dep in oasis3\_puta2o.F90 \\
+\hline
+\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section: Atmospheric variables that receive data from waves 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Atmospheric variables that receive data from waves}
+\label{sec:varrcvwv}
+
+\begin{center}
+\begin{tabular}{| p{0.4\textwidth} | p{0.3\textwidth} | p{0.3\textwidth} |}
+\hline
+\textbf{Field to couple} & \textbf{STASH code} & \textbf{variable name} \\
+Charnoc's coefficient & 517 & charnock\_w \\
+\hline
+\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section: Atmospheric variables that send data to waves
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Atmospheric variables that send data to waves}
+\label{sec:varsndwv}
+
+\begin{center}
+\begin{tabular}{| p{0.4\textwidth} | p{0.3\textwidth} | p{0.3\textwidth} |}
+\hline
+\textbf{Field to couple} & \textbf{STASH code} & \textbf{variable name} \\
+Zonal wind stress (WW3 vn7)* & 3392 & taux\_ssi in diagnostics\_bl.F90 \\
+Meridional wind stress (WW3 vn7)* & 3394 & tauy\_ssi in diagnostics\_bl.F90 \\
+Surface air density (WW3 vn7)* & 3562 & rho1 in diagnostics\_bl.F90 \\
+Zonal neutral 10m wind speed (WW3 vn7)* & 3368 & c\_u10m\_w in d1 array \\
+Meridional neutral 10m wind speed (WW3 vn7)* & 3369 & c\_v10m\_w in d1 array \\
+Zonal 10m wind speed (WW3 vn4.18) & 3209 & u10m in diagnostics\_bl.F90 \\
+Meridional 10m wind speed (WW3 vn4.18) & 3210 & v10m in diagnostics\_bl.F90 \\
+\hline
+\end{tabular}
+\end{center}
+
+* Functionality not present in the UM trunk yet. See branch \\
+\hspace*{10ex}fcm:um.xm\_br/dev/johnmedwards/vn11.1\_wave\_coupling\_stress@82620 \\
+\hspace*{5ex}for an implementation in UM vn11.1. Notice that this branch will modify the UM variables used for 10m wind coupling with waves. \\
+
+Current (ocean/wave coupled) operational configurations are based on WAVEWATCHIII vn4.18, and coupling research is taking place using WAVEWATCHIII vn7. It is the intention of having wave coupling capabilities in GC5 using WAVEWATCHIIII vn7. as an optional configuration.
+
+\pagebreak
+\section{Example of data flow from Atmosphere to Ocean}
+\label{sec:dataflow}
+
+\begin{figure}
+  \includegraphics[width=500pt]{coupling_flow.jpg}
+  \caption{Example of data flow}
+  \label{fig:dataflow}
+\end{figure}
+
+Figure \ref{fig:dataflow} shows how surface solar radiation (swsea) gets from the radiation routines where it is calculated into NEMO. At each timestep it is output via stash but instead of going to disk it goes to a data store (aka dump store). In the STASH usage panel this data must be listed as going to ``Dump store with user specified TAG'' and TAG=10. It must also be time meaned with the same meaning period as the coupling frequency (1 hour). This is then copied into a prognostic variable within the oasis\_updatecpl.F90 routine. At the start of the next timestep it is sent to NEMO via OASIS, within the oasis3\_puta2o.F90 routine.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section: Ocean to atmosphere exchange
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\pagebreak
+\section{Ocean to atmosphere exchange}
+\label{sec:O2A}
+
+\subsection{Sea surface temperatures (SSTs)}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Sea surface temperatures (SST)  \\
+\hline
+\textbf{From prognostic to temporary variable in sbccpl.F90} & ztmp1(:,:) = tsn(:,:,1,jp\_tem)  \\
+\hline
+\textbf{Operations applied to temporary variable in sbccpl.F90 prior to coupling} & ztmp1(:,:) =   ztmp1(:,:) + rt0 \newline
+  (converts from Celcius to Kelvin) \\
+\hline
+\textbf{NEMO index to ssnd array} & jps\_toce=2 \\
+\hline
+\textbf{NEMO namelist controlling string} & sn\_snd\_temp\%cldes='oce only'  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'O\_SSTSST' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative fractional area  \\
+\hline
+\textbf{UM namcouple variable name} & 'ocn\_sst'  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_ocn\_sst = 25 \\
+\hline
+\textbf{UM pointer used to point to recieved data} & transient\_o2a(tc)\%field $=>$ ocn\_sst(:,:,:)  \\
+\hline
+\textbf{Operations applied to recieved data} & IF (ocn\_sst $<$  1.0) THEN ocn\_sst=ocn\_sst\_orig \newline
+  (If SSTs coming through coupler are invalid then keep original SSTs)  \newline
+  IF (ocn\_freeze $>$  0.0) ocn\_sst=tfs \newline
+  (If there is sea ice set the SST to the freezing point of sea water - not salinity dependent)  \\
+\hline
+\textbf{Assign portion of D1 array by stash code} & jtstar\_sea = si(507,Sect\_No,im\_index) \\
+\hline
+\textbf{Point to D1 array} & tstar\_sea $=>$ d1(jtstar\_sea)  \\
+\hline
+\textbf{Copy to D1 array} & tstar\_sea=ocn\_sst  \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Sea ice layer temperature}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Sea ice layer temperature \\
+\hline
+\textbf{From prognostic to temporary variable in sbccpl.F90} & ztmp3(:,:,1:jpl) = t1\_ice(:,:,1:jpl) * a\_i(:,:,1:jpl) \\
+\hline
+\textbf{Operations applied to temporary variable in sbccpl.F90 prior to coupling} & Multipled by ice fraction before coupling (see line above) \\
+\hline
+\textbf{NEMO index to ssnd array} & jps\_ttilyr = 38 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_snd\_ttilyr='weighted ice','yes' \\
+\hline
+\textbf{NEMO namcouple variable name} & 'O\_TtiLyr\_catXX' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative fractional area  \\
+\hline
+\textbf{UM namcouple variable name} & 'oicetXX'  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_ocn\_icetn = 41,42,43,44,45 \\
+\hline
+\textbf{UM pointer used to point to recieved data} & transient\_o2a(tc)\%field $=>$ ocn\_icetn(:,:,n:n)  \\
+\hline
+\textbf{Operations applied to recieved data} & IF (ocn\_freezen $<$ aicenmin) THEN ocn\_icetn(i,j,k)=0.0 \newline
+   (If ice area coming through coupler is less than a minimum area then set temperature to zero)  \newline
+   IF (ocn\_freezen(i,j,k) $>$  0.0) THEN ocn\_icetn(i,j,k)=ocn\_icetn(i,j,k)/ocn\_freezen(i,j,k) \newline
+   (Divide by ice fraction) \newline
+   IF (ocn\_icetn(i,j,k) $>$ TI\_max) THEN ocn\_icetn(i,j,k) = TI\_max \newline
+   (Apply a maximum temperature) \newline
+   IF ((ocn\_icetn(i,j,k) $<$ TI\_min) .AND. (ocn\_icetn(i,j,k) /= 0.0)) THEN ocn\_icetn(i,j,k) = TI\_min \newline
+   (Apply a minimum temperature - unless it has already been reset to zero) \newline
+   ocn\_icet\_gb(i,j) = ocn\_icet\_gb(i,j) + (ocn\_freezen(i,j,k)/ocn\_freeze(i,j,1) ) * ocn\_icetn(i,j,k) \newline
+   (Generate a weighted mean of ice layer temperatures, over all cats, for output diagnostics) \\
+\hline
+\textbf{Assign portion of D1 array by stash code} & jti\_cat = si(415,Sect\_No,im\_index) \\
+\hline
+\textbf{Point to D1 array} & ti\_cat $=>$ d1(jti\_cat)  \\
+\hline
+\textbf{Copy to D1 array} & ti\_cat(i,j,k)=ocn\_icetn(i,j,k) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Sea ice fraction}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Sea ice fraction  \\
+\hline
+\textbf{From prognostic to temporary variable in sbccpl.F90} & ztmp3(:,:,1:jpl) =  a\_i(:,:,1:jpl)  \\
+\hline
+\textbf{Operations applied to temporary variable in sbccpl.F90 prior to coupling} & None \\
+\hline
+\textbf{NEMO index to ssnd array} & jps\_fice=1 \\
+\hline
+\textbf{NEMO namelist controlling factor} & k\_ice (aka nn\_ice) $/=$ 0  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OIceFrc\_catXX' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative fractional area  \\
+\hline
+\textbf{UM namcouple variable name} & 'ofrznXX'  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_ocn\_freezen = 26,27,28,29,30 \\
+\hline
+\textbf{UM pointer used to point to recieved data} & transient\_o2a(tc)\%field $=>$ ocn\_freezen(:,:,:)  \\
+\hline
+\textbf{Operations applied to recieved data} & IF (ocn\_hicen/ocn\_freezen $<$ hi\_min) THEN ocn\_freezen = 0.0 \newline
+   (If ice thickness coming through coupler is less than a minimum thickness then remove all ice)  \newline
+   IF (ocn\_freezen $<$ aicenmin) THEN ocn\_freezen=0.0 \newline
+   (If ice area coming through coupler is less than a minimum area then remove all ice)  \newline
+   IF (ocn\_sst $<$  1.0) THEN ocn\_freezen = ice\_fract\_cat \newline
+   (If invalid SSTs then retain the sea ice fraction from before the coupling) \newline
+   IF (ocn\_freeze(i,j,1) $>$ 1.0) THEN ocn\_freezen(i,j,k)=ocn\_freezen(i,j,k)/ocn\_freeze(i,j,1) \newline
+   (If total ice fraction is greater than 1 then scale all category ice fractions down so that the total ice fraction is 1) \\
+\hline
+\textbf{Assign portion of D1 array by stash code} & jice\_fract\_cat = si(413,Sect\_No,im\_index) \\
+\hline
+\textbf{Point to D1 array} & ice\_fract\_cat $=>$ d1(jice\_fract\_cat)  \\
+\hline
+\textbf{Copy to D1 array} & ice\_fract\_cat = ocn\_freezen  \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Sea ice thickness}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Sea ice thickness  \\
+\hline
+\textbf{From prognostic to temporary variable in sbccpl.F90} & ztmp3(:,:,1:jpl) =  h\_i(:,:,1:jpl) * a\_i(:,:,1:jpl) \\
+\hline
+\textbf{Operations applied to temporary variable in sbccpl.F90 prior to coupling} & (Ice thickness on each category is multiplied by ice area on each category. See line above) \\
+\hline
+\textbf{NEMO index to ssnd array} & jps\_hice   =  7 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_snd\_thick='weighted ice and snow','yes'  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OIceTck\_catXX' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative fractional area  \\
+\hline
+\textbf{UM namcouple variable name} & 'ohicnXX'  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_ocn\_hicen = 36,37,38,39,40 \\
+\hline
+\textbf{UM pointer used to point to recieved data} & transient\_o2a(tc)\%field $=>$ ocn\_hicen(:,:,n:n)  \\
+\hline
+\textbf{Operations applied to recieved data} & IF (ocn\_freezen $<$ aicenmin) THEN ocn\_hicen=0.0 \newline
+   (If ice area coming through coupler is less than a minimum area then remove all ice)  \newline
+   ocn\_hicen=ocn\_hicen+ocn\_snowthickn*(kappai/kappai\_snow) \newline
+   (Increase ice thickness by the snow thickness, taking into account relative densities) \newline
+   IF (ocn\_freezen $>$  0.0) THEN ocn\_hicen=ocn\_hicen/ocn\_freezen \newline
+   (Ice thickness on each category is divided by ice area on each category, undoing the scaling that was applied before coupling.) \\
+\hline
+\textbf{Assign portion of D1 array by stash code} & jice\_thick\_cat = si(414,Sect\_No,im\_index) \\
+\hline
+\textbf{Point to D1 array} & ice\_thick\_cat $=>$ d1(jice\_thick\_cat)  \\
+\hline
+\textbf{Copy to D1 array} & ice\_thick\_cat=ocn\_hicen  \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Snow thickness (snow on sea ice)}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Snow thickness  \\
+\hline
+\textbf{From prognostic to temporary variable in sbccpl.F90} & ztmp4(:,:,1:jpl) =  h\_s(:,:,1:jpl) * a\_i(:,:,1:jpl) \\
+\hline
+\textbf{Operations applied to temporary variable in sbccpl.F90 prior to coupling} & (Snow thickness on each category is multiplied by ice area on each category. See line above) \\
+\hline
+\textbf{NEMO index to ssnd array} & jps\_hsnw   =  8 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_snd\_thick='weighted ice and snow','yes'  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OSnwTck\_catXX' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative fractional area  \\
+\hline
+\textbf{UM namcouple variable name} & 'osnwtnXX'  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_ocn\_snowthickn = 31,32,33,34,35 \\
+\hline
+\textbf{UM pointer used to point to recieved data} & transient\_o2a(tc)\%field $=>$ ocn\_snowthickn(:,:,n:n)  \\
+\hline
+\textbf{Operations applied to recieved data} & IF (ocn\_freezen $<$ aicenmin) THEN ocn\_snowthickn=0.0 \newline
+   (If ice area coming through coupler is less than a minimum area then remove all ice)  \newline
+   IF (ocn\_freezen $>$  0.0) THEN ocn\_snowthickn=ocn\_snowthickn*rhosnow/ocn\_freezen \newline
+   (Ice thickness on each category is divided by ice area on each category, undoing the scaling that was applied before coupling. Also convert to kg/m2.) \\
+\hline
+\textbf{Assign portion of D1 array by stash code} & jsnodep\_sea\_cat= si(416,Sect\_No,im\_index) \\
+\hline
+\textbf{Point to D1 array} & snodep\_sea\_cat $=>$ d1(jjsnodep\_sea\_cat)  \\
+\hline
+\textbf{Copy to D1 array} & snodep\_sea\_cat = ocn\_snowthickn  \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Ocean zonal velocity}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Ocean zonal velocity  \\
+\hline
+\textbf{From prognostic to temporary variable in sbccpl.F90} & zotx1 is calculated by averaging between the ocean U velocities (un) in the corners to give a U velocity along the side of the grid box. This is then combined with sea ice U velocities (u\_ice, also converted to sides of grid box) by using leads and sea ice fractions to form a weighted average. \\
+\hline
+\textbf{Operations applied to temporary variable in sbccpl.F90 prior to coupling} & zotx1 is then averaged over surrounding 4 points to move from the T grid to the U,V grid. It is then rotated using repcmo  \\
+\hline
+\textbf{NEMO index to ssnd array} & jps\_ocx1   =  9 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_snd\_crt='mixed oce-ice','no','spherical','eastward-northward','U,V' \\
+\hline
+\textbf{NEMO namcouple variable name} & 'O\_OCurx1' \\
+\hline
+\textbf{OASIS Remapping method} & Bilinear  \\
+\hline
+\textbf{UM namcouple variable name} & 'sunocean'  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_ocn\_u = 51 \\
+\hline
+\textbf{UM pointer used to point to recieved data} & transient\_o2a(tc)\%field $=>$ ocn\_u(:,:,n:n)  \\
+\hline
+\textbf{Operations applied to recieved data} & Polar row corrected using Correct\_Polar\_UV for ENDGame. We will not need to do this for the LFRic cubesphere grid. \\
+\hline
+\textbf{Assign portion of D1 array by stash code} & ju\_sea  = si( 28,Sect\_No,im\_index) \\
+\hline
+\textbf{Point to D1 array} & u\_sea  $=>$ d1(ju\_sea)  \\
+\hline
+\textbf{Copy to D1 array} & u\_sea(udims\%i\_start:udims\%i\_end,udims\%j\_start:udims\%j\_end) = ocn\_u(1:oasis\_imt,1:oasis\_jmt\_u) \newline
+     Indexing corrected in the line above. \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Ocean meridional velocity}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Ocean meridional velocity  \\
+\hline
+\textbf{From prognostic to temporary variable in sbccpl.F90} & zoty1 is calculated by averaging between the ocean V velocities (vn) in the corners to give a V velocity along the side of the grid box. This is then combined with sea ice V velocities (v\_ice, also converted to sides of grid box) by using leads and sea ice fractions to form a weighted average. \\
+\hline
+\textbf{Operations applied to temporary variable in sbccpl.F90 prior to coupling} & zoty1 is then averaged over surrounding 4 points to move from the T grid to the U,V grid. It is then rotated using repcmo  \\
+\hline
+\textbf{NEMO index to ssnd array} & jps\_ocy1   = 10 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_snd\_crt='mixed oce-ice','no','spherical','eastward-northward','U,V' \\
+\hline
+\textbf{NEMO namcouple variable name} & 'O\_OCury1' \\
+\hline
+\textbf{OASIS Remapping method} & Bilinear  \\
+\hline
+\textbf{UM namcouple variable name} & 'svnocean'  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_ocn\_v = 52 \\
+\hline
+\textbf{UM pointer used to point to recieved data} & transient\_o2a(tc)\%field $=>$ ocn\_v(:,:,n:n)  \\
+\hline
+\textbf{Operations applied to recieved data} & Polar row corrected using Correct\_Polar\_UV for ENDGame. We will not need to do this for the LFRic cubesphere grid. \\
+\hline
+\textbf{Assign portion of D1 array by stash code} & jv\_sea  = si( 29,Sect\_No,im\_index) \\
+\hline
+\textbf{Point to D1 array} & v\_sea $=>$ d1(jv\_sea) \\
+\hline
+\textbf{Copy to D1 array} &    v\_sea(vdims\%i\_start:vdims\%i\_end,vdims\%j\_start:vdims\%j\_end) = ocn\_v(1:oasis\_imt,1:oasis\_jmt\_v) \newline
+     Indexing corrected in the line above. \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Melt pond fraction}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Melt pond fraction  \\
+\hline
+\textbf{From prognostic to temporary variable in sbccpl.F90} & ztmp3(:,:,1:jpl) =  a\_ip\_eff(:,:,1:jpl) \\
+\hline
+\textbf{Operations applied to temporary variable in sbccpl.F90 prior to coupling} & None \\
+\hline
+\textbf{NEMO index to ssnd array} & jps\_a\_p    = 34 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_snd\_mpnd='ice only','yes' \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OPndFrc\_catXX' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative fractional area  \\
+\hline
+\textbf{UM namcouple variable name} & 'pndfrcnX'  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_pond\_frac\_n  = 56,57,58,59,60 \\
+\hline
+\textbf{UM pointer used to point to recieved data} & transient\_o2a(tc)\%field $=>$ pond\_frac\_n(:,:,n:n)  \\
+\hline
+\textbf{Operations applied to recieved data} & IF (ocn\_freezen $<$ aicenmin) THEN pond\_frac\_n(i,j,k)=0.0 \newline
+   (If ice area coming through coupler is less than a minimum area then remove all melt ponds)  \newline
+   IF (pond\_frac\_n(i,j,k) $<$ 0.0) THEN pond\_frac\_n(i,j,k) = 0.0 \newline
+   (Do not allow negative pond fractions) \newline
+   IF (pond\_frac\_n(i,j,k) $>$ 1.0) THEN pond\_frac\_n(i,j,k) = 1.0 \newline
+   (Do not allow pond fractions greater than 1) \\
+\hline
+\textbf{Assign portion of D1 array by stash code} & jpond\_frac\_cat = si(428,Sect\_No,im\_index) \\
+\hline
+\textbf{Point to D1 array} & pond\_frac\_cat $=>$ d1(jpond\_frac\_cat)  \\
+\hline
+\textbf{Copy to D1 array} & pond\_frac\_cat(i,j,k)=pond\_frac\_n(i,j,k) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Melt pond depth}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Melt pond depth \\
+\hline
+\textbf{From prognostic to temporary variable in sbccpl.F90} & ztmp4(:,:,1:jpl) =  h\_ip(:,:,1:jpl) \\
+\hline
+\textbf{Operations applied to temporary variable in sbccpl.F90 prior to coupling} & None \\
+\hline
+\textbf{NEMO index to ssnd array} & jps\_ht\_p   = 35 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_snd\_mpnd='ice only','yes' \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OPndTck\_catXX' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative fractional area  \\
+\hline
+\textbf{UM namcouple variable name} & 'pndtcknX'  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_pond\_depth\_n = 61,62,63,64,65 \\
+\hline
+\textbf{UM pointer used to point to recieved data} & transient\_o2a(tc)\%field $=>$ pond\_depth\_n(:,:,n:n)  \\
+\hline
+\textbf{Operations applied to recieved data} & IF (ocn\_freezen $<$ aicenmin) THEN pond\_depth\_n(i,j,k)=0.0 \newline
+   (If ice area coming through coupler is less than a minimum area then remove all melt ponds)  \newline
+   IF (pond\_frac\_n(i,j,k) $<$ 0.0) THEN pond\_depth\_n(i,j,k) = 0.0 \newline
+   (When resetting negative pond fractions to zero do the same for pond depths) \newline
+   IF (pond\_depth\_n(i,j,k) $<$ 0.0) THEN pond\_depth\_n(i,j,k) = 0.0 \newline
+   (Do not allow negative pond depths) \\
+\hline
+\textbf{Assign portion of D1 array by stash code} & jpond\_depth\_cat = si(429,Sect\_No,im\_index) \\
+\hline
+\textbf{Point to D1 array} & pond\_depth\_cat $=>$ d1(jpond\_depth\_cat)  \\
+\hline
+\textbf{Copy to D1 array} & pond\_depth\_cat(i,j,k)=pond\_depth\_n(i,j,k) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Sea ice conductivity}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Sea ice conductivity \\
+\hline
+\textbf{From prognostic to temporary variable in sbccpl.F90} & ztmp3(:,:,1:jpl) =  cnd\_ice(:,:,1:jpl) * a\_i(:,:,1:jpl) \\
+\hline
+\textbf{Operations applied to temporary variable in sbccpl.F90 prior to coupling} & Multipled by ice fraction to get grid box mean (see line above) \\
+\hline
+\textbf{NEMO index to ssnd array} & jps\_kice   = 36 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_snd\_cond='weighted ice','yes' \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OIceKn\_catXX' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative fractional area  \\
+\hline
+\textbf{UM namcouple variable name} & 'oicekXX'  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_ocn\_icekn = 46,47,48,49,50 \\
+\hline
+\textbf{UM pointer used to point to recieved data} & transient\_o2a(tc)\%field $=>$ ocn\_icekn(:,:,n:n)  \\
+\hline
+\textbf{Operations applied to recieved data} & IF (ocn\_freezen $<$ aicenmin) THEN ocn\_icekn(i,j,k)=0.0 \newline
+   (If ice area coming through coupler is less than a minimum area then set copnductivity to zero)  \newline
+   IF (ocn\_freezen(i,j,k) $>$  0.0) THEN ocn\_icekn(i,j,k)=ocn\_icekn(i,j,k)/ocn\_freezen(i,j,k) \newline
+   (Divide by ice fraction) \\
+\hline
+\textbf{Assign portion of D1 array by stash code} & jice\_k\_cat     = si(440,Sect\_No,im\_index) \\
+\hline
+\textbf{Point to D1 array} & ice\_k\_cat $=>$ d1(jice\_k\_cat)  \\
+\hline
+\textbf{Copy to D1 array} & ice\_k\_cat(i,j,k) = ocn\_icekn(i,j,k) \\
+\hline
+\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section: Atmosphere to ocean exchange
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\pagebreak
+\section{Atmosphere to ocean exchange}
+\label{sec:A2O}
+
+\subsection{Zonal wind stresses}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Zonal wind stresses  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & taux\_ssi in boundary\_layer/diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 3392 hourly means  \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 176 using jc\_taux pointer and c\_taux variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_taux(i,j) = d1(ja\_taux+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_taux is the index of the d1 array where the previous hourly mean is stored \newline
+    c\_taux is the prognostic which will carry wind stress into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ taux(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & None for UM. \newline
+    For LFRic we should make sure that this wind stress is in the zonal (East-West) direction and not lined up with the LFRic grid. \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_taux = 23 \\
+\hline
+\textbf{UM namcouple variable name} & 'taux' \\
+\hline
+\textbf{OASIS Remapping method} & Bilinear  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'O\_OTaux1' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_otx1   =  1 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_tau='oce only','no','spherical','eastward-northward','U,V,F' \newline
+   srcv(jpr\_otx1)\%clgrid  = 'U'    \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & CALL rot\_rep( frcv(jpr\_otx1)\%z3(:,:,1), frcv(jpr\_oty1)\%z3(:,:,1), srcv(jpr\_otx1)\%clgrid, 'en$->$i', ztx ) \newline
+    (Zonal and meridional wind stresses are rotated so that that are aligned with the NEMO grid) \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & utau(:,:) = frcv(jpr\_otx1)\%z3(:,:,1) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Meridional wind stresses}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Meridional wind stresses  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & tauy\_ssi in boundary\_layer/diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 3394 hourly means  \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 177 using jc\_tauy pointer and c\_tauy variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_tauy(i,j) = d1(ja\_tauy+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_tauy is the index of the d1 array where the previous hourly mean is stored \newline
+    c\_tauy is the prognostic which will carry wind stress into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ tauy(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & None for UM. \newline
+    For LFRic we should make sure that this wind stress is in the meridional (North-South) direction and not lined up with the LFRic grid. \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_tauy = 24 \\
+\hline
+\textbf{UM namcouple variable name} & 'tauy' \\
+\hline
+\textbf{OASIS Remapping method} & Bilinear  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'O\_OTauy1' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_oty1   =  2 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_tau='oce only','no','spherical','eastward-northward','U,V,F' \newline
+   srcv(jpr\_oty1)\%clgrid  = 'U'    \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & CALL rot\_rep( frcv(jpr\_otx1)\%z3(:,:,1), frcv(jpr\_oty1)\%z3(:,:,1), srcv(jpr\_otx1)\%clgrid, 'en$->$j', zty ) \newline
+    (Zonal and meridional wind stresses are rotated so that that are aligned with the NEMO grid) \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & vtau(:,:) = frcv(jpr\_oty1)\%z3(:,:,1) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Solar radiation}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Solar radiation  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & netsea in radiation\_control/diagnostics\_rad.F90 or swsea in radiation\_control/rad\_ctl.F90 = Solar radiation in the sea (leads) part of the grid box \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 1203 hourly means  \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 171 using jc\_solar pointer and c\_solar variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_solar(i,j) = d1(ja\_solar+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_solar is the index of the d1 array where the previous hourly mean is stored \newline
+    c\_solar is the prognostic which will carry solar radiation into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ solar2d(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & None. \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_solar = 54 \\
+\hline
+\textbf{UM namcouple variable name} & 'solar' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative destination area  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'O\_QsrOce' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_qsroce = 13 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_qsr='oce only'  \\
+\hline
+\textbf{Temporary variable in sbccpl.F90 to manipulate data} & zqsr(:,:) = frcv(jpr\_qsroce)\%z3(:,:,1) \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & None \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & qsr(:,:) = zqsr(:,:) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Surface heat flux}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Surface heat flux (combination of sensible, latent and longwave heat fluxes)  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & h\_sea in boundary\_layer/diagnostics\_bl.F90 = Sensible heat flux in the sea (leads) part of the grid box \newline
+    e\_sea in boundary\_layer/diagnostics\_bl.F90 = Evaporation in the sea (leads) part of the grid box \newline
+    netsea in radiation\_control/diagnostics\_rad.F90 or lwsea in radiation\_control/rad\_ctl.F90 = Longwave in the sea (leads) part of the grid box \\
+\hline
+\textbf{STASH code and time meaning period} & Sensible heat flux = STASH 3228 hourly means  \newline
+    Evaporation = STASH 3232 hourly means   \newline
+    Surface longwave = STASH 2203 hourly means  \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 179 using jc\_sensible pointer and c\_sensible variable name.  \newline
+   STASH 181 using jc\_evap pointer and c\_evap variable name.  \newline
+   STASH 174 using jc\_longwave pointer and c\_longwave variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_sensible(i,j) = d1(ja\_sensible+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_sensible is the index of the d1 array where the hourly mean of sesible heat flux is stored \newline
+    c\_sensible is the prognostic which will carry sensible heat flux into the next timestep \newline
+    c\_evap(i,j) = d1(ja\_evap+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_evap is the index of the d1 array where the hourly mean of evaporation is stored \newline
+    c\_evap is the prognostic which will carry evaporation into the next timestep \newline
+    c\_longwave(i,j) = d1(ja\_longwave+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_longwave is the index of the d1 array where the hourly mean of surface longwave is stored \newline
+    c\_longwave is the prognostic which will carry surface longwave into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ heatflux(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & If land fraction less than 1 then heatflux(i,j,1)=longwave2d(i,j) - (sensible2d(i,j)+latentHeatOfCond*evap2d(i,j,1)) \newline
+    Merges together longwave, sensible and latent heat fluxes into a total heat flux.\\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_heatflux = 1 \\
+\hline
+\textbf{UM namcouple variable name} & 'heatflux' \\
+\hline
+\textbf{OASIS Remapping method} & Second order conservative destination area  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'O\_QnsOce' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_qnsoce = 16 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_qns='oce only'  \\
+\hline
+\textbf{Temporary variable in sbccpl.F90 to manipulate data} & zqns(:,:) = frcv(jpr\_qnsoce)\%z3(:,:,1) \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & zqns(:,:) =  zqns(:,:) - zemp(:,:) * sst\_m(:,:) * rcp \newline
+   (Increases in MASS require an increase in the heat content as the model is formulated using heat content, not temperature) \newline
+   zqns(:,:) = zqns(:,:) - frcv(jpr\_snow)\%z3(:,:,1) * rLfus \newline
+   (As snow melts it cools the sea surface) \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & qns(:,:) = zqns(:,:) \\
+\hline
+\end{tabular}
+\end{center}
+
+
+\pagebreak
+\subsection{Total rain}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Total rain  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & ls\_rain in large\_scale\_precipitation/diagnostics\_lsrain.F90 = large scale rain \newline
+   conv\_rain in convection/diagnostics\_conv.F90 = convective rain  \\
+\hline
+\textbf{STASH code and time meaning period} & Large scale rain = STASH 4203 hourly means \newline
+    Convective rain = STASH 5205 hourly means \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 186 using jc\_lsrain pointer and c\_lsrain variable name.  \newline
+   STASH 188 using jc\_cvrain pointer and c\_cvrain variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} & c\_lsrain(i,j) = d1(ja\_lsrain+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_lsrain is the index of the d1 array where the hourly mean of large scale rain is stored \newline
+    c\_lsrain is the prognostic which will carry large scale rain into the next timestep \newline
+    c\_cvrain(i,j) = d1(ja\_cvrain+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_cvrain is the index of the d1 array where the hourly mean of convective rain is stored \newline
+    c\_cvrain is the prognostic which will carry convective rain into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ totalrain(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & IF (l\_param\_conv) THEN rainconv(i,j) = c\_cvrain(i,j) ELSE rainconv(i,j) = 0.0  \newline
+    (Set convective rain to zero if we don't use a convection scheme) \newline
+    totalrain(i,j,1)=c\_lsrain(i,j)+rainconv(i,j)    \newline   
+    (Total rain is large scale rain and convective rain combined) \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_train = 5 \\
+\hline
+\textbf{UM namcouple variable name} & 'train' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative destination area  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OTotRain' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_rain   = 19 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_emp='conservative','yes'  \\
+\hline
+\textbf{Temporary variable in sbccpl.F90 to manipulate data} & zemp(:,:) = frcv(jpr\_tevp)\%z3(:,:,1) - ( frcv(jpr\_rain)\%z3(:,:,1) + frcv(jpr\_snow)\%z3(:,:,1) ) \newline
+     (zemp is evaporation minus procipitation (combined rain and snow)) \newline
+     ztprecip(:,:) =   frcv(jpr\_rain)\%z3(:,:,1) + frcv(jpr\_snow)\%z3(:,:,1) \newline
+     (total precipitation is rain and snow) \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & (Combined with evaporation and snow (see lines above)) \newline
+     zemp\_tot(:,:) =   frcv(jpr\_tevp)\%z3(:,:,1) - ztprecip(:,:) \newline
+     (Evaporation minus precipitation) \newline
+     Also snow blowing off of ice into the sea alters zemp\_ice and zemp\_oce \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & emp(:,:) = zemp(:,:) \newline
+      tprecip (:,:)   = ztprecip (:,:) \newline
+      emp\_tot (:,:)   = zemp\_tot (:,:) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Total snow}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Total snow  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & ls\_snow in large\_scale\_precipitation/diagnostics\_lsrain.F90 = large scale snow \newline
+   conv\_snow in convection/diagnostics\_conv.F90 = convective snow  \\
+\hline
+\textbf{STASH code and time meaning period} & Large scale snow = STASH 4204 hourly means \newline
+    Convective snow = STASH 5206 hourly means \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 187 using jc\_lssnow pointer and c\_lssnow variable name.  \newline
+   STASH 189 using jc\_cvsnow pointer and c\_cvsnow variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} & c\_lssnow(i,j) = d1(ja\_lssnow+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_lssnow is the index of the d1 array where the hourly mean of large scale snow is stored \newline
+    c\_lssnow is the prognostic which will carry large scale snow into the next timestep \newline
+    c\_cvsnow(i,j) = d1(ja\_cvsnow+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_cvsnow is the index of the d1 array where the hourly mean of convective snow is stored \newline
+    c\_cvsnow is the prognostic which will carry convective snow into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ totalsnow(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & IF (l\_param\_conv) THEN snowconv(i,j) = c\_cvsnow(i,j) ELSE snowconv(i,j) = 0.0  \newline
+    (Set convective snow to zero if we don't use a convection scheme) \newline
+    totalsnow(i,j,1)=c\_lssnow(i,j)+snowconv(i,j)    \newline   
+    (Total snow is large scale snow and convective snow combined) \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_tsnow = 6 \\
+\hline
+\textbf{UM namcouple variable name} & 'tsnow' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative destination area  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OTotSnow' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_snow   = 20 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_emp='conservative','yes'  \\
+\hline
+\textbf{Temporary variable in sbccpl.F90 to manipulate data} & zemp(:,:) = frcv(jpr\_tevp)\%z3(:,:,1) - ( frcv(jpr\_rain)\%z3(:,:,1) + frcv(jpr\_snow)\%z3(:,:,1) ) \newline
+     (zemp is evaporation minus procipitation (combined rain and snow)) \newline
+     zsprecip(:,:) =   frcv(jpr\_snow)\%z3(:,:,1) \newline
+     (total snow variable) \newline
+     ztprecip(:,:) =   frcv(jpr\_rain)\%z3(:,:,1) + frcv(jpr\_snow)\%z3(:,:,1) \newline
+     (total precipitation is rain and snow) \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & (Combined with evaporation and rain (see lines above)) \newline
+     zemp\_tot(:,:) =   frcv(jpr\_tevp)\%z3(:,:,1) - ztprecip(:,:) \newline
+     (Evaporation minus precipitation) \newline
+     zemp\_ice is sublimation (zevap\_ice\_total) minus snow \newline
+     Also snow blowing off of ice into the sea alters zemp\_ice and zemp\_oce \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & emp(:,:) = zemp(:,:) \newline
+      sprecip (:,:)   = zsprecip (:,:) \newline
+      tprecip (:,:)   = ztprecip (:,:) \newline
+      emp\_tot (:,:)   = zemp\_tot (:,:) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Evaporation}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Evaporation  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & e\_sea in boundary\_layer/diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 3232 hourly means = evaporation in the sea (leads) part of the grid box \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 181 using jc\_evap pointer and c\_evap variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_evap(i,j) = d1(ja\_evap+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_evap is the index of the d1 array where the hourly mean of evaporation is stored \newline
+    c\_evap is the prognostic which will carry evaporation into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ evap2d(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & None although it is used to modify the surface heat flux (see section above) \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_evap2d = 7 \\
+\hline
+\textbf{UM namcouple variable name} & 'evap2d' \\
+\hline
+\textbf{OASIS Remapping method} & Second order conservative destination area  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OTotEvap' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_tevp   = 21 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_emp='conservative','yes'  \\
+\hline
+\textbf{Temporary variable in sbccpl.F90 to manipulate data} & zemp(:,:) = frcv(jpr\_tevp)\%z3(:,:,1) - ( frcv(jpr\_rain)\%z3(:,:,1) + frcv(jpr\_snow)\%z3(:,:,1) ) \newline
+     (zemp is evaporation minus procipitation (combined rain and snow)) \newline
+     zevap\_oce(:,:) = frcv(jpr\_tevp)\%z3(:,:,1) - zevap\_ice\_total(:,:) * picefr(:,:) \newline
+     (evaporation over the ocean is total evaporation minus sea ice evaporation) \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & (Combined with rain and snow (see lines above)) \newline
+     zemp\_tot(:,:) =   frcv(jpr\_tevp)\%z3(:,:,1) - ztprecip(:,:) \newline
+     (Evaporation minus precipitation) \newline
+     Also snow blowing off of ice into the sea alters zemp\_ice and zemp\_oce \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & emp(:,:) = zemp(:,:) \newline
+      emp\_tot (:,:)   = zemp\_tot (:,:) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Sublimation from sea ice}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Sublimation from sea ice (aka ice evaporation)  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & ei\_sice in boundary\_layer/diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 3509 hourly means = sublimation from sea ice (on categories) \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 182 using jc\_sublim pointer and c\_sublim variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_sublim(i,j,k)=d1(ja\_sublim) \newline
+    ja\_sublim is the index of the d1 array where the hourly mean of sublimation is stored \newline
+    c\_sublim is the prognostic which will carry sublimation into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ sublim(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & sublim(i,j,k) = sublim(i,j,k) / ice\_fract\_cat\_future(i,j,k) \newline
+    (sublimation is converted from a grid box mean to a sea ice mean using ice fractions that have just been passed from NEMO) \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_sublim = 18,19,20,21,22 \\
+\hline
+\textbf{UM namcouple variable name} & 'sublimXX' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative destination area  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OIceEvap\_catXX' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_ievp   = 22 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_emp='conservative','yes'  \\
+\hline
+\textbf{Temporary variable in sbccpl.F90 to manipulate data} & zevap\_ice(:,:,:) = frcv(jpr\_ievp)\%z3(:,:,:) * a\_i\_last\_couple(:,:,:) / a\_i(:,:,:) \newline
+     (zevap\_ice is sea ice mean sublimation but converted up to grid box mean and back down to sea ice mean again using ice areas from different timesteps) \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & (Uses the conversion above using ice areas from different timesteps) \newline
+     zevap\_ice\_total is the sea ice mean sublimation averaged over all categories (weighted averaging) \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & emp(:,:) = zemp(:,:) \newline
+      evap\_ice(:,:,:) = zevap\_ice(:,:,:) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{10m wind speed}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & 10m wind speed  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & ws10m\_p in boundary\_layer/diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 3230 hourly means = 10m wind speeds \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 191 using jc\_w10 pointer and c\_w10 variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_w10(i,j) = d1(ja\_w10+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_w10 is the index of the d1 array where the hourly mean of 10m wind speed is stored \newline
+    c\_w10 is the prognostic which will carry 10m wind speed into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ w10(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & None \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_w10 = 4 \\
+\hline
+\textbf{UM namcouple variable name} & 'w10' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative destination area  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'O\_Wind10' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_w10m   = 26 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_w10m='coupled'  \\
+\hline
+\textbf{Temporary variable in sbccpl.F90 to manipulate data} & None \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & None \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & wndm(:,:) = frcv(jpr\_w10m)\%z3(:,:,1) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Top melt from sea ice}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Top melt from sea ice  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & sf\_diag\%sice\_mlt\_htf in boundary\_layer/diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 3257 hourly means = top melt (on categories) \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 185 using jc\_topmeltn pointer and c\_topmeltn variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_topmeltn(i,j,k)=d1(ja\_topmeltn) \newline
+    ja\_topmeltn is the index of the d1 array where the hourly mean of top melt is stored \newline
+    c\_topmeltn is the prognostic which will carry top melt into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ topmeltn(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & topmeltn(i,j,k) = topmeltn(i,j,k) / ice\_fract\_cat\_future(i,j,k) \newline
+    (top melt is converted from a grid box mean to a sea ice mean using ice fractions that have just been passed from NEMO) \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_topmeltn = 8, 9,10,11,12 \\
+\hline
+\textbf{UM namcouple variable name} & 'tmltXX' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative destination area  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OTopMlt\_catXX' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_topm   = 32 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_iceflx='coupled','yes'  \\
+\hline
+\textbf{Temporary variable in sbccpl.F90 to manipulate data} & qml\_ice(:,:,:) = frcv(jpr\_topm)\%z3(:,:,:) * a\_i\_last\_couple(:,:,:) / a\_i(:,:,:) \newline
+     (qml\_ice is sea ice mean top melt but converted up to grid box mean and back down to sea ice mean again using ice areas from different timesteps) \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & (Uses the conversion above using ice areas from different timesteps) \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & qml\_ice(:,:,:) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Surface skin temperature of sea ice}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Surface skin temperature of sea ice  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & tstar\_sice\_cat is a prognostic under STASH 441 which is modified by JULES (it appears as tstar\_sice\_sicat in surf\_couple\_implicit\_mod.F90) \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 441 hourly means = Surface skin temperature of sea ice (on categories) \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 195 using jc\_tstar\_sicen pointer and c\_tstar\_sicen variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_tstar\_sicen(i,j,k)=d1(ja\_tstar\_sicen) \newline
+    ja\_tstar\_sicen is the index of the d1 array where the hourly mean of skin temperature is stored \newline
+    c\_tstar\_sicen is the prognostic which will carry skin temperature into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ tstar\_sicen(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & tstar\_sicen(i,j,k) = c\_tstar\_sicen(i,j,k) - zerodegc \newline
+    (skin temperature is converted from Kelvin to Celcius) \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_tstar\_sicen = 66,67,68,69,70 \\
+\hline
+\textbf{UM namcouple variable name} & 'tsfiXX' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative destination area  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OTsfIce\_catXX' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_ts\_ice = 57 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_ts\_ice='ice','yes'  \\
+\hline
+\textbf{Temporary variable in sbccpl.F90 to manipulate data} & ztsu(:,:,:) = frcv(jpr\_ts\_ice)\%z3(:,:,:) + rt0 \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & If temperature warmer than 0.0 oC then set to 0.0oC \newline
+   If temperature colder than -60.0 oC then set to -60oC \newline
+   Converted from Celcius to Kelvin (see row above) \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & pist(:,:,:) = ztsu(:,:,:) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Surface conductive heat flux from sea ice}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Surface conductive heat flux from sea ice  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & surf\_ht\_flux\_sice in boundary\_layer/diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 3510 hourly means = heat flux from sea ice (on categories) \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 184 using jc\_fcondtopn pointer and c\_fcondtopn variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_fcondtopn(i,j,k)=d1(ja\_fcondtopn) \newline
+    ja\_fcondtopn is the index of the d1 array where the hourly mean of heat flux is stored \newline
+    c\_fcondtopn is the prognostic which will carry heat flux into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ fcondtopn(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & fcondtopn(i,j,k) = fcondtopn(i,j,k) / ice\_fract\_cat\_future(i,j,k) \newline
+    (heat flux is converted from a grid box mean to a sea ice mean using ice fractions that have just been passed from NEMO) \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_fcondtopn = 13,14,15,16,17 \\
+\hline
+\textbf{UM namcouple variable name} & 'fconXX' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative destination area  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OBotMlt\_catXX' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_botm   = 33 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_iceflx='coupled','yes'  \\
+\hline
+\textbf{Temporary variable in sbccpl.F90 to manipulate data} & qcn\_ice(:,:,:) = frcv(jpr\_botm)\%z3(:,:,:) * a\_i\_last\_couple(:,:,:) / a\_i(:,:,:) \newline
+     (qcn\_ice is sea ice mean heat flux but converted up to grid box mean and back down to sea ice mean again using ice areas from different timesteps) \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & (Uses the conversion above using ice areas from different timesteps) \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & qcn\_ice(:,:,:) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{River outflow}
+
+Here for information although the first NGMS coupled model prototype can have river routing turned off. Eventually this data will be sent straight from the river routing model (TRIP) to NEMO using the coupling method described below.
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & River outflow \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & riverout\_rgrid in JULES control/um/diagnostics\_riv.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 26005 instantanious when river routing code run with the same timestep as the coupling frequency = River outflow on TRIP grid (kg/s) \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 198 using jc\_fcondtopn pointer and c\_fcondtopn variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_riverout\_trip=d1(ja\_riverout\_trip) \newline
+    ja\_riverout\_trip is the index of the d1 array where the river outflow is stored \newline
+    c\_riverout\_trip is the prognostic which will carry river outflow into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ runoff\_total(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & runoff\_points(point\_number(river\_number),river\_number) = river\_outflow \newline
+    (Populate an array where each row is for a different river number and each column is each grid point feeding into that river) \newline
+    CALL gcg\_rvecsumrf(..., runoff\_points, runoff\_total(:,1,1)) \newline
+    (Perform a global sum, adding up all the river outflows that contribute to each river) \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_runoff\_1d = 74 \\
+\hline
+\textbf{UM namcouple variable name} & 'runoffa' \\
+\hline
+\textbf{OASIS Remapping method} & BLASOLD: multiply by 1 and add 0  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'ORunff1D' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_rnf\_1d = 60 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_rnf='coupled1d','no'  \\
+\hline
+\textbf{Temporary variable in sbccpl.F90 to manipulate data} & CALL cpl\_rnf\_1d\_to\_2d(frcv(jpr\_rnf\_1d)\%z3(:,:,:)) \newline
+     (Data sent to cpl\_rnf\_1d\_to\_2d routine where the 1D river outflow data is redistrinuted over runoff points, making use of the river\_number ancillary file) \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & cpl\_rnf\_1d\_to\_2d divides the river outflow (in kg s-1) by the river outflow area to get the units into kg m-2 s-1\\
+\hline
+\textbf{Final variable name in NEMO-SI3} & rnf(:,:) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+
+\subsection{Penetrating solar radiation into sea ice}
+
+Here for information although the first NGMS prototype will have penetrating solar turned off. This will need to be added for GC6.0 though.
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Penetrating solar radiation into sea ice \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & penabs\_rad in in radiation\_control/diagnostics\_rad.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 1570 hourly means = penetrating solar into sea ice (on categories) \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 200 using jc\_penabs\_radn pointer and c\_penabs\_radn variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_penabs\_radn=d1(ja\_penabs\_radn) \newline
+    ja\_penabs\_radn is the index of the d1 array where the hourly mean of penetrating solar is stored \newline
+    c\_penabs\_radn is the prognostic which will carry heat flux into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ penabs\_radn(:,:,n:n)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & penabs\_radn(i,j,k) = penabs\_radn(i,j,k) / ice\_fract\_cat\_future(i,j,k) \newline
+    (penetrating solar is converted from a grid box mean to a sea ice mean using ice fractions that have just been passed from NEMO) \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_penabs\_radn = 131,132,133,134,135 \\
+\hline
+\textbf{UM namcouple variable name} & 'qtrXX' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative destination area  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OQtr\_catXX' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_qtr   = 61 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_qtr='coupled','yes'  \\
+\hline
+\textbf{Temporary variable in sbccpl.F90 to manipulate data} & zqtr\_ice\_top(:,:,:) = frcv(jpr\_qtr)\%z3(:,:,:) * a\_i\_last\_couple(:,:,:) / a\_i(:,:,:) \newline
+     (zqtr\_ice\_top is sea ice mean solar penetrating radiation but converted up to grid box mean and back down to sea ice mean again using ice areas from different timesteps) \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & (Uses the conversion above using ice areas from different timesteps) \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & qtr\_ice\_top(:,:,:) \\
+\hline
+\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section: Waves to atmosphere exchange
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\pagebreak
+\section{Waves to atmosphere exchange}
+\label{sec:W2A}
+
+\subsection{Charnock's coefficient}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Charnock's coefficient  \\
+\hline
+\textbf{From prognostic to temporary variable in w3updtmd.ftn (vn4.18) and w3agcmmd.ftn (vn7)} & CALL MPI\_GATHER(CHARN(IAPROC), 1, WW3\_COUP\_VEC, couplework, 1, WW3\_COUP\_VEC, OAPROC, MPI\_COMM\_WAVE, IERR)  (vn4.18) \newline WHERE(CHARN(1:NSEAL) /= UNDEF) TMP(1:NSEAL)=CHARN(1:NSEAL) (vn7) \\
+\hline
+\textbf{Operations applied to temporary variable in w3updtmd.ftn (vn4.18) and w3agcmmd.ftn (vn7) prior to coupling} & WHERE(couplework $>$ 0.32) couplework = 0.32 \newline
+  (Cap value to 0.32 in vn4.18) \newline TMP(1:NSEAL) = 0.0 \newline (Set to zero where not defined in vn7) \\
+\hline
+\textbf{WWIII index to SND\_FLD array} & myvar\_index=1 (vn4.18) \newline Dynamically set depending on fields actually coupled (vn7) \\
+\hline
+\textbf{WWIII namelist controlling string} & T in fixed-format input file ww3\_shel.inp.template (vn4.18) \newline  TYPE\%COUPLING\%SENT = 'CHA' (vn7) \\
+\hline
+\textbf{WWIII namcouple variable name} & 'ZCHARN' (vn4.18) \newline 'WW3\_ACHA' (vn7) \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative fractional area  \\
+\hline
+\textbf{UM namcouple variable name} & 'wave\_cha'  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_wave\_charnock = 120 \\
+\hline
+\textbf{UM pointer used to point to recieved data} & transient\_w2a(tc)\%field $=>$ wave\_charnock(:,:) \\
+\hline
+\textbf{Operations applied to recieved data} & None  \\
+\hline
+\textbf{Assign portion of D1 array by stash code} & jcharnock = si(517,Sect\_No,im\_index) \\
+\hline
+\textbf{Point to D1 array} & charnock\_w $=>$ d1(jcharnock)  \\
+\hline
+\textbf{Copy to D1 array} & charnock\_w=wave\_charnock  \\
+\hline
+\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section: Atmosphere to waves exchange
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\pagebreak
+\section{Atmosphere to waves exchange}
+\label{sec:A2W}
+
+\subsection{Zonal wind stresses}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Zonal wind stresses  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & taux\_ssi in boundary\_layer/diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 3392 hourly means  \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 176 using jc\_taux pointer and c\_taux variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_taux(i,j) = d1(ja\_taux+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_taux is the index of the d1 array where the previous hourly mean is stored \newline
+    c\_taux is the prognostic which will carry wind stress into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2w(tc)\%field $=>$ taux\_w(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2w.F90)} & None for UM. \newline
+    For LFRic we should make sure that this wind stress is in the zonal (East-West) direction and not lined up with the LFRic grid. \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_taux = 23* \\
+\hline
+\textbf{UM namcouple variable name} & 'taux\_w' \\
+\hline
+\textbf{OASIS Remapping method} & Bilinear  \\
+\hline
+\textbf{WWIII namcouple variable name} & 'WW3\_UTAU' \\
+\hline
+\textbf{WWIII index to RCV\_FLD array} & Dynamically set depending on fields actually coupled (vn7) \\
+\hline
+\textbf{WWIII namelist controlling factor} & TYPE\%COUPLING\%RECEIVED = 'TAU'    \\
+\hline
+\textbf{Operations applied in w3updtmd.ftn after coupling} & Conversion of stress components to stress module and direction \\
+\hline
+\textbf{Final variable name in WWIII} & TAUA (stress module) and TAUADIR (stress direction) \\
+\hline
+\end{tabular}
+\end{center}
+
+* A new vind variable is probably needed for this coupling exchange, in order to properly set the coupling order when coupling the atmosphere to ocean and waves simultaneously
+
+\pagebreak
+\subsection{Meridional wind stresses}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Meridional wind stresses  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & tauy\_ssi in boundary\_layer/diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 3394 hourly means  \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 177 using jc\_tauy pointer and c\_tauy variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_tauy(i,j) = d1(ja\_tauy+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_tauy is the index of the d1 array where the previous hourly mean is stored \newline
+    c\_tauy is the prognostic which will carry wind stress into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2w(tc)\%field $=>$ tauy\_w(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2w.F90)} & None for UM. \newline
+    For LFRic we should make sure that this wind stress is in the meridional (North-South) direction and not lined up with the LFRic grid. \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_tauy = 24* \\
+\hline
+\textbf{UM namcouple variable name} & 'tauy\_w' \\
+\hline
+\textbf{OASIS Remapping method} & Bilinear  \\
+\hline
+\textbf{WWIII namcouple variable name} & 'WW3\_VTAU' \\
+\hline
+\textbf{WWIII index to RCV\_FLD array} & Dynamically set depending on fields actually coupled (vn7) \\
+\hline
+\textbf{WWIII namelist controlling factor} & TYPE\%COUPLING\%RECEIVED = 'TAU'    \\
+\hline
+\textbf{Operations applied in w3updtmd.ftn after coupling} & Conversion of stress components to stress module and direction \\
+\hline
+\textbf{Final variable name in WWIII} & TAUA (stress module) and TAUADIR (stress direction) \\
+\hline
+\end{tabular}
+\end{center}
+
+* A new vind variable is probably needed for this coupling exchange, in order to properly set the coupling order when coupling the atmosphere to ocean and waves simultaneously
+
+\pagebreak
+\subsection{Surface air density}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Surface air density  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & rho1 in boundary\_layer/diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 3562 hourly means  \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 518 using jc\_rhoa pointer and c\_rho\_air variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_rho\_air(i,j) = d1(ja\_rhoa+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_rhoa is the index of the d1 array where the previous hourly mean is stored \newline
+    c\_rho\_air is the prognostic which will carry air density into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2w(tc)\%field $=>$ rho\_air\_w(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2w.F90)} & None for UM. \newline
+    For LFRic we should make sure that this wind stress is in the meridional (North-South) direction and not lined up with the LFRic grid. \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_rhoa\_w = 103 \\
+\hline
+\textbf{UM namcouple variable name} & 'rhoa\_w' \\
+\hline
+\textbf{OASIS Remapping method} & Bilinear  \\
+\hline
+\textbf{WWIII namcouple variable name} & 'WW3\_RHOA' \\
+\hline
+\textbf{WWIII index to RCV\_FLD array} & Dynamically set depending on fields actually coupled (vn7) \\
+\hline
+\textbf{WWIII namelist controlling factor} & TYPE\%COUPLING\%RECEIVED = 'RHO'    \\
+\hline
+\textbf{Operations applied in w3updtmd.ftn after coupling} & None \\
+\hline
+\textbf{Final variable name in WWIII} & RHOAIR \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Zonal neutral 10m wind speed}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Zonal neutral 10m wind speed  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & u10m\_nb in boundary\_layer/diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 3365 hourly means  \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 515 using jc\_u10 pointer and c\_u10m\_w variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_u10m\_w(i,j) = d1(ja\_u10+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_u10 is the index of the d1 array where the previous hourly mean is stored \newline
+    c\_u10m\_w is the prognostic which will carry wind into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2w(tc)\%field $=>$ u10m\_w(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2w.F90)} & None for UM. \newline
+    For LFRic we should make sure that this wind stress is in the zonal (East-West) direction and not lined up with the LFRic grid. \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_u10m\_w = 101 \\
+\hline
+\textbf{UM namcouple variable name} & 'u10m\_w' \\
+\hline
+\textbf{OASIS Remapping method} & Bilinear  \\
+\hline
+\textbf{WWIII namcouple variable name} & 'WW3\_\_U10' \\
+\hline
+\textbf{WWIII index to RCV\_FLD array} & Dynamically set depending on fields actually coupled (vn7) \\
+\hline
+\textbf{WWIII namelist controlling factor} & TYPE\%COUPLING\%RECEIVED = 'WND'    \\
+\hline
+\textbf{Operations applied in w3updtmd.ftn after coupling} & Conversion of wind components to wind velocity and direction \\
+\hline
+\textbf{Final variable name in WWIII} & UA (wind speed) and UD (wind direction) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Meridional neutral 10m wind speed}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Meridional neutral 10m wind speed  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & v10m\_nb in boundary\_layer/diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 3366 hourly means  \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 516 using jc\_v10 pointer and c\_v10m\_w variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_v10m\_w(i,j) = d1(ja\_v10+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_v10 is the index of the d1 array where the previous hourly mean is stored \newline
+    c\_v10m\_w is the prognostic which will carry wind into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2w(tc)\%field $=>$ v10m\_w(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2w.F90)} & None for UM. \newline
+    For LFRic we should make sure that this wind stress is in the zonal (East-West) direction and not lined up with the LFRic grid. \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_v10m\_w = 102 \\
+\hline
+\textbf{UM namcouple variable name} & 'v10m\_w' \\
+\hline
+\textbf{OASIS Remapping method} & Bilinear  \\
+\hline
+\textbf{WWIII namcouple variable name} & 'WW3\_\_V10' \\
+\hline
+\textbf{WWIII index to RCV\_FLD array} & Dynamically set depending on fields actually coupled (vn7) \\
+\hline
+\textbf{WWIII namelist controlling factor} & TYPE\%COUPLING\%RECEIVED = 'WND'    \\
+\hline
+\textbf{Operations applied in w3updtmd.ftn after coupling} & Conversion of wind components to wind velocity and direction \\
+\hline
+\textbf{Final variable name in WWIII} & UA (wind speed) and UD (wind direction) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Zonal 10m wind speed}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Zonal 10 wind speed  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & u10m in boundary\_layer/diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 3209 hourly means  \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 515 using jc\_u10 pointer and c\_u10m\_w variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_u10m\_w(i,j) = d1(ja\_u10+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_u10 is the index of the d1 array where the previous hourly mean is stored \newline
+    c\_u10m\_w is the prognostic which will carry wind into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2w(tc)\%field $=>$ u10m\_w(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2w.F90)} & None for UM. \newline
+    For LFRic we should make sure that this wind stress is in the zonal (East-West) direction and not lined up with the LFRic grid. \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_u10m\_w = 101 \\
+\hline
+\textbf{UM namcouple variable name} & 'u10m\_w' \\
+\hline
+\textbf{OASIS Remapping method} & Bilinear  \\
+\hline
+\textbf{WWIII namcouple variable name} & 'u10mwnd' \\
+\hline
+\textbf{WWIII index to RCV\_FLD array} & myvar\_index=2 (vn4.18) \\
+\hline
+\textbf{WWIII namelist controlling factor} & 'T F T' in fixed-format input file ww3\_shel.inp.template    \\
+\hline
+\textbf{Operations applied in w3updtmd.ftn after coupling} & Conversion of wind components to wind velocity and direction \\
+\hline
+\textbf{Final variable name in WWIII} & UA (wind speed) and UD (wind direction) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+\subsection{Meridional 10m wind speed}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Meridional 10m wind speed  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & v10m in boundary\_layer/diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & STASH 3210 hourly means  \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 516 using jc\_v10 pointer and c\_v10m\_w variable name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_v10m\_w(i,j) = d1(ja\_v10+i-1+((j-1)*oasis\_imt)) \newline
+    ja\_v10 is the index of the d1 array where the previous hourly mean is stored \newline
+    c\_v10m\_w is the prognostic which will carry wind into the next timestep \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2w(tc)\%field $=>$ v10m\_w(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2w.F90)} & None for UM. \newline
+    For LFRic we should make sure that this wind stress is in the zonal (East-West) direction and not lined up with the LFRic grid. \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_v10m\_w = 102 \\
+\hline
+\textbf{UM namcouple variable name} & 'v10m\_w' \\
+\hline
+\textbf{OASIS Remapping method} & Bilinear  \\
+\hline
+\textbf{WWIII namcouple variable name} & 'v10mwnd' \\
+\hline
+\textbf{WWIII index to RCV\_FLD array} & myvar\_index=2 (vn4.18) \\
+\hline
+\textbf{WWIII namelist controlling factor} & 'T F T' in fixed-format input file ww3\_shel.inp.template    \\
+\hline
+\textbf{Operations applied in w3updtmd.ftn after coupling} & Conversion of wind components to wind velocity and direction \\
+\hline
+\textbf{Final variable name in WWIII} & UA (wind speed) and UD (wind direction) \\
+\hline
+\end{tabular}
+\end{center}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section: Ocean to atmosphere exchange, UKESM specific
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\pagebreak
+\section{UKESM specific ocean to atmosphere exchange}
+\label{sec:O2AUKESM}
+
+\subsection{DMS concentration in seawater}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} &  DMS concentration \\
+\hline
+\textbf{From prognostic to temporary variable in trcrst.F90, trcini\_medusa.F90 and bio\_medusa\_diag\_slice.F90} &  DMS\_out\_cpl(:,:) = zn\_dms\_srf(:,:) \\
+\hline
+\textbf{Operations applied to temporary variable in sbccpl.F90 prior to coupling} & Nil \newline
+ \\
+\hline
+\textbf{NEMO index to ssnd array} & jps\_bio\_dms=35 \\
+\hline
+\textbf{NEMO namelist controlling string} & sn\_snd\_temp\%cldes='medusa'  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OBioDMS' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative fractional area  \\
+\hline
+\textbf{UM namcouple variable name} & 'dms\_conc'  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_dms\_conc = 90 \\
+\hline
+\textbf{UM pointer used to point to recieved data} & transient\_o2a(tc)\%field $=>$ dms\_conc\_in(:,:,:)  \\
+\hline
+\textbf{Operations applied to recieved data} & Nil  \\
+\hline
+\textbf{Assign portion of D1 array by stash code} & jdms\_conc = si(132,Sect\_No,im\_index) \\
+\hline
+\textbf{Point to D1 array} & dms\_conc $=>$ d1(jdms\_conc)  \\
+\hline
+\textbf{Copy to D1 array} & dms\_conc=dms\_conc\_in  \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+
+\subsection{CO2 Ocean flux}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} &  CO2 ocean flux \\
+\hline
+\textbf{From prognostic to temporary variable in trcrst.F90, trcini\_medusa.F90 and bio\_medusa\_diag\_slice.F90} &  CO2Flux\_out\_cpl(:,:) = zn\_co2\_flx(:,:) \\
+\hline
+\textbf{Operations applied to temporary variable in sbccpl.F90 prior to coupling} & Nil \newline
+ \\
+\hline
+\textbf{NEMO index to ssnd array} & jps\_bio\_dms=34 \\
+\hline
+\textbf{NEMO namelist controlling string} & sn\_snd\_temp\%cldes='medusa'  \\
+\hline
+
+\hline
+\textbf{OASIS Remapping method} & First order conservative fractional area  \\
+\hline
+\textbf{UM namcouple variable name} & 'oCO2flux'  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_CO2flux = 91 \\
+\hline
+\textbf{UM pointer used to point to recieved data} & transient\_o2a(tc)\%field $=>$ CO2flux\_in(:,:,:)  \\
+\hline
+\textbf{Operations applied to recieved data} & Nil  \\
+\hline
+\textbf{Assign portion of D1 array by stash code} & j\_co2flux = si(250,Sect\_No,im\_index) \\
+\hline
+\textbf{Point to D1 array} & co2flux $=>$ d1(j\_co2flux)  \\
+\hline
+\textbf{Copy to D1 array} & dms\_conc=dms\_conc\_in  \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+
+\subsection{Ocean near surface chlorophyll}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} &  Ocean near surface chlorophyll \\
+\hline
+\textbf{From prognostic to temporary variable in trcrst.F90, trcini\_medusa.F90 and bio\_medusa\_fin.F90, multiplying by scaling constant (typically 0.5)} &  chloro\_out\_cpl(:,:) = zn\_chl\_srf(:,:) * scl\_chl \\
+\hline
+\textbf{Operations applied to temporary variable in sbccpl.F90 prior to coupling} & Nil \newline
+ \\
+\hline
+\textbf{NEMO index to ssnd array} & jps\_bio\_chloro=36 \\
+\hline
+\textbf{NEMO namelist controlling string} & sn\_snd\_temp\%cldes='medusa'  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OBioChlo' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative fractional area  \\
+\hline
+\textbf{UM namcouple variable name} & 'obiochlo'  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_chloro\_conc = 94 \\
+\hline
+\textbf{UM pointer used to point to recieved data} & transient\_o2a(tc)\%field $=>$ chloro\_conc\_in(:,:,:)  \\
+\hline
+\textbf{Operations applied to recieved data} & Nil  \\
+\hline
+\textbf{Assign portion of D1 array by stash code} & jchloro\_sea = si(96,Sect\_No,im\_index) \\
+\hline
+\textbf{Point to D1 array} & chloro\_sea $=>$ d1(jchloro\_sea)  \\
+\hline
+\textbf{Copy to D1 array} & chloro\_sea=chloro\_conc\_in  \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Section: Atmosphere to ocean exchange, UKESM specific
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\pagebreak
+\section{UKESM specific atmosphere to ocean exchange}
+\label{sec:A2OUKESM}
+
+\subsection{Total Greenland and Antarctic ice masses}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Total Greenland ice mass and total Antarctic ice mass  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & icenorth and icesouth from snodep\_tile in ice\_sheet\_mass.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & 240, no time meaning, instaneous value. \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 240 prognostic using jsnodep\_tile pointer and snodep\_tile name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  No copy necessary, standard UM prognostic. \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ icenorth(:,:,:),  transient\_a2o(tc)\%field $=>$ icesouth(:,:,:) \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & None for UM.  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_icesheet\_n = 72, vind\_icesheet\_s = 73 \\
+\hline
+\textbf{UM namcouple variable name} & 'icenorth', 'icesouth' \\
+\hline
+\textbf{OASIS Remapping method} & Bilinear  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OGrnmass', 'OAntmass' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_grnm = 44, jpr\_antm = 45 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_grnm='coupled','no','','',''' and sn\_rcv\_antm='coupled','no','','','''   \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & If 2d field employed: Global sum and average over ocean points to obtain single
+value. \newline If 0d field employed: Nil.  \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & greenland\_icesheet\_mass, antarctica\_icesheet\_mass \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+
+
+\subsection{Partial CO2 pressure}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Partial CO2 pressure  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & co2 or co2\_3D. \newline
+            Prognostic D1 variable, conditionally updated in numerous locations.  \\
+\hline
+\textbf{STASH code and time meaning period} & Interactive CO2: 252, \newline
+                                              Time mean calculated in accordance w/ coupling frequency. \newline
+                                              Static CO2: No STASH code or time meaning. \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & Interactive CO2: STASH 196 using jc\_surf\_co2 pointer and c\_surf\_CO2 name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} & Interactive CO2: c\_surf\_CO2(i,j) indexed by ja\_CO2 from d1. \newline
+                                                                     Static CO2: Nil.  \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ pCO2\_out(:,:,:)  \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & Nil.  \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_pCO2 = 92 \\
+\hline
+\textbf{UM namcouple variable name} & 'atmpco2' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative destination area  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OATMPCO2' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_atm\_pco2 =  46 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_atm\_pco2 = 'medusa','no','','','''  \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & Nil. Moved to 'f\_xco2a' in trcbio\_medusa.F90 \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & PCO2a\_in\_cpl(:,:) = frcv(jpr\_atm\_pco2)\%z3(:,:,1) \\
+\hline
+\end{tabular}
+\end{center}
+
+\pagebreak
+
+\subsection{Dust deposition flux}
+
+\begin{center}
+\begin{tabular}{| p{0.3\textwidth} | p{0.7\textwidth} |}
+\hline
+\textbf{Field to couple} & Dust deposition flux  \\
+\hline
+\textbf{Original diagnostic variable and routine it is saved to STASH in} & tot\_dust\_dep\_flux in diagnostics\_bl.F90 \\
+\hline
+\textbf{STASH code and time meaning period} & 3440 , \newline 
+                                              Time mean calculated in accordance w/ coupling frequency \\
+\hline
+\textbf{Prognostic to carry the data into the next timestep} & STASH 197 using jc\_dust\_dep pointer and c\_dust\_dep name.  \\
+\hline
+\textbf{In oasis\_updatecpl.F90 copy the data into the prognostic} &  c\_dust\_dep(i,j)=d1(ja\_dust\_dep+i-1+((j-1)*oasis\_imt))  \\
+\hline
+\textbf{UM pointer used to point to data to send} & transient\_a2o(tc)\%field $=>$ dust\_dep\_out(:,:,:) \\
+\hline
+\textbf{Operations applied to prognostic prior to coupling (in oasis3\_puta2o.F90)} & Nil. \\
+\hline
+\textbf{UM TRANSDEF index and vind variable} & vind\_dust\_dep = 93 \\
+\hline
+\textbf{UM namcouple variable name} & 'atmdust' \\
+\hline
+\textbf{OASIS Remapping method} & First order conservative destination area  \\
+\hline
+\textbf{NEMO namcouple variable name} & 'OATMDUST' \\
+\hline
+\textbf{NEMO index to frcv array} & jpr\_atm\_dust   =  47 \\
+\hline
+\textbf{NEMO namelist controlling factor} & sn\_rcv\_atm\_dust='medusa','no','','',''' \\
+\hline
+\textbf{Operations applied in sbccpl.F90 after coupling} & Nil. \newline Moved to 'dust' in trcsed\_medusa.F90 \\
+\hline
+\textbf{Final variable name in NEMO-SI3} & Dust\_in\_cpl(:,:) = frcv(jpr\_atm\_dust)\%z3(:,:,1) \\
+\hline
+\end{tabular}
+\end{center}
+
+\end{document}
+
+
