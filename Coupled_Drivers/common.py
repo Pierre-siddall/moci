@@ -20,6 +20,7 @@ DESCRIPTION
 
 #The from __future__ imports ensure compatibility between python2.7 and 3.x
 from __future__ import absolute_import
+import copy
 import re
 import os
 import sys
@@ -28,95 +29,6 @@ import threading
 import math
 import error
 import inc_days
-
-class LoadEnvar(object):
-    '''
-    Container to hold loaded environemnt variables so they can be easily
-    accessed and modified as needed
-    '''
-
-    def __init__(self):
-        '''
-        Initialise a container dictionary for the variables
-        '''
-        self.env_vars = {}
-
-    def load_envar(self, name, default_value=None):
-        '''
-        Load an environment variable, if it doesn't exist and no default is
-        specified return an error code. If a default is specified set to
-        default and alert the user that this has occured
-        '''
-        try:
-            self.env_vars[name] = os.environ[name]
-            return 0
-        except KeyError:
-            if default_value != None:
-                sys.stdout.write('[INFO] environment variable %s doesn\'t '
-                                 'exist, setting to default value %s\n' %
-                                 (name, default_value))
-                self.env_vars[name] = default_value
-                return 0
-            else:
-                return 1
-
-    def contains(self, varname):
-        '''
-        Does the container contain the variable varname
-        '''
-        does_contain = varname in self.env_vars
-        return does_contain
-
-    def is_set(self, varname):
-        '''
-        Is the variable varname set in the environment
-        '''
-        try:
-            _ = os.environ[varname]
-            return True
-        except KeyError:
-            return False
-
-    def add(self, varname, value):
-        '''
-        Add a variable to the container
-        '''
-        self.env_vars[varname] = value
-
-    def remove(self, varname):
-        '''
-        Remove a variable from the container
-        '''
-        del self.env_vars[varname]
-
-    def export(self):
-        '''
-        Export environment variable to the calling process
-        '''
-        for i_key in self.env_vars.keys():
-            os.environ[i_key] = self.env_vars[i_key]
-
-    def __getitem__(self, var_name):
-        '''
-        Return an environment variable value using the syntax
-        LoadEnvar['variable_name']. Will exit with an error if the variable
-        is not contained in the class instance.
-        '''
-        try:
-            return self.env_vars[var_name]
-        except KeyError:
-            sys.stderr.write('[FAIL] Attempt to access environment variable'
-                             ' %s. This has not been loaded\n' %
-                             var_name)
-            sys.exit(error.MISSING_EVAR_ERROR)
-
-    def __setitem__(self, var_name, value):
-        '''
-        Allow an environment variable to be added to the container by
-        using the syntax LoadEnvar['variable_name'] = x.
-        '''
-        self.add(var_name, value)
-
 
 class ModNamelist(object):
     '''
@@ -163,7 +75,6 @@ class ModNamelist(object):
         output_file.close()
         os.remove(self.filename)
         os.rename(self.filename+'out', self.filename)
-
 
 def find_previous_workdir(cyclepoint, workdir, taskname, task_param_run=None):
     '''
@@ -275,30 +186,18 @@ def remove_file(filename):
     else:
         return False
 
-def setup_runtime():
+def setup_runtime(common_env):
     '''
     Set up model run length in seconds based on the model suite
     env vars (rather than in the manner of the old UM control scripts
     by interrogating NEMO namelists!)
     '''
-    runtime_envar = LoadEnvar()
-
-    if runtime_envar.load_envar('TASKSTART') != 0:
-        sys.stderr.write('[FAIL] setup_runtime: Environment variable' \
-                             ' TASKSTART not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if runtime_envar.load_envar('TASKLENGTH') != 0:
-        sys.stderr.write('[FAIL] setup_runtime: Environment variable' \
-                             ' TASKLENGTH not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-
-
-    if runtime_envar.load_envar('CALENDAR') != 0:
+    if not common_env['CALENDAR']:
         sys.stderr.write('[WARN] setup_runtime: Environment variable' \
-                             ' CALENDAR not set. Assuming 360 day calendar.\n')
+                         ' CALENDAR not set. Assuming 360 day calendar.\n')
         calendar = '360'
     else:
-        calendar = runtime_envar['CALENDAR']
+        calendar = common_env['CALENDAR']
         if calendar == '360day':
             calendar = '360'
         elif calendar == '365day':
@@ -312,8 +211,8 @@ def setup_runtime():
 
 
     # Turn our times into lists of integers
-    run_start = [int(i) for i in runtime_envar['TASKSTART'].split(',')]
-    run_length = [int(i) for i in runtime_envar['TASKLENGTH'].split(',')]
+    run_start = [int(i) for i in common_env['TASKSTART'].split(',')]
+    run_length = [int(i) for i in common_env['TASKLENGTH'].split(',')]
 
     run_days = inc_days.inc_days(run_start[0], run_start[1], run_start[2],
                                  run_length[0], run_length[1], run_length[2],

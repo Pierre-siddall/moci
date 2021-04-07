@@ -14,7 +14,7 @@ TO RUN THE SCRIPT:
 OUTPUTS:
  There are four rates computed:
  - Effective rate: The time between successive submit points
- - Job rate: based on the time of the job starting end ending. For a coupled job this is the fastest rate the suite could manage
+ - Job rate: based on the time of the job starting and ending. For a coupled job this is the fastest rate the suite could manage
  - Job and queuing rate: The time from the coupled job being submitted and it ending
  - Coupled and waiting: Time between sucessive cycle points with the queuing time subtracted.
 

@@ -32,6 +32,8 @@ import time2days
 import inc_days
 import common
 import error
+import dr_env_lib.cice_def
+import dr_env_lib.env_lib
 import subprocess
 
 
@@ -109,66 +111,23 @@ def _load_environment_variables(cice_envar):
     Load the CICE environment variables required for the model run into the
     cice_envar container
     '''
-    if cice_envar.load_envar('CALENDAR') != 0:
-        sys.stderr.write('[FAIL] Environment variable CALENDAR not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if cice_envar.load_envar('CICE_GRID') != 0:
-        sys.stderr.write('[FAIL] Environent variable CICE_GRID containing the'
-                         ' input grid file not set')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if cice_envar.load_envar('CICE_KMT') != 0:
-        sys.stderr.write('[FAIL] Environent variable CICE_KMT containing the'
-                         ' land-sea mask file not set')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if cice_envar.load_envar('TASKLENGTH') != 0:
-        sys.stderr.write('[FAIL] Environment variable TASKLENGTH not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if cice_envar.load_envar('CICE_NPROC') != 0:
-        sys.stderr.write('[FAIL] Environment variable CICE_NPROC not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    _ = cice_envar.load_envar('CICE_START', False)
-    _ = cice_envar.load_envar('SHARED_FNAME', 'SHARED')
-    _ = cice_envar.load_envar('MODELBASIS', False)
-    _ = cice_envar.load_envar('TASKSTART', False)
-    _ = cice_envar.load_envar('TASKLENGTH', False)
-    _ = cice_envar.load_envar('ATM_DATA_DIR', 'unknown_atm_data_dir')
-    _ = cice_envar.load_envar('OCN_DATA_DIR', 'unknown_ocn_data_dir')
-    _ = cice_envar.load_envar('CICE_RESTART', 'ice.restart_file')
-    _ = cice_envar.load_envar('CONTINUE', 'false')
-    _ = cice_envar.load_envar('CONTINUE_FROM_FAIL', 'false')
-    # ensure that CONTINUE is always lower case false, unless explicitly
-    # set to true (in which case make sure it's lower case true).
-    if 'T' in cice_envar['CONTINUE'] or 't' in cice_envar['CONTINUE']:
-        cice_envar['CONTINUE'] = 'true'
-    else:
-        cice_envar['CONTINUE'] = 'false'
-    # ensure that CONTINUE_FROM_FAIL is always lower case false, unless
-    # explicitly set to true (in which case make sure it's lower case true).
-    if 'T' in cice_envar['CONTINUE_FROM_FAIL'] or \
-       't' in cice_envar['CONTINUE_FROM_FAIL']:
-        cice_envar['CONTINUE_FROM_FAIL'] = 'true'
-        #If continue_from_fail is true then continue must also be true
-        cice_envar['CONTINUE'] = 'true'
-    else:
-        cice_envar['CONTINUE_FROM_FAIL'] = 'false'
-    _ = cice_envar.load_envar('CICE_OCEAN_DATA', '')
-    _ = cice_envar.load_envar('CICE_ATMOS_DATA', '')
+    cice_envar = dr_env_lib.env_lib.load_envar_from_definition(
+        cice_envar, dr_env_lib.cice_def.CICE_ENVIRONMENT_VARS_INITIAL)
 
     cice_envar['ATM_DATA_DIR'] = '%s:%s' % \
         (cice_envar['ATM_DATA_DIR'], cice_envar['CICE_ATMOS_DATA'])
     cice_envar['OCN_DATA_DIR'] = '%s:%s' % \
         (cice_envar['OCN_DATA_DIR'], cice_envar['CICE_OCEAN_DATA'])
-    _ = cice_envar.load_envar('LAST_DUMP_HOURS', '0')
 
     return cice_envar
 
 
-def _setup_executable(common_envar):
+def _setup_executable(common_env):
     '''
     Setup the environment and any files required by the executable
     '''
     # Create the environment variable container
-    cice_envar = common.LoadEnvar()
+    cice_envar = dr_env_lib.env_lib.LoadEnvar()
     # Load the ice namelist path. Information will be retrieved from this file
     # druing the running of the driver, so check if it exists.
     _ = cice_envar.load_envar('CICE_IN', 'ice_in')
@@ -181,7 +140,7 @@ def _setup_executable(common_envar):
     # load the remaining environment variables
     cice_envar = _load_environment_variables(cice_envar)
 
-    calendar = cice_envar['CALENDAR']
+    calendar = common_env['CALENDAR']
     if calendar == '360day':
         calendar = '360'
         caldays = 360
@@ -195,9 +154,9 @@ def _setup_executable(common_envar):
         cice_leap_years = ".true."
 
     #turn our times into lists of integers
-    model_basis = [int(i) for i in cice_envar['MODELBASIS'].split(',')]
-    run_start = [int(i) for i in cice_envar['TASKSTART'].split(',')]
-    run_length = [int(i) for i in cice_envar['TASKLENGTH'].split(',')]
+    model_basis = [int(i) for i in common_env['MODELBASIS'].split(',')]
+    run_start = [int(i) for i in common_env['TASKSTART'].split(',')]
+    run_length = [int(i) for i in common_env['TASKLENGTH'].split(',')]
 
     run_days = inc_days.inc_days(run_start[0], run_start[1], run_start[2],
                                  run_length[0], run_length[1], run_length[2],
@@ -211,7 +170,7 @@ def _setup_executable(common_envar):
     # These variables default to zero except in operational NWP suite where
     # a run can be restarted part way through after a failure.
     # In this case CONTINUE_FROM_FAIL should also be true
-    last_dump_hours = int(cice_envar['LAST_DUMP_HOURS'])
+    last_dump_hours = int(common_env['LAST_DUMP_HOURS'])
     last_dump_seconds = last_dump_hours*3600
 
     #any variables containing things that can be globbed will start with gl_
@@ -239,32 +198,31 @@ def _setup_executable(common_envar):
 
     # If the variables MODELBASIS, TASKSTART, TASKLENGTH are unset from the
     # environment then read from the shared namelist file
-    if False in (cice_envar['MODELBASIS'],
-                 cice_envar['TASKSTART'],
-                 cice_envar['TASKLENGTH']):
+    if False in (common_env['MODELBASIS'],
+                 common_env['TASKSTART'],
+                 common_env['TASKLENGTH']):
         # at least one variable has to be read from the shared namelist file
         if not os.path.ispath(cice_envar['SHARED_FNAME']):
             sys.stderr.write('[FAIL] Can not find shared namelist file %s\n' %
                              cice_envar['SHARED_FNAME'])
             sys.exit(error.MISSING_DRIVER_FILE_ERROR)
-        if not cice_envar['MODELBASIS']:
+        if not common_env['MODELBASIS']:
             _, modelbasis_val = common.exec_subproc('grep', 'model_basis_time',
                                                     cice_envar['SHARED_FNAME'])
             modelbasis_val = re.findall(r'model_basis_time\s*=\s*(.*)',
                                         modelbasis_val)
             modelbasis = [int(i) for i in __expand_array(modelbasis_val)]
-            cice_envar.add('MODELBASIS', modelbasis)
-        if not cice_envar['TASKSTART']:
-            cice_envar.add('TASKSTART', cice_envar['MODELBASIS'])
-        if not cice_envar['TASKLENGTH']:
+            common_env.add('MODELBASIS', modelbasis)
+        if not common_env['TASKSTART']:
+            common_env.add('TASKSTART', common_env['MODELBASIS'])
+        if not common_env['TASKLENGTH']:
             _, tasklength_val = common.exec_subproc('grep', 'run_target_end',
                                                     cice_envar['SHARED_FNAME'])
             tasklength_val = re.findall(r'run_target_end\s*=\s*(.*)',
                                         tasklength_val)
             tasklength = [int(i) for i in __expand_array(tasklength_val)]
-            cice_envar.add('TASKLENGTH', tasklength)
+            common_env.add('TASKLENGTH', tasklength)
 
-    _ = cice_envar.load_envar('TASK_START_TIME', 'unavaliable')
     if cice_envar['TASK_START_TIME'] is 'unavaliable':
         # This is probably a climate suite
         days_to_year_init = time2days.time2days(model_basis[0], 1, 1, calendar)
@@ -292,7 +250,7 @@ def _setup_executable(common_envar):
         cice_rst = cice_rst[:-1]
 
     if cice_rst in (os.getcwd(), '.'):
-        cice_restart = os.path.join(common_envar['DATAM'],
+        cice_restart = os.path.join(common_env['DATAM'],
                                     cice_envar['CICE_RESTART'])
     else:
         cice_restart = os.path.join(cice_rst,
@@ -313,7 +271,7 @@ def _setup_executable(common_envar):
             direc = direc.rstrip('/')
 
         if os.path.isdir(direc) and (direc not in ('./', '.')) and \
-                cice_envar['CONTINUE'] == 'false':
+                common_env['CONTINUE'] == 'false':
             sys.stdout.write('[INFO] directory is %s\n' % direc)
             sys.stdout.write('[INFO] This is a New Run. Renaming old CICE'
                              ' history directory\n')
@@ -357,12 +315,12 @@ def _setup_executable(common_envar):
 
     # if this is a continuation verify the restart file date
     if cice_runtype == 'continue' and \
-            common_envar['DRIVERS_VERIFY_RST'] == 'True':
-        _verify_fix_rst(cice_restart, common_envar['CYLC_TASK_CYCLE_POINT'])
+            common_env['DRIVERS_VERIFY_RST'] == 'True':
+        _verify_fix_rst(cice_restart, common_env['CYLC_TASK_CYCLE_POINT'])
 
     # if this is a continuation from a failed NWP job we check that the last
     # CICE dump matches the time of LAST_DUMP_HOURS
-    if cice_envar['CONTINUE_FROM_FAIL'] == 'true':
+    if common_env['CONTINUE_FROM_FAIL'] == 'true':
         #Read the filename from pointer file
         with open(cice_restart) as fid:
             rst_file = fid.readline()
@@ -384,17 +342,17 @@ def _setup_executable(common_envar):
     mod_cicenl = common.ModNamelist(cice_nl)
     mod_cicenl.var_val('days_per_year', caldays)
     mod_cicenl.var_val('history_file', '%si.%i%s' %
-                       (common_envar['RUNID'],
+                       (common_env['RUNID'],
                         cice_histfreq_n,
                         cice_histfreq))
     mod_cicenl.var_val('ice_ic', ice_ic)
-    mod_cicenl.var_val('incond_file', '%si_ic' % common_envar['RUNID'])
+    mod_cicenl.var_val('incond_file', '%si_ic' % common_env['RUNID'])
     mod_cicenl.var_val('istep0', int(cice_istep0))
     mod_cicenl.var_val('npt', int(cice_steps))
     mod_cicenl.var_val('pointer_file', cice_restart)
     mod_cicenl.var_val('restart', restart)
     mod_cicenl.var_val('restart_file', '%si.restart' %
-                       common_envar['RUNID'])
+                       common_env['RUNID'])
     mod_cicenl.var_val('runtype', cice_runtype)
     mod_cicenl.var_val('use_leap_years', cice_leap_years)
     mod_cicenl.var_val('year_init', int(model_basis[0]))
@@ -432,17 +390,17 @@ def _finalize_executable(_):
                          % ice_out_file)
 
 
-def run_driver(common_envar, mode, run_info):
+def run_driver(common_env, mode, run_info):
     '''
-    Run the driver, and return an instance of common.LoadEnvar and as string
+    Run the driver, and return an instance of dr_env_lib.env_lib.LoadEnvar and as string
     containing the launcher command for the CICE model
     '''
     if mode == 'run_driver':
-        exe_envar = _setup_executable(common_envar)
+        exe_envar = _setup_executable(common_env)
         launch_cmd = _set_launcher_command(exe_envar)
         model_snd_list = None
     elif mode == 'finalize' or 'failure':
-        _finalize_executable(common_envar)
+        _finalize_executable(common_env)
         exe_envar = None
         launch_cmd = None
         model_snd_list = None

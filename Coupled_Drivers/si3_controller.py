@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2021 Met Office. All rights reserved.
-
+ (C) Crown copyright 2021 Met Office. All rights reserved.
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
  of the code, the use, duplication or disclosure of it is strictly
@@ -24,14 +23,13 @@ import sys
 import glob
 import common
 import error
+import dr_env_lib.ocn_cont_def
+import dr_env_lib.env_lib
 
-
-def _get_si3nl_envar(envar_container):
+def _check_si3nl_envar(envar_container):
     '''
-    Get the environment variable containing the SI3 namelist
+    Get the si3 namelist file exists
     '''
-
-    envar_container.load_envar('SI3_NL', 'namelist_ice_cfg')
 
     #Information will be retrieved from this file during the running of the
     #controller, so check it exists.
@@ -40,8 +38,7 @@ def _get_si3nl_envar(envar_container):
         sys.stderr.write('[FAIL] si3_controller: Can not find the SI3 namelist '
                          'file %s\n' % envar_container['SI3_NL'])
         sys.exit(error.MISSING_CONTROLLER_FILE_ERROR)
-    else:
-        return envar_container
+    return 0
 
 def _get_si3rst(si3_nl_file):
     '''
@@ -81,26 +78,13 @@ def _load_environment_variables(si3_envar):
     into the si3_envar container
     '''
 
-    # Load the initial SI3 restart file name, if there is
-    # one, from an environment variable
-    _ = si3_envar.load_envar('SI3_START', '')
-
-    # Is this a cycling run? Note: CONTINUE does NOT
-    # indicate that this is a continuation run. It indicates
-    # that it is a cycle within a set of runs which MAY be a
-    # CRUN but may also be the first NRUN in the sequence!
-    _ = si3_envar.load_envar('CONTINUE', 'false')
-    _ = si3_envar.load_envar('CONTINUE_FROM_FAIL', 'false')
-    if 'T' in si3_envar['CONTINUE_FROM_FAIL'] or \
-      't' in si3_envar['CONTINUE_FROM_FAIL']:
-        si3_envar['CONTINUE_FROM_FAIL'] = 'true'
-    else:
-        si3_envar['CONTINUE_FROM_FAIL'] = 'false'
-
+    si3_envar = dr_env_lib.env_lib.load_envar_from_definition(
+        si3_envar, dr_env_lib.ocn_cont_def.SI3_ENVIRONMENT_VARS_INITIAL)
 
     return si3_envar
 
-def _setup_si3_controller(restart_ctl,
+def _setup_si3_controller(common_env,
+                          restart_ctl,
                           nemo_nproc,
                           runid,
                           verify_restart,
@@ -109,15 +93,15 @@ def _setup_si3_controller(restart_ctl,
     Setup the environment and any files required by the executable
     '''
     # Create the environment variable container
-    si3_envar = common.LoadEnvar()
+    si3_envar = dr_env_lib.env_lib.LoadEnvar()
 
     # Load the environment variables required
     si3_envar = _load_environment_variables(si3_envar)
-    si3_envar = _get_si3nl_envar(si3_envar)
+    _ = _check_si3nl_envar(si3_envar)
 
     # SI3 hasn't been set up to use CONTINUE_FROM_FAIL yet
     # Raise an error if it's set to prevent unexpected behaviour in future
-    if si3_envar['CONTINUE_FROM_FAIL'] == 'true':
+    if common_env['CONTINUE_FROM_FAIL'] == 'true':
         sys.stderr.write('[FAIL] si3_controller is not coded to work with'
                          'CONTINUE_FROM_FAIL=true')
         sys.exit(error.INVALID_EVAR_ERROR)
@@ -151,7 +135,7 @@ def _setup_si3_controller(restart_ctl,
     else:
         # If we didn't find any restart files in the suite data directory,
         # check the SI3_START env var.
-        if si3_envar['CONTINUE'] == 'false':
+        if common_env['CONTINUE'] == 'false':
             latest_si3_dump = si3_envar['SI3_START']
         else:
             # We don't have a restart file, which implies we must be
@@ -163,7 +147,7 @@ def _setup_si3_controller(restart_ctl,
     common.remove_file('restart_ice.nc')
 
     # Is this a CRUN or an NRUN?
-    if si3_envar['CONTINUE'] == 'false':
+    if common_env['CONTINUE'] == 'false':
 
         # This is definitely a new run
         sys.stdout.write('[INFO] si3_controller: New SI3 run\n\n')
@@ -272,7 +256,8 @@ def _finalize_si3_controller():
     Finalize the passive SI3 setup
     '''
 
-def run_controller(restart_ctl,
+def run_controller(common_env,
+                   restart_ctl,
                    nemo_nproc,
                    runid,
                    verify_restart,
@@ -282,7 +267,8 @@ def run_controller(restart_ctl,
     Run the passive tracer controller.
     '''
     if mode == 'run_controller':
-        exe_envar = _setup_si3_controller(restart_ctl,
+        exe_envar = _setup_si3_controller(common_env,
+                                          restart_ctl,
                                           nemo_nproc,
                                           runid,
                                           verify_restart,

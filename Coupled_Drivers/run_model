@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #*****************************COPYRIGHT******************************
-# (C) Crown copyright 2016 Met Office. All rights reserved.
+# (C) Crown copyright 2021 Met Office. All rights reserved.
 #
 # Use, duplication or disclosure of this code is subject to the restrictions
 # as set forth in the licence. If no licence has been raised with this copy
@@ -40,6 +40,9 @@ L_MCT_VALIDATE=${L_MCT_VALIDATE:=false}
 # Copy scripts to work directory so they can be found.
 cp $DRIVER_EXTRACT_DIR/build/bin/* ./
 
+# Copy our packages to work directory so they can be found
+cp -r $DRIVER_EXTRACT_DIR/extract/drivers/Coupled_Drivers/dr_*_lib ./
+
 # Run our drivers, this produces two command files
 #  driver_envar containing environment variables to be exported
 #  driver_cmd containing a command for the system launcher
@@ -59,13 +62,13 @@ SIGNALS='EXIT'
 FINALLY() {
     echo "Finally!"
     for S in $SIGNALS; do
-	trap '' $S #switch off traps
+        trap '' $S #switch off traps
     done
     if [ "$DRIVERS_FINALISED" = true ]; then
-	echo "Completed successfully"
+        echo "Completed successfully"
     else
-	echo 'Trying to run driver in failure mode'
-	./link_drivers --failure
+        echo 'Trying to run driver in failure mode'
+        ./link_drivers --failure
     fi
 }
 

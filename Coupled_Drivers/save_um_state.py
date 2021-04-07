@@ -29,15 +29,16 @@ import re
 import sys
 import common
 
-def save_state(runid, common_envar, iscrun):
+def save_state(runid, common_env):
     '''
     Manage backup copies of the partial sum files, this allows for the UM
     to retrieve a previous state for the climate meaning, to reduce instances
     of the 'ACUMPS1: Partial sum file inconsistent' error.
     '''
-
-    cyclepoint = common_envar['CYLC_TASK_CYCLE_POINT']
-    datam_files = os.listdir(common_envar['DATAM'])
+    iscrun = common_env['CONTINUE']
+    
+    cyclepoint = common_env['CYLC_TASK_CYCLE_POINT']
+    datam_files = os.listdir(common_env['DATAM'])
 
     # If this is an NRUN we want to remove any exisiting partial sum files
     # to avoid restoring files from any previous cycles should they exist.
@@ -47,7 +48,7 @@ def save_state(runid, common_envar, iscrun):
         previous_psums = [f for f in datam_files if \
                               re.match(all_partial_sum_regex, f)]
         for psum_to_delete in previous_psums:
-            common.remove_file(os.path.join(common_envar['DATAM'],
+            common.remove_file(os.path.join(common_env['DATAM'],
                                             psum_to_delete))
 
     # Find the non backed up partial sum files
@@ -73,14 +74,14 @@ def save_state(runid, common_envar, iscrun):
             # sums to allow the model to pick them up
             for psum_f in current_bup:
                 dst = psum_f.replace('%s_' % cyclepoint, '')
-                shutil.copy(os.path.join(common_envar['DATAM'], psum_f),
-                            os.path.join(common_envar['DATAM'], dst))
+                shutil.copy(os.path.join(common_env['DATAM'], psum_f),
+                            os.path.join(common_env['DATAM'], dst))
         else:
             # No previous partial sums for this cycle, back them up
             for psum_f in partial_sum_files:
                 dst = '%s_%s' % (cyclepoint, psum_f)
-                shutil.copy(os.path.join(common_envar['DATAM'], psum_f),
-                            os.path.join(common_envar['DATAM'], dst))
+                shutil.copy(os.path.join(common_env['DATAM'], psum_f),
+                            os.path.join(common_env['DATAM'], dst))
         # Delete old partial sum files, keeping the previous two cycles
         # and the current cycle. Two per meaning period, times 3 cycles.
         # Until the partial sum files for all the meaning periods are produced
@@ -88,5 +89,5 @@ def save_state(runid, common_envar, iscrun):
         general_bup.sort()
         num_partial_sum_to_keep = num_mean_period * 2 * 3
         for psum_to_delete in general_bup[:-num_partial_sum_to_keep]:
-            common.remove_file(os.path.join(common_envar['DATAM'],
+            common.remove_file(os.path.join(common_env['DATAM'],
                                             psum_to_delete))

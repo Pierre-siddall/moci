@@ -32,6 +32,8 @@ import shutil
 import inc_days
 import common
 import error
+import dr_env_lib.nemo_def
+import dr_env_lib.env_lib
 import create_namcouple
 try:
     import f90nml
@@ -48,12 +50,11 @@ import si3_controller
 # Define errors for the NEMO driver only
 SERIAL_MODE_ERROR = 99
 
-def _get_nemonl_envar(envar_container):
+def _check_nemonl(envar_container):
     '''
     As the environment variable NEMO_NL is required by both the setup
     and finalise functions, this will be encapsulated here
     '''
-    envar_container.load_envar('NEMO_NL', 'namelist_cfg')
     # Information will be retrieved from this file during the running of the
     # driver, so check it exists
     if not os.path.isfile(envar_container['NEMO_NL']):
@@ -61,7 +62,7 @@ def _get_nemonl_envar(envar_container):
                          envar_container['NEMO_NL'])
         sys.exit(error.MISSING_DRIVER_FILE_ERROR)
     else:
-        return envar_container
+        return 0
 
 def _get_nemorst(nemo_nl_file):
     '''
@@ -162,95 +163,18 @@ def _load_environment_variables(nemo_envar):
     nemo_envar container
     '''
     # Load the nemo namelist environment variable
-    nemo_envar = _get_nemonl_envar(nemo_envar)
-    if nemo_envar.load_envar('OCEAN_EXEC') != 0:
-        sys.stderr.write('[FAIL] Ocean executable (OCEAN_EXEC=<full path to'
-                         ' exec>) not defined in the environment')
-        sys.exit(error.MISSING_EVAR_ERROR)
-
-    _ = nemo_envar.load_envar('OCEAN_LINK', 'ocean.exe')
-    _ = nemo_envar.load_envar('NEMO_NL', 'namelist_cfg')
-    if nemo_envar.load_envar('NEMO_NPROC') != 0:
-        sys.stderr.write('[FAIL] Environment variable NEMO_NPROC containing '
-                         'the number of NEMO processors not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if nemo_envar.load_envar('NEMO_IPROC') != 0:
-        sys.stderr.write('[FAIL] Environment variable NEMO_IPROC containing '
-                         'the number of NEMO processors in the i direction '
-                         'ot set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if nemo_envar.load_envar('NEMO_JPROC') != 0:
-        sys.stderr.write('[FAIL] Environment variable NEMO_IPROC containing '
-                         'the number of NEMO processors in the j direction '
-                         'ot set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if nemo_envar.load_envar('CALENDAR') != 0:
-        sys.stderr.write('[FAIL] Environment variable CALENDAR not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if nemo_envar.load_envar('MODELBASIS') != 0:
-        sys.stderr.write('[FAIL] Environment variable MODELBASIS not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if nemo_envar.load_envar('TASKSTART') != 0:
-        sys.stderr.write('[FAIL] Environment variable TASKSTART not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if nemo_envar.load_envar('TASKLENGTH') != 0:
-        sys.stderr.write('[FAIL] Environment variable TASKLENGTH not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if nemo_envar.load_envar('NEMO_VERSION') != 0:
-        sys.stderr.write('[FAIL] Environment variable NEMO_VERSION not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-
-    # Ensure a method of setting aprun options has been provided
-    if nemo_envar.load_envar('ROSE_LAUNCHER_PREOPTS_NEMO') != 0:
-        sys.stdout.write('[INFO] Environment variable ROSE_LAUNCHER_PREOPTS_NEMO'\
-            ' not set, checking for driver side launch command construction '\
-                'environment variables.\n')
-
-        if nemo_envar.load_envar('OMPTHR_OCN') != 0:
-            sys.stderr.write('[FAIL] Environment variable '
-                             'OMPTHR_OCN not set\n')
-            sys.exit(error.MISSING_EVAR_ERROR)
-        if nemo_envar.load_envar('OCEAN_NODES') != 0:
-            sys.stderr.write('[FAIL] Environment variable '
-                             'OCEAN_NODES not set\n')
-            sys.exit(error.MISSING_EVAR_ERROR)
-        if nemo_envar.load_envar('OHYPERTHREADS') != 0:
-            sys.stderr.write('[FAIL] Environment variable '
-                             'OHYPERTHREADS not set\n')
-            sys.exit(error.MISSING_EVAR_ERROR)
-
-    _ = nemo_envar.load_envar('NEMO_START', '')
-    _ = nemo_envar.load_envar('NEMO_ICEBERGS_START', '')
-    _ = nemo_envar.load_envar('CONTINUE', 'false')
-    # ensure that CONTINUE is always lower case false, unless explicitly
-    # set to true (in which case make sure it's lower case true).
-    if 'T' in nemo_envar['CONTINUE'] or 't' in nemo_envar['CONTINUE']:
-        nemo_envar['CONTINUE'] = 'true'
-    else:
-        nemo_envar['CONTINUE'] = 'false'
-    _ = nemo_envar.load_envar('CONTINUE_FROM_FAIL', 'false')
-    if 'T' in nemo_envar['CONTINUE_FROM_FAIL'] or \
-      't' in nemo_envar['CONTINUE_FROM_FAIL']:
-        nemo_envar['CONTINUE_FROM_FAIL'] = 'true'
-        #If continue_from_fail is true then continue must also be true
-        nemo_envar['CONTINUE'] = 'true'
-    else:
-        nemo_envar['CONTINUE_FROM_FAIL'] = 'false'
-    _ = nemo_envar.load_envar('CPL_RIVER_COUNT', '0')
-    _ = nemo_envar.load_envar('LAST_DUMP_HOURS', '0')
-
-
-    # Check switch to see if TOP/MEDUSA is switched on. Default to OFF.
-    _ = nemo_envar.load_envar('L_OCN_PASS_TRC', 'false')
+    nemo_envar = dr_env_lib.env_lib.load_envar_from_definition(
+        nemo_envar, dr_env_lib.nemo_def.NEMO_ENVIRONMENT_VARS_INITIAL)
+    _ = _check_nemonl(nemo_envar)
 
     return nemo_envar
 
 
-def _setup_dates(nemo_envar):
+def _setup_dates(common_env):
     '''
     Setup the dates for the NEMO model run
     '''
-    calendar = nemo_envar['CALENDAR']
+    calendar = common_env['CALENDAR']
     if calendar == '360day':
         calendar = '360'
         nleapy = 30
@@ -265,9 +189,9 @@ def _setup_dates(nemo_envar):
         sys.exit(error.INVALID_EVAR_ERROR)
 
     #turn our times into lists of integers
-    model_basis = [int(i) for i in nemo_envar['MODELBASIS'].split(',')]
-    run_start = [int(i) for i in nemo_envar['TASKSTART'].split(',')]
-    run_length = [int(i) for i in nemo_envar['TASKLENGTH'].split(',')]
+    model_basis = [int(i) for i in common_env['MODELBASIS'].split(',')]
+    run_start = [int(i) for i in common_env['TASKSTART'].split(',')]
+    run_length = [int(i) for i in common_env['TASKLENGTH'].split(',')]
 
     run_days = inc_days.inc_days(run_start[0], run_start[1], run_start[2],
                                  run_length[0], run_length[1], run_length[2],
@@ -276,12 +200,12 @@ def _setup_dates(nemo_envar):
 
 
 
-def _setup_executable(common_envar):
+def _setup_executable(common_env):
     '''
     Setup the environment and any files required by the executable
     '''
     # Create the environment variable container
-    nemo_envar = common.LoadEnvar()
+    nemo_envar = dr_env_lib.env_lib.LoadEnvar()
     # Load the environment variables required
     nemo_envar = _load_environment_variables(nemo_envar)
 
@@ -293,7 +217,7 @@ def _setup_executable(common_envar):
 
     # Setup date variables
     nleapy, model_basis, run_start, \
-        run_length, run_days = _setup_dates(nemo_envar)
+        run_length, run_days = _setup_dates(common_env)
 
     # NEMO model setup
     if int(nemo_envar['NEMO_VERSION']) < 306:
@@ -324,7 +248,7 @@ def _setup_executable(common_envar):
             direc = direc.rstrip('/')
 
         if os.path.isdir(direc) and (direc not in ('./', '.')) and \
-                nemo_envar['CONTINUE'] == 'false':
+                common_env['CONTINUE'] == 'false':
             sys.stdout.write('[INFO] directory is %s\n' % direc)
             sys.stdout.write('[INFO] This is a New Run. Renaming old NEMO'
                              ' history directory\n')
@@ -356,7 +280,7 @@ def _setup_executable(common_envar):
     common.remove_file('restart.nc')
     common.remove_file('restart_icebergs.nc')
 
-    if nemo_envar['CONTINUE'] == 'false':
+    if common_env['CONTINUE'] == 'false':
         # This is a new run
         sys.stdout.write('[INFO] New nemo run\n')
         if os.path.isfile(latest_nemo_dump):
@@ -378,18 +302,18 @@ def _setup_executable(common_envar):
         sys.stdout.write('[INFO] Sourcing namelist file from the work '
                          'directory of the previous cycle\n')
         # find the previous work directory if there is one
-        if nemo_envar['CONTINUE_FROM_FAIL'] == 'false':
-            if common_envar['CNWP_SUB_CYCLING'] == 'True':
+        if common_env['CONTINUE_FROM_FAIL'] == 'false':
+            if common_env['CNWP_SUB_CYCLING'] == 'True':
                 prev_workdir = common.find_previous_workdir( \
-                    common_envar['CYLC_TASK_CYCLE_POINT'],
-                    common_envar['CYLC_TASK_WORK_DIR'],
-                    common_envar['CYLC_TASK_NAME'],
-                    common_envar['CYLC_TASK_PARAM_run'])
+                    common_env['CYLC_TASK_CYCLE_POINT'],
+                    common_env['CYLC_TASK_WORK_DIR'],
+                    common_env['CYLC_TASK_NAME'],
+                    common_env['CYLC_TASK_PARAM_run'])
             else:
                 prev_workdir = common.find_previous_workdir( \
-                    common_envar['CYLC_TASK_CYCLE_POINT'],
-                    common_envar['CYLC_TASK_WORK_DIR'],
-                    common_envar['CYLC_TASK_NAME'])
+                    common_env['CYLC_TASK_CYCLE_POINT'],
+                    common_env['CYLC_TASK_WORK_DIR'],
+                    common_env['CYLC_TASK_NAME'])
             history_nemo_nl = os.path.join(prev_workdir, nemo_envar['NEMO_NL'])
         else:
             history_nemo_nl = nemo_envar['NEMO_NL']
@@ -453,10 +377,10 @@ def _setup_executable(common_envar):
         nemo_dump_time = re.findall(r'_(\d*)_restart', latest_nemo_dump)[0]
         # Verify the dump time against cycle time if appropriate, do the
         # automatic fix, and check all other restart files match
-        if common_envar['DRIVERS_VERIFY_RST'] == 'True':
+        if common_env['DRIVERS_VERIFY_RST'] == 'True':
             nemo_dump_time = _verify_fix_rst( \
                 nemo_dump_time,
-                common_envar['CYLC_TASK_CYCLE_POINT'], nemo_rst)
+                common_env['CYLC_TASK_CYCLE_POINT'], nemo_rst)
             _verify_nemo_rst(nemo_dump_time, nemo_rst, nemo_envar['NEMO_NL'],
                              int(nemo_envar['NEMO_NPROC']))
         # link restart files no that the last output one becomes next input one
@@ -479,7 +403,7 @@ def _setup_executable(common_envar):
             for i_proc in range(int(nemo_envar['NEMO_NPROC'])):
                 tag = str(i_proc).zfill(4)
                 nemo_rst_source = '%s/%so_%s_restart_%s.nc' % \
-                    (nemo_init_dir, common_envar['RUNID'], \
+                    (nemo_init_dir, common_env['RUNID'], \
                          nemo_dump_time, tag)
                 nemo_rst_link = 'restart_%s.nc' % tag
                 common.remove_file(nemo_rst_link)
@@ -489,7 +413,7 @@ def _setup_executable(common_envar):
                     nemo_restart_count += 1
 
                 ice_rst_source = '%s/%so_%s_restart_ice_%s.nc' % \
-                    (nemo_init_dir, common_envar['RUNID'], \
+                    (nemo_init_dir, common_env['RUNID'], \
                          nemo_dump_time, tag)
                 if os.path.isfile(ice_rst_source):
                     ice_rst_link = 'restart_ice_in_%s.nc' % tag
@@ -498,7 +422,7 @@ def _setup_executable(common_envar):
                     ice_restart_count += 1
 
                 iceberg_rst_source = '%s/%so_icebergs_%s_restart_%s.nc' % \
-                    (nemo_init_dir, common_envar['RUNID'], \
+                    (nemo_init_dir, common_env['RUNID'], \
                          nemo_dump_time, tag)
                 if os.path.isfile(iceberg_rst_source):
                     iceberg_rst_link = 'restart_icebergs_%s.nc' % tag
@@ -512,7 +436,7 @@ def _setup_executable(common_envar):
                 # We found no nemo restart sub-domain files let's
                 # look for a global file.
                 nemo_rst_source = '%s/%so_%s_restart.nc' % \
-                    (nemo_init_dir, common_envar['RUNID'], \
+                    (nemo_init_dir, common_env['RUNID'], \
                          nemo_dump_time)
                 if os.path.isfile(nemo_rst_source):
                     sys.stdout.write('[INFO] Using rebuilt NEMO restart '\
@@ -526,7 +450,7 @@ def _setup_executable(common_envar):
                 # We found no ice restart sub-domain files let's
                 # look for a global file.
                 ice_rst_source = '%s/%so_%s_restart_ice.nc' % \
-                                    (nemo_init_dir, common_envar['RUNID'], \
+                                    (nemo_init_dir, common_env['RUNID'], \
                          nemo_dump_time)
                 if os.path.isfile(ice_rst_source):
                     sys.stdout.write('[INFO] Using rebuilt ice restart '\
@@ -540,7 +464,7 @@ def _setup_executable(common_envar):
                 # We found no iceberg restart sub-domain files let's
                 # look for a global file.
                 iceberg_rst_source = '%s/%so_icebergs_%s_restart.nc' % \
-                    (nemo_init_dir, common_envar['RUNID'], \
+                    (nemo_init_dir, common_env['RUNID'], \
                          nemo_dump_time)
                 if os.path.isfile(iceberg_rst_source):
                     sys.stdout.write('[INFO] Using rebuilt iceberg restart'\
@@ -562,7 +486,7 @@ def _setup_executable(common_envar):
                              completed_days)
         ln_restart = ".true."
         restart_ctl = 2
-        if nemo_envar['CONTINUE_FROM_FAIL'] == 'true':
+        if common_env['CONTINUE_FROM_FAIL'] == 'true':
             # This is only used for coupled NWP where we don't have dates in
             # NEMO restart file names
             nemo_next_step = int(nemo_dump_time)+1
@@ -583,8 +507,8 @@ def _setup_executable(common_envar):
                     proc_number = fname.split('.')[-2][-4:]
 
                     # We need to make sure there isn't already
-	  	    # a restart file link set up, and if there is, get
-		    # rid of it because symlink wont work otherwise!
+                    # a restart file link set up, and if there is, get
+                    # rid of it because symlink wont work otherwise!
                     common.remove_file('restart_%s.nc' % proc_number)
 
                     os.symlink(fname, 'restart_%s.nc' % proc_number)
@@ -596,8 +520,8 @@ def _setup_executable(common_envar):
                     proc_number = fname.split('.')[-2][-4:]
 
                     # We need to make sure there isn't already
-	  	    # a restart file link set up, and if there is, get
-		    # rid of it because symlink wont work otherwise!
+                    # a restart file link set up, and if there is, get
+                    # rid of it because symlink wont work otherwise!
                     common.remove_file('restart_%s.nc' % proc_number)
 
                     os.symlink(fname, 'restart_%s.nc' % proc_number)
@@ -628,8 +552,8 @@ def _setup_executable(common_envar):
                     proc_number = fname.split('.')[-2][-4:]
 
                     # We need to make sure there isn't already
-	      	    # an iceberg restart file link set up, and if there is, get
-		    # rid of it because symlink wont work otherwise!
+                    # an iceberg restart file link set up, and if there is, get
+                    # rid of it because symlink wont work otherwise!
                     common.remove_file('restart_icebergs_%s.nc' % proc_number)
 
                     os.symlink(fname, 'restart_icebergs_%s.nc' % proc_number)
@@ -640,8 +564,8 @@ def _setup_executable(common_envar):
                     proc_number = fname.split('.')[-2][-4:]
 
                     # We need to make sure there isn't already
-	      	    # an iceberg restart file link set up, and if there is, get
-		    # rid of it because symlink wont work otherwise!
+                    # an iceberg restart file link set up, and if there is, get
+                    # rid of it because symlink wont work otherwise!
                     common.remove_file('restart_icebergs_%s.nc' % proc_number)
 
                     os.symlink(fname, 'restart_icebergs_%s.nc' % proc_number)
@@ -658,7 +582,7 @@ def _setup_executable(common_envar):
         nemo_next_step = nemo_first_step
         nemo_last_step = nemo_first_step - 1
 
-    if nemo_envar['CONTINUE_FROM_FAIL'] == 'true':
+    if common_env['CONTINUE_FROM_FAIL'] == 'true':
         #Check that the length of run is correct
         #(it won't be if this is the wrong restart file)
         run_start_dt = datetime.datetime(run_start[0], run_start[1],
@@ -673,7 +597,7 @@ def _setup_executable(common_envar):
         # Check that nemo_next_step is the correct number of hours to
         # match LAST_DUMP_HOURS variable
         steps_per_hour = 3600./nemo_step_int
-        last_dump_hrs = int(nemo_envar['LAST_DUMP_HOURS'])
+        last_dump_hrs = int(common_env['LAST_DUMP_HOURS'])
         last_dump_step = int(nemo_init_step + last_dump_hrs*steps_per_hour)
         if nemo_next_step-1 != last_dump_step:
             sys.stderr.write('[FAIL] Last NEMO restarts not at correct time')
@@ -692,7 +616,7 @@ def _setup_executable(common_envar):
             ' --next_step %i --final_step %s --start_date %s --leapyear %i' \
             ' --iproc %s --jproc %s  --cpl_river_count %s --verbose' % \
             (nemo_envar['NEMO_NL'], \
-                 common_envar['RUNID'], \
+                 common_env['RUNID'], \
                  ln_restart, \
                  restart_ctl, \
                  nemo_next_step, \
@@ -701,14 +625,14 @@ def _setup_executable(common_envar):
                  nleapy, \
                  nemo_envar['NEMO_IPROC'], \
                  nemo_envar['NEMO_JPROC'], \
-                 nemo_envar['CPL_RIVER_COUNT'])
+                 common_env['CPL_RIVER_COUNT'])
     else:
         update_nl_cmd = '--file %s --runid %so --restart %s --restart_ctl %s' \
                         ' --next_step %i --final_step %s --start_date %s' \
                         ' --leapyear %i --iproc %s --jproc %s --ijproc %s' \
                         ' --cpl_river_count %s --verbose' % \
                         (nemo_envar['NEMO_NL'], \
-                         common_envar['RUNID'], \
+                         common_env['RUNID'], \
                          ln_restart, \
                          restart_ctl, \
                          nemo_next_step, \
@@ -718,7 +642,7 @@ def _setup_executable(common_envar):
                          nemo_envar['NEMO_IPROC'], \
                          nemo_envar['NEMO_JPROC'], \
                          nemo_envar['NEMO_NPROC'], \
-                         nemo_envar['CPL_RIVER_COUNT'])
+                         common_env['CPL_RIVER_COUNT'])
 
     update_nl_cmd = './update_nemo_nl %s' % update_nl_cmd
 
@@ -739,24 +663,26 @@ def _setup_executable(common_envar):
 
         controller_mode = "run_controller"
 
-        top_controller.run_controller(restart_ctl,
+        top_controller.run_controller(common_env,
+                                      restart_ctl,
                                       int(nemo_envar['NEMO_NPROC']),
-                                      common_envar['RUNID'],
-                                      common_envar['DRIVERS_VERIFY_RST'],
+                                      common_env['RUNID'],
+                                      common_env['DRIVERS_VERIFY_RST'],
                                       nemo_dump_time,
                                       controller_mode)
     else:
         sys.stdout.write('[INFO] nemo_driver: '
                          'Passive tracer code not active\n.')
 
-    use_si3 = 'si3' in common_envar['models']
+    use_si3 = 'si3' in common_env['models']
     if use_si3:
         sys.stdout.write('[INFO] nemo_driver: SI3 code is active.\n')
         controller_mode = "run_controller"
-        si3_controller.run_controller(restart_ctl,
+        si3_controller.run_controller(common_env,
+                                      restart_ctl,
                                       int(nemo_envar['NEMO_NPROC']),
-                                      common_envar['RUNID'],
-                                      common_envar['DRIVERS_VERIFY_RST'],
+                                      common_env['RUNID'],
+                                      common_env['DRIVERS_VERIFY_RST'],
                                       nemo_dump_time,
                                       controller_mode)
 
@@ -767,7 +693,7 @@ def _set_launcher_command(launcher, nemo_envar):
     '''
     Setup the launcher command for the executable
     '''
-    if not nemo_envar.contains('ROSE_LAUNCHER_PREOPTS_NEMO'):
+    if nemo_envar['ROSE_LAUNCHER_PREOPTS_NEMO'] == 'unset':
         ss = False
         nemo_envar['ROSE_LAUNCHER_PREOPTS_NEMO'] = \
             common.set_aprun_options(nemo_envar['NEMO_NPROC'], \
@@ -885,17 +811,22 @@ def write_ocean_out_to_stdout():
     for nemo_output_file in (nemo_stdout_file,
                              nemo36_solver_file, nemo40_solver_file,
                              icebergs_stat_file):
+        # The output file from NEMO4.0 has some suspect utf8 encoding,
+        # this try/except will handle it
         if os.path.isfile(nemo_output_file):
             sys.stdout.write('[INFO] Ocean output from file %s\n' %
                              nemo_output_file)
-            with open(nemo_output_file, 'r') as n_out:
+            with open(nemo_output_file, 'r', encoding='utf-8') as n_out:
                 for line in n_out:
-                    sys.stdout.write(line)
+                    try:
+                        sys.stdout.write(line)
+                    except UnicodeEncodeError:
+                        pass
         else:
             sys.stdout.write('[INFO] Nemo output file %s not avaliable\n'
                              % nemo_output_file)
 
-def _finalize_executable(common_envar):
+def _finalize_executable(common_env):
     '''
     Finalize the NEMO run, copy the nemo namelist to the restart directory
     for the next cycle, update standard out, and ensure that no errors
@@ -916,8 +847,9 @@ def _finalize_executable(common_envar):
 
     # move the nemo namelist to the restart directory to allow the next cycle
     # to pick it up
-    nemo_envar_fin = common.LoadEnvar()
-    nemo_envar_fin = _get_nemonl_envar(nemo_envar_fin)
+    nemo_envar_fin = dr_env_lib.env_lib.LoadEnvar()
+    nemo_envar_fin = dr_env_lib.env_lib.load_envar_from_definition(
+        nemo_envar_fin, dr_env_lib.nemo_def.NEMO_ENVIRONMENT_VARS_FINAL)
     nemo_rst = _get_nemorst(nemo_envar_fin['NEMO_NL'])
     if os.path.isdir(nemo_rst) and \
             os.path.isfile(nemo_envar_fin['NEMO_NL']):
@@ -925,7 +857,6 @@ def _finalize_executable(common_envar):
 
     # The only way to check if TOP is active is by checking the
     # passive tracer env var.
-    _ = nemo_envar_fin.load_envar('L_OCN_PASS_TRC', 'false')
 
     # Check whether we need to finalize the TOP controller
     if ('T' in nemo_envar_fin['L_OCN_PASS_TRC']) or \
@@ -934,29 +865,29 @@ def _finalize_executable(common_envar):
         sys.stdout.write('[INFO] nemo_driver: Finalize TOP controller.')
 
         controller_mode = "finalize"
-        top_controller.run_controller([], [], [], [], [], controller_mode)
+        top_controller.run_controller([], [], [], [], [], [], controller_mode)
 
-    use_si3 = 'si3' in common_envar['models']
+    use_si3 = 'si3' in common_env['models']
     if use_si3:
         sys.stdout.write('[INFO] nemo_driver: Finalise SI3 controller\n')
         controller_mode = "finalize"
-        si3_controller.run_controller([], [], [], [], [], controller_mode)
+        si3_controller.run_controller([], [], [], [], [], [], controller_mode)
 
-def run_driver(common_envar, mode, run_info):
+def run_driver(common_env, mode, run_info):
     '''
-    Run the driver, and return an instance of common.LoadEnvar and as string
+    Run the driver, and return an instance of LoadEnvar and as string
     containing the launcher command for the NEMO model
     '''
     if mode == 'run_driver':
-        exe_envar = _setup_executable(common_envar)
-        launch_cmd = _set_launcher_command(common_envar['ROSE_LAUNCHER'], exe_envar)
+        exe_envar = _setup_executable(common_env)
+        launch_cmd = _set_launcher_command(common_env['ROSE_LAUNCHER'], exe_envar)
         if run_info['l_namcouple']:
             model_snd_list = None
         else:
             run_info, model_snd_list = \
                 _sent_coupling_fields(exe_envar, run_info)
     elif mode == 'finalize':
-        _finalize_executable(common_envar)
+        _finalize_executable(common_env)
         exe_envar = None
         launch_cmd = None
         model_snd_list = None

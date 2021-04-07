@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2019 Met Office. All rights reserved.
-
+ (C) Crown copyright 2021 Met Office. All rights reserved.
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
  of the code, the use, duplication or disclosure of it is strictly
@@ -545,7 +544,7 @@ def _checks_on_run_info(run_info):
 
     return run_info
 
-def _write_header(nam_file, run_info, n_fields):
+def _write_header(common_env, nam_file, run_info, n_fields):
     '''
     Write the namcouple header
     '''
@@ -573,7 +572,7 @@ def _write_header(nam_file, run_info, n_fields):
     nam_file.write(' $END\n'
                    '#---------------------------------------------------\n'
                    ' $RUNTIME\n')
-    nam_file.write('  %d\n' % common.setup_runtime())
+    nam_file.write('  %d\n' % common.setup_runtime(common_env))
     nam_file.write(' $END\n'
                    '#---------------------------------------------------\n'
                    ' $INIDATE\n'
@@ -976,7 +975,7 @@ def _write_cf_name_table(cf_names):
     # Close file
     cf_file.close()
 
-def write_namcouple(run_info, coupling_list):
+def write_namcouple(common_env, run_info, coupling_list):
     '''
     Write the namcouple file
     '''
@@ -995,7 +994,7 @@ def write_namcouple(run_info, coupling_list):
     nam_file = common.open_text_file('namcouple', 'w')
 
     # Create the header
-    _write_header(nam_file, run_info, len(coupling_list))
+    _write_header(common_env, nam_file, run_info, len(coupling_list))
 
     # Sort the coupling_list by weighting
     coupling_list = sorted(coupling_list,

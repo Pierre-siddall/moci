@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2021 Met Office. All rights reserved.
-
+ (C) Crown copyright 2021 Met Office. All rights reserved.
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
  of the code, the use, duplication or disclosure of it is strictly
@@ -28,6 +27,8 @@ import stat
 import common
 import error
 import save_um_state
+import dr_env_lib.um_def
+import dr_env_lib.env_lib
 import create_namcouple
 try:
     import f90nml
@@ -103,117 +104,35 @@ def _load_run_environment_variables(um_envar):
     Load the UM environment variables required for the model run into the
     um_envar container
     '''
-    if um_envar.load_envar('UM_ATM_NPROCX') != 0:
-        sys.stderr.write('[FAIL] Environment variable UM_ATM_NPROCX containing '
-                         'the number of UM processors in the X direction '
-                         'is not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if um_envar.load_envar('UM_ATM_NPROCY') != 0:
-        sys.stderr.write('[FAIL] Environment variable UM_ATM_NPROCY containing '
-                         'the number of UM processors in the Y direction '
-                         'is not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if um_envar.load_envar('VN') != 0:
-        sys.stderr.write('[FAIL] Environment variable VN containing the '
-                         'UM version is not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if um_envar.load_envar('UMDIR') != 0:
-        sys.stderr.write('[FAIL] Environment variable UMDIR is not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if um_envar.load_envar('ATMOS_EXEC') != 0:
-        sys.stderr.write('[FAIL] Environment variable ATMOS_EXEC is not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-
-    # Ensure a method of setting aprun options has been provided
-    if um_envar.load_envar('ROSE_LAUNCHER_PREOPTS_UM') != 0:
-        sys.stdout.write('[INFO] Environment variable ROSE_LAUNCHER_PREOPTS_UM'\
-            ' not set, checking for driver side launch command construction '\
-                'environment variables.\n')
-
-        if um_envar.load_envar('ATMOS_NODES') != 0:
-            sys.stderr.write('[FAIL] Environment variable '
-                             'ATMOS_NODES is not set\n')
-            sys.exit(error.MISSING_EVAR_ERROR)
-        if um_envar.load_envar('HYPERTHREADS') != 0:
-            sys.stderr.write('[FAIL] Environment variable '
-                             'HYPERTHREADS is not set\n')
-            sys.exit(error.MISSING_EVAR_ERROR)
-        if um_envar.load_envar('OMPTHR_ATM') != 0:
-            sys.stderr.write('[FAIL] Environment variable '
-                             'OMPTHR_ATM is not set\n')
-            sys.exit(error.MISSING_EVAR_ERROR)
-
-    _ = um_envar.load_envar('ATMOS_LINK', 'atmos.exe')
-    _ = um_envar.load_envar('DR_HOOK', '0')
-    _ = um_envar.load_envar('DR_HOOK_OPT', 'noself')
-    _ = um_envar.load_envar('PRINT_STATUS', 'PrStatus_Normal')
-    _ = um_envar.load_envar('UM_THREAD_LEVEL', 'MULTIPLE')
-    _ = um_envar.load_envar('HISTORY', 'atmos.xhist')
-    _ = um_envar.load_envar('CONTINUE', '')
-    # ensure that CONTINUE is always lower case false, unless explicitly
-    # set to true (in which case make sure it's lower case true).
-    if 'T' in um_envar['CONTINUE'] or 't' in um_envar['CONTINUE']:
-        um_envar['CONTINUE'] = 'true'
-    else:
-        um_envar['CONTINUE'] = 'false'
-    _ = um_envar.load_envar('CONTINUE_FROM_FAIL', '')
-    if 'T' in um_envar['CONTINUE_FROM_FAIL'] or \
-      't' in um_envar['CONTINUE_FROM_FAIL']:
-        um_envar['CONTINUE_FROM_FAIL'] = 'true'
-        #If continue_from_fail is true then continue must also be true
-        um_envar['CONTINUE'] = 'true'
-    else:
-        um_envar['CONTINUE_FROM_FAIL'] = 'false'
-    _ = um_envar.load_envar('STASHMASTER', '')
-    _ = um_envar.load_envar('STASHMSTR', '')
-    _ = um_envar.load_envar('SHARED_FNAME', 'SHARED')
-    _ = um_envar.load_envar('FLUME_IOS_NPROC', '0')
-    _ = um_envar.load_envar('CPL_RIVER_COUNT', '0')
-
-    load_shared_fname = um_envar.load_envar('SHARED_FNAME')
-    if load_shared_fname == 0:
-        um_envar.add('SHARED_NLIST',
-                     um_envar['SHARED_FNAME'])
-    else:
-        um_envar.add('SHARED_NLIST', 'SHARED')
-
-    load_atmos_stdout_file = um_envar.load_envar('ATMOS_STDOUT_FILE')
-    if load_atmos_stdout_file == 0:
-        um_envar.add('STDOUT_FILE',
-                     um_envar['ATMOS_STDOUT_FILE'])
-    else:
-        um_envar.add('STDOUT_FILE', 'pe_output/atmos.fort6.pe')
-
-    um_envar.add('HOUSEKEEP', 'hkfile')
-    um_envar.add('STASHC', 'STASHC')
-    um_envar.add('ATMOSCNTL', 'ATMOSCNTL')
-    um_envar.add('IDEALISE', 'IDEALISE')
-    um_envar.add('IOSCNTL', 'IOSCNTL')
+    um_envar = dr_env_lib.env_lib.load_envar_from_definition(
+        um_envar, dr_env_lib.um_def.UM_ENVIRONMENT_VARS_INITIAL)
+    
+    # copy a couple of variables to different names
+    um_envar.add('STDOUT_FILE', um_envar['ATMOS_STDOUT_FILE'])
 
     return um_envar
 
 
-def _setup_executable(common_envar):
+def _setup_executable(common_env):
     '''
     Setup the environment and any files required by the executable
     '''
     # Create the environment variable container
-    um_envar = common.LoadEnvar()
+    um_envar = dr_env_lib.env_lib.LoadEnvar()
     # Load the environment variables required
     um_envar = _load_run_environment_variables(um_envar)
 
     # Save the state of the partial sum files, or restore state depending on
     # what is required. This doesnt currently make sense for integer cycling
-    if common_envar['CYLC_CYCLING_MODE'] != 'integer':
-        save_um_state.save_state(common_envar['RUNID'], common_envar,
-                                 um_envar['CONTINUE'])
+    if common_env['CYLC_CYCLING_MODE'] != 'integer':
+        save_um_state.save_state(common_env['RUNID'], common_env)
 
     # Create a link to the UM atmos exec in the work directory
     common.remove_file(um_envar['ATMOS_LINK'])
     os.symlink(um_envar['ATMOS_EXEC'],
                um_envar['ATMOS_LINK'])
 
-    if um_envar['CONTINUE'] == 'false':
+    if common_env['CONTINUE'] == 'false':
         sys.stdout.write('[INFO] This is an NRUN\n')
         common.remove_file(um_envar['HISTORY'])
     else:
@@ -223,11 +142,11 @@ def _setup_executable(common_envar):
             sys.stderr.write('[FAIL] Can not read history file %s\n' %
                              um_envar['HISTORY'])
             sys.exit(error.MISSING_DRIVER_FILE_ERROR)
-        if common_envar['DRIVERS_VERIFY_RST'] == 'True':
+        if common_env['DRIVERS_VERIFY_RST'] == 'True':
             verify_fix_rst(um_envar['HISTORY'],
-                           common_envar['CYLC_TASK_CYCLE_POINT'],
-                           common_envar['CYLC_TASK_WORK_DIR'],
-                           common_envar['CYLC_TASK_NAME'],
+                           common_env['CYLC_TASK_CYCLE_POINT'],
+                           common_env['CYLC_TASK_WORK_DIR'],
+                           common_env['CYLC_TASK_NAME'],
                            'temp_hist')
     um_envar.add('HISTORY_TEMP', 'thist')
 
@@ -274,7 +193,7 @@ def _set_launcher_command(launcher, um_envar):
     '''
     Setup the launcher command for the executable
     '''
-    if not um_envar.contains('ROSE_LAUNCHER_PREOPTS_UM'):
+    if um_envar['ROSE_LAUNCHER_PREOPTS_UM'] == 'unset':
         ss = False
         um_envar['ROSE_LAUNCHER_PREOPTS_UM'] = \
             common.set_aprun_options(um_envar['NPROC'], \
@@ -582,16 +501,9 @@ def _finalize_executable(_):
     '''
     Perform any tasks required after completion of model run
     '''
-    um_envar_fin = common.LoadEnvar()
-    if um_envar_fin.load_envar('NPROC') != 0:
-        sys.stderr.write('[FAIL] Environment variable NPROC is not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if um_envar_fin.load_envar('STDOUT_FILE') != 0:
-        sys.stderr.write('[FAIL] Environment variable STDOUT_FILE containing '
-                         'the path to the UM standard out is not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-
-    _ = um_envar_fin.load_envar('ATMOS_KEEP_MPP_STDOUT', 'false')
+    um_envar_fin = dr_env_lib.env_lib.LoadEnvar()
+    um_envar_fin = dr_env_lib.env_lib.load_envar_from_definition(
+        um_envar_fin, dr_env_lib.um_def.UM_ENVIRONMENT_VARS_FINAL)
 
     pe0_suffix = '0'*(len(str(int(um_envar_fin['NPROC'])-1)))
     um_pe0_stdout_file = '%s%s' % (um_envar_fin['STDOUT_FILE'],
@@ -640,14 +552,14 @@ def _finalize_executable(_):
                      stat.S_IRGRP | stat.S_IROTH)
 
 
-def run_driver(common_envar, mode, run_info):
+def run_driver(common_env, mode, run_info):
     '''
-    Run the driver, and return an instance of common.LoadEnvar and as string
+    Run the driver, and return an instance of LoadEnvar and as string
     containing the launcher command for the UM component
     '''
     if mode == 'run_driver':
-        exe_envar = _setup_executable(common_envar)
-        launch_cmd = _set_launcher_command(common_envar['ROSE_LAUNCHER'], exe_envar)
+        exe_envar = _setup_executable(common_env)
+        launch_cmd = _set_launcher_command(common_env['ROSE_LAUNCHER'], exe_envar)
         if run_info['l_namcouple']:
             model_snd_list = None
         else:
@@ -656,9 +568,9 @@ def run_driver(common_envar, mode, run_info):
             # MCT driver and we'll need the STASHmaster directory
             run_info['SHARED_FILE'] = exe_envar['SHARED_NLIST']
             run_info['STASHMASTER'] = exe_envar['STASHMASTER']
-            run_info['riv3'] = int(exe_envar['CPL_RIVER_COUNT'])
+            run_info['riv3'] = int(common_env['CPL_RIVER_COUNT'])
     elif mode == 'finalize' or mode == 'failure':
-        _finalize_executable(common_envar)
+        _finalize_executable(common_env)
         exe_envar = None
         launch_cmd = None
         model_snd_list = None

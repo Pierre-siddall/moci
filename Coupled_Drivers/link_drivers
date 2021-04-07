@@ -28,6 +28,11 @@ import argparse
 import error
 import common
 import create_namcouple
+import dr_env_lib.common_def
+import dr_env_lib.env_lib
+
+#A tuple for for the earlist version of python required to run the drivers
+REQUIRED_VERSION = (3, 6)
 
 def _check_drivers(models):
     '''
@@ -49,11 +54,13 @@ def _check_drivers(models):
                                  ' The driver file should be named %s\n' %
                                  (model, drivername))
                 sys.exit(error.MISSING_DRIVER_ERROR)
+    # If the MCT driver is present this should be last in the list
+    models.sort(key='mct'.__eq__)
     return models
 
-def _run_drivers(common_envars, mode, run_info):
+def _run_drivers(common_env, mode, run_info):
     '''
-    Run the driver modules, and return an instance of common.LoadEnvars
+    Run the driver modules, and return an instance of LoadEnvar
     containing environment variables for that module, and a string containing
     a launcher command. This somewhat convoluted method ensures this
     module doesn't have to be modified when adding a new model. The mode is
@@ -64,7 +71,7 @@ def _run_drivers(common_envars, mode, run_info):
         sys.stderr.write('[FAIL] driver only has run_driver, finalize, or'
                          ' failure modes\n')
         sys.exit(error.MISSING_EVAR_ERROR)
-    models = _check_drivers(common_envars['models'])
+    models = _check_drivers(common_env['models'])
     if mode == 'failure':
         # Only UM, NEMO and CICE drivers have failure mode
         failure_mode_models = []
@@ -72,16 +79,20 @@ def _run_drivers(common_envars, mode, run_info):
             if model in ('um', 'nemo', 'cice'):
                 failure_mode_models.append(model)
         models = failure_mode_models
-    envinsts = [common_envars]
+    envinsts = {'common': common_env}
     launchcmds = []
     coupling_list = []
     for model in models:
         # namespace dictionary for exec function
         driver_name = '%s_driver' % model
         driver_mod = importlib.import_module(driver_name)
-        model_envars, model_launch_cmd, run_info, model_snd_list \
-            = driver_mod.run_driver(common_envars, mode, run_info)
-        envinsts.append(model_envars)
+        if model != 'mct':
+            model_envars, model_launch_cmd, run_info, model_snd_list \
+                = driver_mod.run_driver(envinsts['common'], mode, run_info)
+        else:
+            model_envars, model_launch_cmd, run_info, model_snd_list \
+                = driver_mod.run_driver(envinsts, mode, run_info)
+        envinsts[model] = model_envars
         launchcmds.append(model_launch_cmd)
         if model_snd_list:
             if coupling_list:
@@ -96,93 +107,23 @@ def _setup_common():
     '''
     Load environment variables common to all models
     '''
-    common_envars = common.LoadEnvar()
-    if common_envars.load_envar('models') != 0:
-        sys.stderr.write('[FAIL] Environment variable models containg a space'
-                         ' separated list of all the components in this run'
-                         ' is not present\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if common_envars.load_envar('RUNID') != 0:
-        sys.stderr.write('[FAIL] Environment variable RUNID is not specified\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if common_envars.load_envar('DATAM') != 0:
-        sys.stderr.write('[FAIL] Environment variable DATAM is not specified\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if common_envars.load_envar('ROSE_LAUNCHER') != 0:
-        sys.stderr.write('[FAIL] Environment variable ROSE_LAUNCHER is not '
-                         'specified\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if common_envars.load_envar('CYLC_TASK_WORK_DIR') != 0:
-        sys.stderr.write('[FAIL] Environment variable CYLC_TASK_WORK_DIR is '
-                         'not specified\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    if common_envars.load_envar('CYLC_TASK_NAME') != 0:
-        sys.stderr.write('[FAIL] Environment variable CYLC_TASK_NAME '
-                         'is not set\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
-    # The following 2 variables are used in Coupled NWP suites to allow
-    # resubmission within the same cylc cycle as
-    # coupled_run1, coupled_run2
-    _ = common_envars.load_envar('CNWP_SUB_CYCLING', 'False')
-    _ = common_envars.load_envar('CYLC_TASK_PARAM_run', None) 
-    # Check to see if the automatic restart has been disabled. By default
-    # DRIVERS_VERIFY_RST will be True, and will be automatically turned off
-    # if the configuration can not support the verification because it runs in
-    # integer or gregorian cycling mode.
-    _ = common_envars.load_envar('DRIVERS_VERIFY_RST', 'True')
-    # If available load cylc environment variables to allow for verification
-    # of restarts for cycling suites
-    _ = common_envars.load_envar('CYLC_CYCLING_MODE', 'unset')
-    if common_envars['CYLC_CYCLING_MODE'] in ('360day', '365day', 'gregorian'):
-        # This is a cycling suite using a calendar and as such it is possible
-        # to verify the start dumps at the start of a cycle
-        if common_envars.load_envar('CYLC_TASK_CYCLE_POINT') != 0:
-            sys.stderr.write('[FAIL] Environment variable CYLC_TASK_CYCLE_POINT'
-                             ' is not specified\n')
-            sys.exit(error.MISSING_EVAR_ERROR)
-    elif common_envars['CYLC_CYCLING_MODE'] == 'integer':
-        sys.stdout.write('[INFO] Using an integer cycling mode, therefore '
-                         'drivers are unable to verify restart files\n')
-        common_envars['DRIVERS_VERIFY_RST'] = 'False'
-    elif common_envars['CYLC_CYCLING_MODE'] == 'unset':
-        common_envars['DRIVERS_VERIFY_RST'] = 'False'
-    elif common_envars['CNWP_SUB_CYCLING'] == 'True':
-        common_envars['DRIVERS_VERIFY_RST'] = 'False'
-    else:
-        sys.stdout.write('[FAIL] Cycling mode %s not permitted. The '
-                         ' environment variable CYLC_CYCLING_MODE must have '
-                         ' one of the following values:\n'
-                         '  360day\n  365day\n  greogrian\n  integer\n' %
-                         common_envars['CYLC_CYCLING_MODE'])
-        sys.exit(error.INVALID_EVAR_ERROR)
-    # HYBRID_COMPONENT will indicate if namcouple should be generated.
-    _ = common_envars.load_envar('HYBRID_COMPONENT', 'none')
+    common_env = dr_env_lib.env_lib.LoadEnvar()
+    common_env = dr_env_lib.env_lib.load_envar_from_definition(
+        common_env, dr_env_lib.common_def.COMMON_ENVIRONMENT_VARS_INIT_FIN)
 
-    return common_envars
+    # make any required correctons to the CONTINUE and CONTINUE_FROM_FAIL
+    # variables
+    common_env = dr_env_lib.env_lib.set_continue_cont_from_fail(
+        common_env)
 
-def _export_envar_str(envinsts):
-    '''
-    Create a bash command to (re)export all the environment variables
-    for all models
-    '''
-    envar_str = ''
-    for inst in envinsts:
-        for var, val in inst.env_vars.items():
-	    # If there is a space in the environment variable string and
-            # it isn't already in quotes, we need to place it in quotes.
-            # Note some environment variables may be unset currently
-            if val:
-                if val[0] not in ('\'', '\"') and ' ' in val:
-                    val = "'%s'" % val
-            envar_str += 'export %s=%s; ' % (var, val)
-    return envar_str[:-1]
+    return common_env
 
-def _export_cmd_str_XC40(launchcmds, common_envars):
+def _export_cmd_str_XC40(launchcmds, common_env):
     '''
     Create an aprun launch command for the coupled configuration on the
     XC40
     '''
-    cmd = '%s ' % common_envars['ROSE_LAUNCHER']
+    cmd = '%s ' % common_env['ROSE_LAUNCHER']
     for launchcmd in launchcmds:
         if launchcmd != '':
             cmd += launchcmd+' : '
@@ -202,12 +143,14 @@ if __name__ == '__main__':
     # environment variables to be exported
 
     try:
-        assert sys.version_info >= (2, 7)
+        assert sys.version_info >= REQUIRED_VERSION
         sys.stdout.write('Using python version %i.%i\n' %
                          (sys.version_info[0], sys.version_info[1]))
     except AssertionError:
-        sys.stderr.write('Python version must be 2.7 or later. Currently'
-                         ' using %i.%i\n' % (sys.version_info[0],
+        sys.stderr.write('Python version must be %i.%i or later. Currently'
+                         ' using %i.%i\n' % (REQUIRED_VERSION[0],
+                                             REQUIRED_VERSION[1],
+                                             sys.version_info[0],
                                              sys.version_info[1]))
         sys.exit(error.VERSION_ERROR)
 
@@ -226,10 +169,10 @@ if __name__ == '__main__':
     if args.run:
         mode = 'run_driver'
         # Setup the environment variables required to all drivers
-        common_envars = _setup_common()
+        common_env = _setup_common()
 
         # Determine if namcouple should be created
-        if common_envars['HYBRID_COMPONENT'] == 'none':
+        if common_env['HYBRID_COMPONENT'] == 'none':
             sys.stdout.write('[INFO] namcouple should exist in suite.\n')
             run_info = {'l_namcouple': True}
         else:
@@ -247,23 +190,24 @@ if __name__ == '__main__':
                 sys.exit(error.F90NML_UNAVAILABLE)
 
         # Create two lists by looping through all the required driver files:
-        #    1. envinsts is a list of common.LoadEnvar() instances, each
+        #    1. envinsts is a list of LoadEnvar() instances, each
         #      instance containing environment variables for a given driver
         #    2. launchcmds is a list of strings, containing options for each
         #      model to be passed to the parallel launcher on the system.
         envinsts, launchcmds, run_info, coupling_list \
-            = _run_drivers(common_envars, mode, run_info)
+            = _run_drivers(common_env, mode, run_info)
 
-	# Create the namcouple file
+        # Create the namcouple file
         if not run_info['l_namcouple']:
-            create_namcouple.write_namcouple(run_info, coupling_list)
+            create_namcouple.write_namcouple(
+                common_env,run_info, coupling_list)
 
         # Create a string containing the export command and a list of
         # environment variable definitions that can be run by the shell
-        envar_str = _export_envar_str(envinsts)
+        envar_str = dr_env_lib.env_lib.string_for_export(envinsts)
 
         # Create the aprun command
-        cmd_str = _export_cmd_str_XC40(launchcmds, common_envars)
+        cmd_str = _export_cmd_str_XC40(launchcmds, common_env)
 
         # Write the export commands for common and model specific environment
         # variables (envar_str) into the file driver_envar
@@ -277,11 +221,11 @@ if __name__ == '__main__':
         cmd_file.close()
     elif args.finalize:
         mode = 'finalize'
-        common_envars = _setup_common()
+        common_env = _setup_common()
         run_info = {}
-        _, _, _, _ = _run_drivers(common_envars, mode, run_info)
+        _, _, _, _ = _run_drivers(common_env, mode, run_info)
     elif args.failure:
         mode = 'failure'
-        common_envars = _setup_common()
+        common_env = _setup_common()
         run_info = {}
-        _, _, _, _ = _run_drivers(common_envars, mode, run_info)
+        _, _, _, _ = _run_drivers(common_env, mode, run_info)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2019 Met Office. All rights reserved.
+ (C) Crown copyright 2021 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -25,6 +25,8 @@ import os
 import sys
 import error
 import common
+import dr_env_lib.xios_def
+import dr_env_lib.env_lib
 
 def _update_iodef(is_server_mode, is_coupled_mode, iodef_fname='iodef.xml'):
     '''
@@ -57,18 +59,15 @@ def _update_iodef(is_server_mode, is_coupled_mode, iodef_fname='iodef.xml'):
     iodef_swap.close()
     os.rename(swapfile_name, iodef_fname)
 
-def _setup_executable(_):
+def _setup_executable(common_env):
     '''
     Setup the environment and any files required by the executable and/or
     by the iodef file update procedure.
     '''
     # Load the environment variables required
-    xios_envar = common.LoadEnvar()
-    if xios_envar.load_envar('XIOS_NPROC') != 0:
-        sys.stderr.write('[FAIL] Environment variable XIOS_NPROC not set '
-                         'Set to 0 to run xios in attatched mode, and to '
-                         'a number greater than 0 for server mode\n')
-        sys.exit(error.MISSING_EVAR_ERROR)
+    xios_envar = dr_env_lib.env_lib.LoadEnvar()
+    xios_envar = dr_env_lib.env_lib.load_envar_from_definition(
+        xios_envar, dr_env_lib.xios_def.XIOS_ENVIRONMENT_VARS_INITIAL)
 
     if xios_envar['XIOS_NPROC'] == '0':
         # Running in attached mode
@@ -78,31 +77,13 @@ def _setup_executable(_):
         # The following environment variables are only relevant for this
         # mode
         using_server = True
-        _ = xios_envar.load_envar('XIOS_LINK', 'xios.exe')
-        if xios_envar.load_envar('XIOS_EXEC') != 0:
-            sys.stderr.write('[FAIL] Environment variable XIOS_EXEC '
-                             'not set\n')
-            sys.exit(error.MISSING_EVAR_ERROR)
-
-        # Ensure a method of setting aprun options has been provided
-        if xios_envar.load_envar('ROSE_LAUNCHER_PREOPTS_XIOS') != 0:
-            sys.stdout.write('[INFO] Environment variable ROSE_LAUNCHER_PREOPTS_XIOS'\
-                ' not set, checking for driver side launch command construction '\
-                    'environment variables.\n')
-
-            if xios_envar.load_envar('XIOS_NODES') != 0:
-                sys.stderr.write('[FAIL] Environment variable XIOS_NODES '
-                                 'not set\n')
-                sys.exit(error.MISSING_EVAR_ERROR)
-
         common.remove_file(xios_envar['XIOS_LINK'])
         os.symlink(xios_envar['XIOS_EXEC'],
                    xios_envar['XIOS_LINK'])
 
     # Check our list of component drivers to see if MCT is active. If it is,
     # then this is a coupled model. Set the coupler flag accordingly.
-    _ = xios_envar.load_envar('models')
-    using_coupler = 'mct' in xios_envar['models']
+    using_coupler = 'mct' in common_env['models']
 
     # Update the iodef file
     _update_iodef(using_server, using_coupler)
@@ -117,7 +98,7 @@ def _set_launcher_command(launcher, xios_envar):
     string
     '''
     if xios_envar['XIOS_NPROC'] != '0':
-        if not xios_envar.contains('ROSE_LAUNCHER_PREOPTS_XIOS'):
+        if xios_envar['ROSE_LAUNCHER_PREOPTS_XIOS'] == 'unset':
             ompthr = 1
             hyperthreads = 1
             ss = True
@@ -160,19 +141,19 @@ def _finalize_executable(_):
     pass
 
 
-def run_driver(common_envar, mode, run_info):
+def run_driver(common_env, mode, run_info):
     '''
-    Run the driver, and return an instance of common.LoadEnvar and as string
+    Run the driver, and return an instance of LoadEnvar and as string
     containing the launcher command for the XIOS component
     '''
     if mode == 'run_driver':
-        exe_envar = _setup_executable(common_envar)
-        launch_cmd = _set_launcher_command(common_envar['ROSE_LAUNCHER'], exe_envar)
+        exe_envar = _setup_executable(common_env)
+        launch_cmd = _set_launcher_command(common_env['ROSE_LAUNCHER'], exe_envar)
         model_snd_list = None
         if not run_info['l_namcouple']:
             run_info = _sent_coupling_fields(run_info)
     elif mode == 'finalize':
-        _finalize_executable(common_envar)
+        _finalize_executable(common_env)
         exe_envar = None
         launch_cmd = None
         model_snd_list = None

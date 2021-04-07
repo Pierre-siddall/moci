@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2020 Met Office. All rights reserved.
-
+ (C) Crown copyright 2021 Met Office. All rights reserved.
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
  of the code, the use, duplication or disclosure of it is strictly
@@ -35,14 +34,14 @@ class _UpdateComponents(object):
     with MCT
     '''
 
-    def __init__(self):
+    def __init__(self, common_envs):
         '''
         Initialise the class. Member models_to_update contains a dictionary,
         the keys of which are the names for the model components and the
         values are the method to run the update process for that particular
         component model
         '''
-
+        self.common_envs = common_envs
         self.models_to_update = {'mct': self.add_mct_details,
                                  'um': self.add_um_details,
                                  'nemo': self.add_nemo_details,}
@@ -80,7 +79,7 @@ class _UpdateComponents(object):
         '''
 
         # The coupler needs to know the run length of this cycle.
-        seconds = common.setup_runtime()
+        seconds = common.setup_runtime(self.common_envs)
 
         #Edit the namcouple file
         namc_file_in, namc_file_out = _start_edit_namcouple()
@@ -139,12 +138,12 @@ def _end_edit_namcouple(namc_file_in, namc_file_out):
     namc_file_out.close()
     os.rename(namc_file_out.name, namc_file_in.name)
 
-def update(models):
+def update(models, common_envs):
     '''
     Update the Namcouple file. Takes a list containing the models coupled via
     MCT
     '''
 
     # Componentwise update of namcouple
-    components = _UpdateComponents()
+    components = _UpdateComponents(common_envs)
     components.update(models)

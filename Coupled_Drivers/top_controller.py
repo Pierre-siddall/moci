@@ -70,18 +70,17 @@ import glob
 import shutil
 import common
 import error
+import dr_env_lib.ocn_cont_def
+import dr_env_lib.env_lib
 
 # Define errors for the TOP controller only
 SERIAL_MODE_ERROR = 99
 
-def _get_topnl_envar(envar_container):
+def _check_topnl_envar(envar_container):
     '''
     As the environment variable TOP_NL is required by both the setup
     and finalize functions, this will be encapsulated here.
     '''
-
-    envar_container.load_envar('TOP_NL', 'namelist_top_cfg')
-
     #Information will be retrieved from this file during the running of the
     #controller, so check it exists.
 
@@ -89,8 +88,7 @@ def _get_topnl_envar(envar_container):
         sys.stderr.write('[FAIL] top_controller: Can not find the TOP namelist '
                          'file %s\n' % envar_container['TOP_NL'])
         sys.exit(error.MISSING_CONTROLLER_FILE_ERROR)
-    else:
-        return envar_container
+    return 0
 
 def _get_toprst_dir(top_nl_file):
     '''
@@ -134,53 +132,26 @@ def _load_environment_variables(top_envar):
     Load the TOP environment variables required for the model run
     into the top_envar container
     '''
-    top_envar = _get_topnl_envar(top_envar)
-
-    # Load the TOP namelist from an environment variable
-    # otherwise use default name.
-    _ = top_envar.load_envar('TOP_NL', 'namelist_top_cfg')
-
-    # Load the initial TOP restart file name, if there is
-    # one, from an environment variable
-    _ = top_envar.load_envar('TOP_START', '')
-
-    # Is this a cycling run? Note: CONTINUE does NOT
-    # indicate that this is a continuation run. It indicates
-    # that it is a cycle within a set of runs which MAY be a
-    # CRUN but may also be the first NRUN in the sequence!
-    _ = top_envar.load_envar('CONTINUE', 'false')
-    # ensure that CONTINUE is always lower case false, unless explicitly
-    # set to true (in which case make sure it's lower case true).
-    if 'T' in top_envar['CONTINUE'] or 't' in top_envar['CONTINUE']:
-        top_envar['CONTINUE'] = 'true'
-    else:
-        top_envar['CONTINUE'] = 'false'
-    _ = top_envar.load_envar('CONTINUE_FROM_FAIL', 'false')
-    if 'T' in top_envar['CONTINUE_FROM_FAIL'] or \
-      't' in top_envar['CONTINUE_FROM_FAIL']:
-        top_envar['CONTINUE_FROM_FAIL'] = 'true'
-    else:
-        top_envar['CONTINUE_FROM_FAIL'] = 'false'
+    top_envar = dr_env_lib.env_lib.load_envar_from_definition(
+        top_envar, dr_env_lib.ocn_cont_def.TOP_ENVIRONMENT_VARS_INITIAL)
+    _ = _check_topnl_envar(top_envar)
 
     return top_envar
 
-def _setup_top_controller(restart_ctl,
-                          nemo_nproc,
-                          runid,
-                          verify_restart,
-                          nemo_dump_time):
+def _setup_top_controller(common_env, restart_ctl, nemo_nproc, runid,
+                          verify_restart, nemo_dump_time):
     '''
     Setup the environment and any files required by the executable
     '''
     # Create the environment variable container
-    top_envar = common.LoadEnvar()
+    top_envar = dr_env_lib.env_lib.LoadEnvar()
 
     # Load the environment variables required
     top_envar = _load_environment_variables(top_envar)
 
     # TOP controller hasn't been set up to use CONTINUE_FROM_FAIL yet
     # Raise an error if it's set to prevent unexpected behaviour in future
-    if top_envar['CONTINUE_FROM_FAIL'] == 'true':
+    if common_env['CONTINUE_FROM_FAIL'] == 'true':
         sys.stderr.write('[FAIL] top_controller is not coded to work with'
                          'CONTINUE_FROM_FAIL=true')
         sys.exit(error.INVALID_EVAR_ERROR)
@@ -220,7 +191,7 @@ def _setup_top_controller(restart_ctl,
     else:
         # If we didn't find any restart files in the suite data directory,
         # check the TOP_START env var.
-        if top_envar['CONTINUE'] == 'false':
+        if common_env['CONTINUE'] == 'false':
             latest_top_dump = top_envar['TOP_START']
         else:
             # We don't have a restart file, which implies we must be
@@ -234,7 +205,7 @@ def _setup_top_controller(restart_ctl,
     common.remove_file('restart_trc.nc')
 
     # Is this a CRUN or an NRUN?
-    if top_envar['CONTINUE'] == 'false':
+    if common_env['CONTINUE'] == 'false':
 
         # This is definitely a new run
         sys.stdout.write('[INFO] top_controller: New TOP/MEDUSA run\n\n')
@@ -392,15 +363,17 @@ def _finalize_top_controller():
 
     # Move the TOP namelist to the restart directory to allow the next cycle
     # to pick it up
-    top_envar_fin = common.LoadEnvar()
-    top_envar_fin = _get_topnl_envar(top_envar_fin)
+    top_envar_fin = dr_env_lib.env_lib.LoadEnvar()
+    top_envar_fin = dr_env_lib.env_lib.load_envar_from_definition(
+        top_envar_fin, dr_env_lib.ocn_cont_def.TOP_ENVIRONMENT_VARS_FINAL)
     top_rst = _get_toprst_dir(top_envar_fin['TOP_NL'])
     if os.path.isdir(top_rst) and \
             os.path.isfile(top_envar_fin['TOP_NL']):
         shutil.copy(top_envar_fin['TOP_NL'], top_rst)
 
 
-def run_controller(restart_ctl,
+def run_controller(common_env,
+                   restart_ctl,
                    nemo_nproc,
                    runid,
                    verify_restart,
@@ -409,7 +382,8 @@ def run_controller(restart_ctl,
     Run the passive tracer controller.
     '''
     if mode == 'run_controller':
-        exe_envar = _setup_top_controller(restart_ctl,
+        exe_envar = _setup_top_controller(common_env,
+                                          restart_ctl,
                                           nemo_nproc,
                                           runid,
                                           verify_restart,

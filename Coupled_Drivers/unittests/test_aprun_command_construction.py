@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2020 Met Office. All rights reserved.
+ (C) Crown copyright 2021 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -26,6 +26,7 @@ import os
 from io import StringIO
 
 import common
+import dr_env_lib.env_lib
 import um_driver
 import nemo_driver
 import xios_driver
@@ -110,79 +111,12 @@ class TestUMDriver(unittest.TestCase):
 
     def _get_um_envar(self):
         ''' Returns envar object '''
-        um_envar = common.LoadEnvar()
+        um_envar = dr_env_lib.env_lib.LoadEnvar()
 
         for key in self.um_envar_dict:
             um_envar.add(key, self.um_envar_dict[key])
 
         return um_envar
-
-    def test_load_run_environment_variables_none(self):
-        ''' Tests _load_run_environment_variables exits with error when no
-        aprun command variables are set '''
-        um_envar = common.LoadEnvar()
-
-        # Assert um_envar dictionary is initially empty
-        self.assertFalse(um_envar.env_vars)
-
-        with mock.patch('sys.stdout', new=StringIO()) as mock_out, \
-            mock.patch('sys.stderr', new=StringIO()) as mock_err, \
-                mock.patch.dict(os.environ, self.um_envar_dict), \
-                    self.assertRaises(SystemExit):
-            um_driver._load_run_environment_variables(um_envar)
-
-            self.assertRegex(mock_out.getvalue(), \
-                "ROSE_LAUNCHER_PREOPTS_UM not set")
-            self.assertRegex(mock_err.getvalue(), "ATMOS_NODES")
-
-    def test_load_environment_variables_suite(self):
-        ''' Tests _load_run_environment_variables() loads suite aprun command
-        variables '''
-        um_envar = common.LoadEnvar()
-        self._set_um_envar_suite()
-
-        # Assert um_envar dictionary is initially empty
-        self.assertFalse(um_envar.env_vars)
-
-        with mock.patch('sys.stdout', new=StringIO()) as mock_out, \
-            mock.patch.dict(os.environ, self.um_envar_dict):
-            um_envar = um_driver._load_run_environment_variables(um_envar)
-
-            # Assert ROSE_LAUNCHER_PREOPTS_UM has been used and is in um_envar
-            self.assertNotRegex(mock_out.getvalue(), \
-                "ROSE_LAUNCHER_PREOPTS_UM not set")
-            self.assertTrue(um_envar.contains("ROSE_LAUNCHER_PREOPTS_UM"))
-
-            # Assert the dictionary of environment variables is a subset of
-            # um_envar
-            self.assertTrue(\
-                set(self.um_envar_dict.items()).issubset(\
-                    set(um_envar.env_vars.items())))
-
-    def test_load_environment_variables_driver(self):
-        ''' Tests _load_run_environment_variables() loads driver aprun command
-        variables '''
-        um_envar = common.LoadEnvar()
-        self._set_um_envar_driver()
-
-        # Assert um_envar dictionary is initially empty
-        self.assertFalse(um_envar.env_vars)
-
-        with mock.patch('sys.stdout', new=StringIO()) as mock_out, \
-            mock.patch.dict(os.environ, self.um_envar_dict):
-            um_envar = um_driver._load_run_environment_variables(um_envar)
-
-            # Assert ROSE_LAUNCHER_PREOPTS_UM has not been used and is not yet
-            # in um_envar
-            self.assertRegex(mock_out.getvalue(), \
-                "ROSE_LAUNCHER_PREOPTS_UM not set")
-            self.assertFalse(um_envar.contains("ROSE_LAUNCHER_PREOPTS_UM"))
-
-            # Assert the dictionary of environment variables is a subset of
-            # um_envar
-            self.assertTrue(\
-                set(self.um_envar_dict.items()).issubset(\
-                    set(um_envar.env_vars.items())))
 
     def test_set_launcher_command_suite_construction(self):
         ''' Test UM driver _set_launcher_command() returns a string with the
@@ -223,7 +157,7 @@ class TestUMDriver(unittest.TestCase):
 
         # In UM driver NPROC is calculated and added during _setup_executable()
         um_envar.add('NPROC', "288")
-
+        um_envar.add('ROSE_LAUNCHER_PREOPTS_UM', "unset")
         cmd = um_driver._set_launcher_command(launcher, um_envar)
 
         expected_output_cmd = \
@@ -248,7 +182,7 @@ class TestUMDriver(unittest.TestCase):
         launcher = "mpirun"
         self._set_um_envar_driver()
         um_envar = self._get_um_envar()
-
+        um_envar.add('ROSE_LAUNCHER_PREOPTS_UM', "unset")
         # In UM driver NPROC is calculated and added during _setup_executable()
         um_envar.add('NPROC', "288")
 
@@ -302,86 +236,12 @@ class TestNEMODriver(unittest.TestCase):
 
     def _get_nemo_envar(self):
         ''' Returns envar object '''
-        nemo_envar = common.LoadEnvar()
+        nemo_envar = dr_env_lib.env_lib.LoadEnvar()
 
         for key in self.nemo_envar_dict:
             nemo_envar.add(key, self.nemo_envar_dict[key])
 
         return nemo_envar
-
-    @mock.patch("nemo_driver._get_nemonl_envar", \
-        return_value=common.LoadEnvar())
-    def test_load_environment_variables_none(self, _):
-        ''' Tests _load_environment_variables exits with error when no
-        aprun command variables are set '''
-        nemo_envar = common.LoadEnvar()
-
-        # Assert nemo_envar dictionary is initally empty
-        self.assertFalse(nemo_envar.env_vars)
-
-        with mock.patch('sys.stdout', new=StringIO()) as mock_out, \
-            mock.patch('sys.stderr', new=StringIO()) as mock_err, \
-                mock.patch.dict(os.environ, self.nemo_envar_dict), \
-                    self.assertRaises(SystemExit):
-            nemo_driver._load_environment_variables(nemo_envar)
-
-            self.assertRegex(mock_out.getvalue(), \
-                "ROSE_LAUNCHER_PREOPTS_NEMO not set")
-            self.assertRegex(mock_err.getvalue(), "OMPTHR_OCN")
-
-    @mock.patch("nemo_driver._get_nemonl_envar", \
-        return_value=common.LoadEnvar())
-    def test_load_environment_variables_suite(self, _):
-        ''' Tests _load_environment_variables() loads suite aprun command
-        variables '''
-        nemo_envar = common.LoadEnvar()
-        self._set_nemo_envar_suite()
-
-        # Assert nemo_envar dictionary is initially empty
-        self.assertFalse(nemo_envar.env_vars)
-
-        with mock.patch('sys.stdout', new=StringIO()) as mock_out, \
-            mock.patch.dict(os.environ, self.nemo_envar_dict):
-            nemo_envar = nemo_driver._load_environment_variables(nemo_envar)
-
-            # Assert ROSE_LAUNCHER_PREOPTS_NEMO has been used and is in
-            # nemo_envar
-            self.assertNotRegex(mock_out.getvalue(), \
-                "ROSE_LAUNCHER_PREOPTS_NEMO not set")
-            self.assertTrue(nemo_envar.contains("ROSE_LAUNCHER_PREOPTS_NEMO"))
-
-            # Assert the dictionary of environment variables is a subset of
-            # nemo_envar
-            self.assertTrue(\
-                set(self.nemo_envar_dict.items()).issubset(\
-                    set(nemo_envar.env_vars.items())))
-
-    @mock.patch("nemo_driver._get_nemonl_envar", \
-        return_value=common.LoadEnvar())
-    def test_load_environment_variables_driver(self, _):
-        ''' Tests _load_environment_variables() loads driver aprun command
-        variables '''
-        nemo_envar = common.LoadEnvar()
-        self._set_nemo_envar_driver()
-
-        # Assert nemo_envar dictionary is initially empty
-        self.assertFalse(nemo_envar.env_vars)
-
-        with mock.patch('sys.stdout', new=StringIO()) as mock_out, \
-            mock.patch.dict(os.environ, self.nemo_envar_dict):
-            nemo_envar = nemo_driver._load_environment_variables(nemo_envar)
-
-            # Assert ROSE_LAUNCHER_PREOPTS_NEMO has not been used and is not
-            # yet in nemo_envar
-            self.assertRegex(mock_out.getvalue(), \
-                "ROSE_LAUNCHER_PREOPTS_NEMO not set")
-            self.assertFalse(nemo_envar.contains("ROSE_LAUNCHER_PREOPTS_NEMO"))
-
-            # Assert the dictionary of environment variables is a subset of
-            # nemo_envar
-            self.assertTrue(\
-                set(self.nemo_envar_dict.items()).issubset(\
-                    set(nemo_envar.env_vars.items())))
 
     def test_set_launcher_command_suite_construction(self):
         ''' Test NEMO driver _set_launcher_command() returns a string with the
@@ -416,7 +276,7 @@ class TestNEMODriver(unittest.TestCase):
         launcher = "aprun"
         self._set_nemo_envar_driver()
         nemo_envar = self._get_nemo_envar()
-
+        nemo_envar.add('ROSE_LAUNCHER_PREOPTS_NEMO', "unset")
         cmd = nemo_driver._set_launcher_command(launcher, nemo_envar)
 
         expected_output_cmd = \
@@ -441,7 +301,7 @@ class TestNEMODriver(unittest.TestCase):
         launcher = "mpirun"
         self._set_nemo_envar_driver()
         nemo_envar = self._get_nemo_envar()
-
+        nemo_envar.add('ROSE_LAUNCHER_PREOPTS_NEMO', "unset")
         cmd = nemo_driver._set_launcher_command(launcher, nemo_envar)
 
         expected_output_cmd = " ./nemo.exe"
@@ -486,80 +346,12 @@ class TestJNRDriver(unittest.TestCase):
 
     def _get_jnr_envar(self):
         ''' Returns envar object '''
-        jnr_envar = common.LoadEnvar()
+        jnr_envar = dr_env_lib.env_lib.LoadEnvar()
 
         for key in self.jnr_envar_dict:
             jnr_envar.add(key, self.jnr_envar_dict[key])
 
         return jnr_envar
-
-    def test_load_environment_variables_none(self):
-        ''' Tests _load_run_environment_variables exits with error when no
-        aprun command variables are set '''
-        jnr_envar = common.LoadEnvar()
-
-        # Assert jnr_envar dictionary is initially empty
-        self.assertFalse(jnr_envar.env_vars)
-
-        with mock.patch('sys.stdout', new=StringIO()) as mock_out, \
-            mock.patch('sys.stderr', new=StringIO()) as mock_err, \
-                mock.patch.dict(os.environ, self.jnr_envar_dict), \
-                    self.assertRaises(SystemExit):
-            jnr_driver._load_run_environment_variables(jnr_envar)
-
-            self.assertRegex(mock_out.getvalue(), \
-                "ROSE_LAUNCHER_PREOPTS_JNR not set")
-            self.assertRegex(mock_err.getvalue(), "JNR_NODES")
-
-    def test_load_environment_variables_suite(self):
-        ''' Tests _load_run_environment_variables() loads suite aprun command
-        variables '''
-        jnr_envar = common.LoadEnvar()
-        self._set_jnr_envar_suite()
-
-        # Assert jnr_envar dictionary is initially empty
-        self.assertFalse(jnr_envar.env_vars)
-
-        with mock.patch('sys.stdout', new=StringIO()) as mock_out, \
-            mock.patch.dict(os.environ, self.jnr_envar_dict):
-            jnr_envar = jnr_driver._load_run_environment_variables(jnr_envar)
-
-            # Assert ROSE_LAUNCHER_PREOPTS_JNR has been used and is in
-            # jnr_envar
-            self.assertNotRegex(mock_out.getvalue(), \
-                "ROSE_LAUNCHER_PREOPTS_JNR not set")
-            self.assertTrue(jnr_envar.contains("ROSE_LAUNCHER_PREOPTS_JNR"))
-
-            # Assert the dictionary of environment variables is a subset of
-            # jnr_envar
-            self.assertTrue(\
-                set(self.jnr_envar_dict.items()).issubset(\
-                    set(jnr_envar.env_vars.items())))
-
-    def test_load_environment_variables_driver(self):
-        ''' Tests _load_run_environment_variables() loads driver aprun command
-        variables '''
-        jnr_envar = common.LoadEnvar()
-        self._set_jnr_envar_driver()
-
-        # Assert jnr_envar dictionary is initially empty
-        self.assertFalse(jnr_envar.env_vars)
-
-        with mock.patch('sys.stdout', new=StringIO()) as mock_out, \
-            mock.patch.dict(os.environ, self.jnr_envar_dict):
-            jnr_envar = jnr_driver._load_run_environment_variables(jnr_envar)
-
-            # Assert ROSE_LAUNCHER_PREOPTS_JNR has not been used and is not yet
-            # in jnr_envar
-            self.assertRegex(mock_out.getvalue(), \
-                "ROSE_LAUNCHER_PREOPTS_JNR not set")
-            self.assertFalse(jnr_envar.contains("ROSE_LAUNCHER_PREOPTS_JNR"))
-
-            # Assert the dictionary of environment variables is a subset of
-            # jnr_envar
-            self.assertTrue(\
-                set(self.jnr_envar_dict.items()).issubset(\
-                    set(jnr_envar.env_vars.items())))
 
     def test_set_launcher_command_suite_construction(self):
         ''' Test JNR driver _set_launcher_command() returns a string with the
@@ -597,6 +389,7 @@ class TestJNRDriver(unittest.TestCase):
 
         # In JNR driver NPROC is calculated and added during
         # _setup_executable()
+        jnr_envar.add('ROSE_LAUNCHER_PREOPTS_JNR', "unset")
         jnr_envar.add('NPROC_JNR', "288")
 
         cmd = jnr_driver._set_launcher_command(launcher, jnr_envar)
@@ -623,7 +416,7 @@ class TestJNRDriver(unittest.TestCase):
         launcher = "mpirun"
         self._set_jnr_envar_driver()
         jnr_envar = self._get_jnr_envar()
-
+        jnr_envar.add('ROSE_LAUNCHER_PREOPTS_JNR', "unset")
         cmd = jnr_driver._set_launcher_command(launcher, jnr_envar)
 
         expected_output_cmd = " ./jnr.exe"
@@ -647,6 +440,7 @@ class TestXIOSDriver(unittest.TestCase):
             'models': "",
             'XIOS_LINK': "xios.exe"
         }
+        self.common_env_dict = {'models': []}
 
     def tearDown(self):
         ''' Clean-up after XIOS driver tests '''
@@ -680,7 +474,7 @@ class TestXIOSDriver(unittest.TestCase):
 
     def _get_xios_envar(self):
         ''' Returns envar object '''
-        xios_envar = common.LoadEnvar()
+        xios_envar = dr_env_lib.env_lib.LoadEnvar()
 
         for key in self.xios_envar_dict:
             xios_envar.add(key, self.xios_envar_dict[key])
@@ -696,13 +490,11 @@ class TestXIOSDriver(unittest.TestCase):
 
         with mock.patch('sys.stdout', new=StringIO()) as mock_out, \
             mock.patch('sys.stderr', new=StringIO()) as mock_err, \
-                mock.patch.dict(os.environ, self.xios_envar_dict), \
-                    self.assertRaises(SystemExit):
-            xios_driver._setup_executable(None)
+                mock.patch.dict(os.environ, self.xios_envar_dict):
+            xios_driver._setup_executable(self.common_env_dict)
 
             self.assertRegex(mock_out.getvalue(), \
-                "ROSE_LAUNCHER_PREOPTS_XIOS not set")
-            self.assertRegex(mock_err.getvalue(), "XIOS_NODES")
+                "ROSE_LAUNCHER_PREOPTS_XIOS doesn't exist")
 
     @mock.patch("xios_driver._update_iodef", return_value=None)
     def test_setup_executable_suite(self, _):
@@ -711,19 +503,15 @@ class TestXIOSDriver(unittest.TestCase):
 
         with mock.patch('sys.stdout', new=StringIO()) as mock_out, \
             mock.patch.dict(os.environ, self.xios_envar_dict):
-            xios_envar = xios_driver._setup_executable(None)
+            xios_envar = xios_driver._setup_executable(self.common_env_dict)
 
             # Assert ROSE_LAUNCHER_PREOPTS_XIOS has been used and is in
             # xios_envar
             self.assertNotRegex(mock_out.getvalue(), \
-                "ROSE_LAUNCHER_PREOPTS_XIOS not set")
+                "ROSE_LAUNCHER_PREOPTS_XIOS doesn't exist")
             self.assertTrue(xios_envar.contains("ROSE_LAUNCHER_PREOPTS_XIOS"))
-
-            # Assert the dictionary of environment variables is a subset of
-            # xios_envar
-            self.assertTrue(\
-                set(self.xios_envar_dict.items()).issubset(\
-                    set(xios_envar.env_vars.items())))
+            self.assertEqual(xios_envar["ROSE_LAUNCHER_PREOPTS_XIOS"],
+                             self.xios_envar_dict['ROSE_LAUNCHER_PREOPTS_XIOS'])
 
     @mock.patch("xios_driver._update_iodef", return_value=None)
     def test_setup_executable_driver(self, _):
@@ -732,19 +520,14 @@ class TestXIOSDriver(unittest.TestCase):
 
         with mock.patch('sys.stdout', new=StringIO()) as mock_out, \
             mock.patch.dict(os.environ, self.xios_envar_dict):
-            xios_envar = xios_driver._setup_executable(None)
+            xios_envar = xios_driver._setup_executable(self.common_env_dict)
 
             # Assert ROSE_LAUNCHER_PREOPTS_XIOS has not been used and is not
             # yet in xios_envar
             self.assertRegex(mock_out.getvalue(), \
-                "ROSE_LAUNCHER_PREOPTS_XIOS not set")
-            self.assertFalse(xios_envar.contains("ROSE_LAUNCHER_PREOPTS_XIOS"))
-
-            # Assert the dictionary of environment variables is a subset of
-            # xios_envar
-            self.assertTrue(\
-                set(self.xios_envar_dict.items()).issubset(\
-                    set(xios_envar.env_vars.items())))
+                "ROSE_LAUNCHER_PREOPTS_XIOS doesn't exist")
+            self.assertEqual(xios_envar["ROSE_LAUNCHER_PREOPTS_XIOS"],
+                             "unset")
 
     def test_set_launcher_command_suite_construction(self):
         ''' Test XIOS driver _set_launcher_command() returns a string with the
@@ -797,7 +580,7 @@ class TestXIOSDriver(unittest.TestCase):
         launcher = "aprun"
         self._set_xios_envar_driver()
         xios_envar = self._get_xios_envar()
-
+        xios_envar.add('ROSE_LAUNCHER_PREOPTS_XIOS', "unset")
         cmd = xios_driver._set_launcher_command(launcher, xios_envar)
 
         expected_output_cmd = \
@@ -822,7 +605,7 @@ class TestXIOSDriver(unittest.TestCase):
         launcher = "mpirun"
         self._set_xios_envar_driver()
         xios_envar = self._get_xios_envar()
-
+        xios_envar.add('ROSE_LAUNCHER_PREOPTS_XIOS', "unset")
         cmd = xios_driver._set_launcher_command(launcher, xios_envar)
 
         expected_output_cmd = " ./xios.exe"

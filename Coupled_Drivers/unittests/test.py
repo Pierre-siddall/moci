@@ -22,7 +22,7 @@ import unittest
 import sys
 import os
 
-assert sys.version_info >= (2, 7)
+assert sys.version_info >= (3, 6)
 
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
 
@@ -32,7 +32,8 @@ def main():
     '''
     groups = {
         'all': 'test*.py',
-        'aprun_command': 'test_aprun_command_construction.py'
+        'env_lib': 'test_env_lib.py',
+        'aprun_command': 'test_aprun_command_construction.py',
     }
 
     parser = argparse.ArgumentParser(
