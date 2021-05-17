@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2021 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -132,7 +132,9 @@ class FixTimeTests(unittest.TestCase):
             rtn = ['[datetime.datetime(1950, 1, 1, 0, 0), ' \
                        'datetime.datetime(1950, 1, 2, 0, 0)]',
                    '[datetime.datetime(1950, 1, 1, 0, 0, tzinfo=tzutc()), ' \
-                       'datetime.datetime(1950, 1, 2, 0, 0, tzinfo=tzutc())]']
+                       'datetime.datetime(1950, 1, 2, 0, 0, tzinfo=tzutc())]',
+                   '[real_datetime(1950, 1, 1, 0, 0), ' \
+                       'datetime.datetime(1950, 1, 2, 0, 0)]']
             self.assertIn(date.__repr__(), rtn)
 
     def test_first_and_last(self):
