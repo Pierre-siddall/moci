@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2020 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2021 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -25,13 +25,14 @@ FIELD_REGEX = r'[a-zA-Z0-9\-]*'
 MODEL_COMPONENTS = {
     # Key=model name
     # Value=tuple(realm, dict(fields associated with netCDF model component(s)))
-    'atmos': {'atmos': ('a', [FIELD_REGEX])},
+    'atmos': {'atmos': ('a', [FIELD_REGEX], [''])},
     'nemo': {'nemo': ('o', ['grid-U', 'grid-V', 'grid-W', 'grid-T',
                             'diaptr', 'trnd3d', 'scalar',
-                            'UK-shelf-T', 'UK-shelf-U', 'UK-shelf-V']),
-             'medusa': ('o', ['ptrc-T', 'diad-T', 'ptrd-T']),
-             'si3': ('i', ['icemod'])},
-    'cice': {'cice': ('i', '')},
+                            'UK-shelf-T', 'UK-shelf-U', 'UK-shelf-V'],
+                      ['', 'icebergs']),
+             'medusa': ('o', ['ptrc-T', 'diad-T', 'ptrd-T'], ['ptracer']),
+             'si3': ('i', ['icemod'], ['ice'])},
+    'cice': {'cice': ('i', '', ['', 'age'])},
     }
 
 FNAMES = {
@@ -43,7 +44,7 @@ FNAMES = {
     'cice_age_rst': r'{P}i.restart.age.{Y1:04d}-{M1:02d}-{D1:02d}-00000{S}',
 
     'nemo_rst': r'{P}o_{Y1:04d}{M1:02d}{D1:02d}_restart.nc',
-    'nemo_icerst': r'{P}o_{Y1:04d}{M1:02d}{D1:02d}_restart_ice.nc',
+    'nemo_ice_rst': r'{P}o_{Y1:04d}{M1:02d}{D1:02d}_restart_ice.nc',
     'nemo_icebergs_rst': r'{P}o_icebergs_{Y1:04d}{M1:02d}{D1:02d}_restart.nc',
     'nemo_ptracer_rst': r'{P}o_{Y1:04d}{M1:02d}{D1:02d}_restart_trc.nc',
     'nemo_ibergs_traj': r'{P}o_trajectory_icebergs_{TS}.nc',
@@ -62,9 +63,17 @@ COLLECTIONS = {
 def model_components(model, field):
     ''' Return realm and model component for given model and field '''
     realm = MODEL_COMPONENTS[model][model][0]
-    if not isinstance(field, str) or re.match('^[pm][a-z0-9]$', field):
-        # Restart files (field=None) or Atmosphere 2char fields
-        component = None
+    component = None
+    if str(field).endswith('_rst'):
+        # Restart files
+        rsttype = field.lstrip(model).rstrip('rst').strip('_')
+        for comp in MODEL_COMPONENTS[model]:
+            if rsttype in MODEL_COMPONENTS[model][comp][2]:
+                realm = MODEL_COMPONENTS[model][comp][0]
+                break
+    elif re.match('^[pm][a-z0-9]$', str(field)):
+        # Atmosphere 2char fields
+        pass
     else:
         # netCDF file - component required.  Initialise with model name.
         component = model

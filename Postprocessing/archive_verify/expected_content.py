@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2020 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2021 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -233,14 +233,15 @@ class ArchivedFiles(object):
         if component:
             # "component" is only relevant to the netCDF convention filenames
             key = 'ncf_mean'
-        elif stream:
+        elif (stream).endswith('_rst'):
+            # Restart files
+            key = 'rst'
+        else:
             # Atmosphere fields/pp files
             if str(stream) in self.naml.ff_streams:
                 key = 'atmos_ff'
             else:
                 key = 'atmos_pp'
-        else:
-            key = 'rst'
 
         return key, realm, component
 
@@ -302,10 +303,10 @@ class RestartFiles(ArchivedFiles):
 
         utils.log_msg('Restart files - expected files for {} at timestamps'
                       ' {}:'.format(self.model, self.timestamps), level='INFO')
-        coll = self.get_collection()
         for year in range(self.sdate[0], self.edate[0] + 1):
             for tstamp in self.timestamps:
                 for rsttype in self.rst_types:
+                    coll = self.get_collection(stream=rsttype)
                     newfile = self.get_filename(year, tstamp[0], tstamp[1],
                                                 suffix, rsttype)
                     try:
@@ -313,7 +314,8 @@ class RestartFiles(ArchivedFiles):
                     except KeyError:
                         restart_files[coll] = [newfile]
 
-        restart_files[coll] = self.remove_invalid(restart_files[coll])
+        for rstcoll in restart_files:
+            restart_files[rstcoll] = self.remove_invalid(restart_files[rstcoll])
 
         if self.finalcycle:
             # Additionally archive the end date dump

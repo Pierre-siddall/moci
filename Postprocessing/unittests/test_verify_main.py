@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2021 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -12,8 +12,8 @@
  Met Office, FitzRoy Road, Exeter, Devon, EX1 3PB, United Kingdom
 *****************************COPYRIGHT******************************
 '''
-import unittest
 import os
+import unittest
 try:
     # mock is integrated into unittest as of Python 3.3
     import unittest.mock as mock
@@ -49,7 +49,7 @@ class FilenamesTests(unittest.TestCase):
     def test_atmos_components(self):
         ''' Assert realm and component for a given model and field '''
         func.logtest('Assert realm and component:')
-        self.assertTupleEqual(filenames.model_components('atmos', None),
+        self.assertTupleEqual(filenames.model_components('atmos', 'atmos_rst'),
                               ('a', None))
         self.assertTupleEqual(filenames.model_components('atmos', 'pm'),
                               ('a', None))
@@ -59,8 +59,17 @@ class FilenamesTests(unittest.TestCase):
     def test_nemo_components(self):
         ''' Assert realm and component for a given model and field '''
         func.logtest('Assert realm and component:')
-        self.assertTupleEqual(filenames.model_components('nemo', None),
+        self.assertTupleEqual(filenames.model_components('nemo', 'nemo_rst'),
                               ('o', None))
+        self.assertTupleEqual(filenames.model_components('nemo',
+                                                         'nemo_icebergs_rst'),
+                              ('o', None))
+        self.assertTupleEqual(filenames.model_components('nemo',
+                                                         'nemo_ptracer_rst'),
+                              ('o', None))
+        self.assertTupleEqual(filenames.model_components('nemo',
+                                                         'nemo_ice_rst'),
+                              ('i', None))
         self.assertTupleEqual(filenames.model_components('nemo', 'grid-V'),
                               ('o', 'nemo'))
         self.assertTupleEqual(filenames.model_components('nemo', 'diad-T'),
@@ -69,7 +78,10 @@ class FilenamesTests(unittest.TestCase):
     def test_cice_components(self):
         ''' Assert realm and component for a given model and field '''
         func.logtest('Assert realm and component:')
-        self.assertTupleEqual(filenames.model_components('cice', None),
+        self.assertTupleEqual(filenames.model_components('cice', 'cice_rst'),
+                              ('i', None))
+        self.assertTupleEqual(filenames.model_components('cice',
+                                                         'cice_age_rst'),
                               ('i', None))
         self.assertTupleEqual(filenames.model_components('cice', ''),
                               ('i', 'cice'))

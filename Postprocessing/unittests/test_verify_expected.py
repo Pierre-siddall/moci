@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2020 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2021 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -183,7 +183,7 @@ class ArchivedFilesTests(unittest.TestCase):
         self.files.model = 'atmos'
         self.files.naml = verify_namelist.AtmosVerify()
         self.files.naml.ff_streams = []
-        self.assertTupleEqual(self.files.get_fn_components(None),
+        self.assertTupleEqual(self.files.get_fn_components('atmos_rst'),
                               ('rst', 'a', None))
         self.assertTupleEqual(self.files.get_fn_components('pk'),
                               ('atmos_pp', 'a', None))
@@ -198,12 +198,21 @@ class ArchivedFilesTests(unittest.TestCase):
         func.logtest('Assert return of nemocice key, realm and component:')
         self.files.model = 'nemo'
         self.files.naml = verify_namelist.NemoVerify()
-        self.assertTupleEqual(self.files.get_fn_components(None),
+        self.assertTupleEqual(self.files.get_fn_components('nemo_rst'),
                               ('rst', 'o', None))
+        self.assertTupleEqual(self.files.get_fn_components('nemo_icebergs_rst'),
+                              ('rst', 'o', None))
+        self.assertTupleEqual(self.files.get_fn_components('nemo_ptracer_rst'),
+                              ('rst', 'o', None))
+        self.assertTupleEqual(self.files.get_fn_components('nemo_ice_rst'),
+                              ('rst', 'i', None))
         self.assertTupleEqual(self.files.get_fn_components('grid-T'),
                               ('ncf_mean', 'o', 'nemo'))
+
         self.files.model = 'cice'
-        self.assertTupleEqual(self.files.get_fn_components(None),
+        self.assertTupleEqual(self.files.get_fn_components('cice_rst'),
+                              ('rst', 'i', None))
+        self.assertTupleEqual(self.files.get_fn_components('cice_age_rst'),
                               ('rst', 'i', None))
         self.assertTupleEqual(self.files.get_fn_components(''),
                               ('ncf_mean', 'i', 'cice'))
@@ -406,6 +415,21 @@ class RestartFilesTests(unittest.TestCase):
         actual = self.files.expected_files()
         self.assertListEqual(actual['oda.file'], expect)
         self.assertListEqual(list(actual.keys()), ['oda.file'])
+
+    def test_expected_nemo_ice_dumps(self):
+        ''' Test calculation of expected nemo ICE restart files '''
+        func.logtest('Assert list of archived nemo ice dumps:')
+        # Default setting is bi-annual archive
+        self.files.rst_types.append('nemo_ice_rst')
+        expect = ['PREFIXo_19951201_restart_ice.nc',
+                  'PREFIXo_19960601_restart_ice.nc',
+                  'PREFIXo_19961201_restart_ice.nc',
+                  'PREFIXo_19970601_restart_ice.nc',
+                  'PREFIXo_19971201_restart_ice.nc',
+                  'PREFIXo_19980601_restart_ice.nc']
+        actual = self.files.expected_files()
+        self.assertListEqual(actual['ida.file'], expect)
+        self.assertListEqual(list(actual.keys()), ['oda.file', 'ida.file'])
 
     def test_expected_nemo_dumps_buffer(self):
         ''' Test calculation of expected nemo restart files buffer=3'''
