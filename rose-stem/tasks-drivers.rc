@@ -247,7 +247,7 @@
 
     [[check_coupled]]
         inherit = HPC, COUPLED
-        pre-script = 'module load scitools'
+        pre-script = 'module load scitools/default-current'
         script = 'rose task-run --verbose'
         [[[job]]]
             execution time limit = PT10M
