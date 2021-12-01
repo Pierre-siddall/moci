@@ -25,7 +25,8 @@ MCT_ENVIRONMENT_VARS_COMMON = {
 MCT_ENVIRONMENT_VARS_INITIAL = {
     'COUPLING_COMPONENTS' : {'desc': ('Space separated list of components'
                                       ' to be coupled')},
-    'RMP_DIR': {'desc': 'Directory containing remapping weights files'}}
+    'RMP_DIR': {'desc': 'Directory containing remapping weights files'},
+    'NAMCOUPLE_STATIC': {'default_val': ''}}
 
 MCT_ENVIRONMENT_VARS_INITIAL = {**MCT_ENVIRONMENT_VARS_COMMON,
                                 **MCT_ENVIRONMENT_VARS_INITIAL}

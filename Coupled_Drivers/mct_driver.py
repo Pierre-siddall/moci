@@ -52,6 +52,17 @@ def _setup_nemo_cpld(common_env, mct_envar, nemo_envar):
         common.remove_file(nemo_debug_file)
 
 
+def _setup_lfric_cpld(common_envar, mct_envar, lfric_envar):
+    '''
+    Setup LFRIC for coupled configurations
+    '''
+    # Remove potential LFRIC debug netcdf files. If this isn't done MCT will
+    # just append details to existing files
+    lfric_debug_files = glob.glob('*%s*.nc' % lfric_envar['LFRIC_LINK'])
+    for lfric_debug_file in lfric_debug_files:
+        common.remove_file(lfric_debug_file)
+
+
 def _setup_um_cpld(common_env, mct_envar, um_envar):
     '''
     Setup UM for coupled configurations
@@ -73,6 +84,35 @@ def _setup_jnr_cpld(common_env, mct_envar, jnr_envar):
     um_debug_files = glob.glob('*%s*.nc' % jnr_envar['ATMOS_LINK_JNR'])
     for um_debug_file in um_debug_files:
         common.remove_file(um_debug_file)
+
+
+def _generate_ngms_namcouple():
+    '''
+    Generate the namcouple files for ngms coupled models. This function
+    should only be called if we request it
+    '''
+    # This requires access to the MOCI namcouple generation library, test to
+    # see if we can access this
+    try:
+        import generate_nam
+    except ModuleNotFoundError:
+        sys.stderr.write('This run requires access to the MOCI namcouple'
+                         ' generation library\n. Please ensure this is'
+                         ' available\n')
+        sys.exit(error.IMPORT_ERROR)
+    # First remove any existing namcouple files.
+    files_to_tidy = _multiglob('namcouple*')
+    for f_to_tidy in files_to_tidy:
+        # some driver files may have namcouple in the filename
+        if f_to_tidy.split('.')[-1] != 'py':
+            common.remove_file(f_to_tidy)
+
+    # Set up input and output file names for namcouple
+    # creation and select namelist reading mode for input file.
+    file_in = 'cpl_configuration.nml'
+    file_out = 'namcouple'
+    file_mode = 'namelist'
+    generate_nam.generate_nam(file_in, file_out, file_mode)
 
 
 def _setup_rmp_dir(mct_envar, run_info):
@@ -173,6 +213,10 @@ def _setup_executable(common_env, envarinsts, run_info):
 
     # Organise the remapping files
     _setup_rmp_dir(mct_envar, run_info)
+
+    # Are we using automatic namcouple generation for NG-Coupling?
+    if mct_envar['NAMCOUPLE_STATIC'] == '.false.':
+        _generate_ngms_namcouple()
 
     # Are we expecting a namcouple file
     if run_info['l_namcouple']:
@@ -276,7 +320,7 @@ def _sent_coupling_fields(mct_envar, run_info):
                                      cpl_var)
                     sys.exit(error.UNRECOGNISED_CPL_VAR)
                 nml_cpl_vars = couple_freqs[cpl_var]
-                if not 'coupling_control' in shared_nml:
+                if 'coupling_control' not in shared_nml:
                     sys.stderr.write('[FAIL] failed to find coupling_control '
                                      'in SHARED namelist.\n')
                     sys.exit(error.MISSING_CPL_CONTROL)
@@ -338,9 +382,9 @@ def run_driver(envar_insts, mode, run_info):
         model_snd_list = None
     return exe_envar, launch_cmd, run_info, model_snd_list
 
-
 # Dictionary containing the supported models and their assosicated setup
 # function within the driver
 SUPPORTED_MODELS = {'nemo': _setup_nemo_cpld,
                     'um': _setup_um_cpld,
-                    'jnr': _setup_jnr_cpld}
+                    'jnr': _setup_jnr_cpld,
+                    'lfric': _setup_lfric_cpld}

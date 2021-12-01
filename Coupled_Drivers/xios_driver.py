@@ -22,19 +22,24 @@ DESCRIPTION
 #The from __future__ imports ensure compatibility between python2.7 and 3.x
 from __future__ import absolute_import
 import os
-import sys
-import error
+import shutil
 import common
 import dr_env_lib.xios_def
 import dr_env_lib.env_lib
 
-def _update_iodef(is_server_mode, is_coupled_mode, iodef_fname='iodef.xml'):
+def _copy_iodef_custom(xios_evar):
+    '''
+    If a custom iodef file exists, copy this to the required input filename
+    '''
+    if xios_evar['IODEF_CUSTOM']:
+        shutil.copy(xios_evar['IODEF_CUSTOM'], xios_evar['IODEF_FILENAME'])
+
+def _update_iodef(
+        is_server_mode, is_coupled_mode, oasis_components, iodef_fname):
     '''
     Update the iodef.xml file for server/attatched mode and couplng mode.
     is_server_mode and is_coupled_mode are boolean. (true when each option
     is activated, false otherwise).
-    iodef_fname is a string containing the filename for the iodef file, which
-    defaults to 'iodef.xml'
     '''
     # Note we do not use python's xml module for this job, as the comment
     # line prevalent in the first line of the GO5 iodef.xml files renders
@@ -52,12 +57,37 @@ def _update_iodef(is_server_mode, is_coupled_mode, iodef_fname='iodef.xml'):
         elif '<!' not in line and 'using_oasis' in line:
             line = line.replace(text_bool[not is_coupled_mode], \
                                 text_bool[is_coupled_mode])
+        # Update the list of coupled components
+        elif '<!' not in line and 'oasis_codes_id' in line:
+            line = '<variable id="oasis_codes_id"   type="string" >' \
+                   + oasis_components+'</variable>'
 
         iodef_swap.write(line)
 
     iodef_file.close()
     iodef_swap.close()
     os.rename(swapfile_name, iodef_fname)
+
+
+def _setup_coupling_components(xios_envar):
+    '''
+    Set up the coupling components for the iodef file. This is less
+    straightforward than you might imagine, since the names of the componenets
+    are hard coded in the component source code. Nemo becomes toyoce and
+    lfric is lfric. These become a comma separated string.
+    We use the COUPLING_COMPONENTS environment variable to determine this,
+    however it is borrowed from MCT, do we must delete it from the xios_envar
+    container after use
+    '''
+    oasis_components = []
+    if 'lfric' in xios_envar['COUPLING_COMPONENTS']:
+        oasis_components.append('lfric')
+    if 'nemo' in xios_envar['COUPLING_COMPONENTS']:
+        oasis_components.append('toyoce')
+    xios_envar.remove('COUPLING_COMPONENTS')
+    oasis_components = ','.join(oasis_components)
+    return oasis_components, xios_envar
+
 
 def _setup_executable(common_env):
     '''
@@ -85,8 +115,14 @@ def _setup_executable(common_env):
     # then this is a coupled model. Set the coupler flag accordingly.
     using_coupler = 'mct' in common_env['models']
 
+    # Copy the custom IO file if required
+    _copy_iodef_custom(xios_envar)
+
+    # Get the list of coupled componenets
+    oasis_components, xios_envar = _setup_coupling_components(xios_envar)
     # Update the iodef file
-    _update_iodef(using_server, using_coupler)
+    _update_iodef(using_server, using_coupler, oasis_components,
+                  xios_envar['IODEF_FILENAME'])
 
     return xios_envar
 
@@ -148,7 +184,8 @@ def run_driver(common_env, mode, run_info):
     '''
     if mode == 'run_driver':
         exe_envar = _setup_executable(common_env)
-        launch_cmd = _set_launcher_command(common_env['ROSE_LAUNCHER'], exe_envar)
+        launch_cmd = _set_launcher_command(common_env['ROSE_LAUNCHER'],
+                                           exe_envar)
         model_snd_list = None
         if not run_info['l_namcouple']:
             run_info = _sent_coupling_fields(run_info)

@@ -37,11 +37,28 @@ export DRIVERS_FINALISED=false
 L_MCT_VALIDATE=${L_MCT_VALIDATE:=false}
 
 
-# Copy scripts to work directory so they can be found.
-cp $DRIVER_EXTRACT_DIR/build/bin/* ./
+# Copy scripts to work directory so they can be found. We use the dependency
+# checker script so we only copy the files we need.
+FILES_TO_INSTALL=$($DRIVER_EXTRACT_DIR/extract/drivers/Coupled_Drivers/driver_dependencies.py --extract-directory $DRIVER_EXTRACT_DIR/extract/drivers/Coupled_Drivers)
+for file in $FILES_TO_INSTALL; do
+    # handle any packages
+    package_name=$(dirname "${file}")
+    if [[ $package_name != '.' && ! -d $package_name ]]; then
+	mkdir $package_name
+    fi
+    # as package_name will default to . then this will handle all cases
+    cp $DRIVER_EXTRACT_DIR/extract/drivers/Coupled_Drivers/$file $package_name
+done
 
-# Copy our packages to work directory so they can be found
-cp -r $DRIVER_EXTRACT_DIR/extract/drivers/Coupled_Drivers/dr_*_lib ./
+# If the run uses LFRic, and environment variable NAMCOUPLE_STATIC is .false.
+# then we need to use the NGMS_utils libraries. NAMCOUPLE_STATIC is not a
+# compulsory environment variable, so we set a default for backward
+# compatibility
+NAMCOUPLE_STATIC=${NAMCOUPLE_STATIC:=True}
+if [[ "$models" == *lfric* && "$NAMCOUPLE_STATIC" == .false. ]]; then
+    cp $DRIVER_EXTRACT_DIR/extract/drivers/Utilities/NGMS_utils/ngms_namcouple_gen/*py ./
+    cp $DRIVER_EXTRACT_DIR/extract/drivers/Utilities/NGMS_utils/ngms_suite_lib/*py ./
+fi
 
 # Run our drivers, this produces two command files
 #  driver_envar containing environment variables to be exported
@@ -54,6 +71,8 @@ echo '[DRIVER_TEST_SCRIPT] Drivers successfully linked'
 # ensure that any dynamic namcouple setup, namelist setup, and file moving
 # had been completed
 if [ "$L_MCT_VALIDATE" = True ]; then
+    echo "Running MCT validate"
+    cp $DRIVER_EXTRACT_DIR/extract/drivers/Coupled_Drivers/driver_utilities/mct_validate/mct_validate.py ./
     ./mct_validate.py
 fi
 

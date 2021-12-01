@@ -40,7 +40,7 @@
 
 {# The following is to test the drivers in a model run #}
 
-{% set NON_RIGOROUS_PATH='--path= --path=$CYLC_SUITE_SHARE_DIR/fcm_make_ocean/build-ocean/bin/ --path=$CYLC_SUITE_SHARE_DIR/fcm_make_um/build-*/bin/ --path=$CYLC_SUITE_SHARE_DIR/fcm_make_drivers/build/bin/' %}
+{% set NON_RIGOROUS_PATH='--path= --path=$CYLC_SUITE_SHARE_DIR/fcm_make_ocean/build-ocean/bin/ --path=$CYLC_SUITE_SHARE_DIR/fcm_make_um/build-*/bin/ --path=$CYLC_SUITE_SHARE_DIR/fcm_make_drivers/extract/drivers/Coupled_Drivers/' %}
 {% set CYCLE_INIT = '%04d%02d%02dT%02d%02d' % (BASIS[0],BASIS[1],BASIS[2],BASIS[3],BASIS[4]) %}
 {% set NEMO_NPROC = NEMO_IPROC*NEMO_JPROC %}
 {% set OMPTHR_OCN = 1 %}

@@ -80,10 +80,17 @@ def _update_namelists_for_metrics(common_env, cpmip_envar):
 
     # Update namelists for Jnr
     if 'jnr' in common_env['models']:
-        _ = cpmip_um.update_input_for_metrics_um(cpmip_envar, 'SHARED_JNR', 'IOSCNTL_JNR')
+        _ = cpmip_um.update_input_for_metrics_um(cpmip_envar, 'SHARED_JNR',
+                                                 'IOSCNTL_JNR')
 
     # Update namelist for NEMO
     if 'nemo' in common_env['models']:
+        # if NEMO is in the model list then um also has to be, as we need
+        # the value for nn_timing_val
+        assertion_string = 'To determine metrics for NEMO, we must be' \
+                           ' running in a configuration that also includes' \
+                           ' the UM'
+        assert ('um' in common_env['models']), assertion_string
         cpmip_nemo.update_namelists_for_timing_nemo(cpmip_envar, nn_timing_val)
 
 
@@ -275,7 +282,8 @@ def _finalize_cpmip_controller(common_env):
 
     # Run in years per day (as measured by APRUN)
     years_run = cpmip_utils.tasklength_to_years(cpmip_envar['TASKLENGTH'])
-    runtime_days = cpmip_utils.seconds_to_days(int(cpmip_envar['time_in_aprun']))
+    runtime_days = cpmip_utils.seconds_to_days(
+        int(cpmip_envar['time_in_aprun']))
     years_per_day = years_run / runtime_days
 
     aprun_time_message = 'Time in APRUN: %s s\n' % cpmip_envar['time_in_aprun']
@@ -304,9 +312,9 @@ def _finalize_cpmip_controller(common_env):
 
     # Other metrics
     if allocated_cpus:
-        chsy_message = cpmip_metrics.chsy_metric(allocated_cpus, total_cpus, years_run, \
-                                       int(cpmip_envar['time_in_aprun']) * \
-                                       secs_to_hours)
+        chsy_message = cpmip_metrics.chsy_metric(
+            allocated_cpus, total_cpus, years_run,
+            int(cpmip_envar['time_in_aprun']) * secs_to_hours)
         cores_message = 'Cores per node: %s\n' % plat_cores_per_node
     else:
         chsy_message = ''
@@ -343,7 +351,8 @@ def _finalize_cpmip_controller(common_env):
 
         # Determine XIOS client
         if 'xios' in common_env['models']:
-            xios_client_mean, xios_client_max = cpmip_xios.measure_xios_client_times()
+            xios_client_mean, xios_client_max \
+                = cpmip_xios.measure_xios_client_times()
             xios_io_mess = 'XIOS spends on average %i s in each client, and' \
                 ' a maxiumum time of %i s\n' % (xios_client_mean,
                                                 xios_client_max)
@@ -357,7 +366,9 @@ def _finalize_cpmip_controller(common_env):
         core_hour_cycle = total_cpus * \
             float(int(cpmip_envar['time_in_aprun']) * secs_to_hours)
         data_produced, data_intensity = \
-            cpmip_metrics.data_intensity_final(core_hour_cycle, common_env, cpmip_envar)
+            cpmip_metrics.data_intensity_final(core_hour_cycle,
+                                               common_env,
+                                               cpmip_envar)
         if data_intensity > -1:
             data_intensity_msg = 'This cycle produces %.2f GiB of data.\n' \
                 '  The data intensity metric is %.6f GiB per core hour\n' % \
@@ -371,7 +382,8 @@ def _finalize_cpmip_controller(common_env):
 
 
     if 'true' in cpmip_envar['COMPLEXITY'].lower():
-        complexity_msg = cpmip_metrics.complexity_metric(common_env, cpmip_envar)
+        complexity_msg = cpmip_metrics.complexity_metric(common_env,
+                                                         cpmip_envar)
     else:
         complexity_msg = ''
     jpsy_msg = cpmip_metrics.jpsy_metric(

@@ -12,22 +12,25 @@
  Met Office, FitzRoy Road, Exeter, Devon, EX1 3PB, United Kingdom
 *****************************COPYRIGHT******************************
 NAME
-    xios_def.py
+    lfric_def.py
 
 DESCRIPTION
-    Definition of the environment variables required for an xios model
+    Definition of the environment variables required for an lfric model
     run
 '''
 
-XIOS_ENVIRONMENT_VARS_INITIAL = {
-    'COUPLING_COMPONENTS' : {'default_val': ''},
-    'XIOS_NPROC': {'default_val': '0',
-                   'triggers': [[lambda my_val: my_val != '0',
-                                 ['XIOS_LINK', 'ROSE_LAUNCHER_PREOPTS_XIOS',
-                                  'XIOS_EXEC']]]},
-    'IODEF_CUSTOM': {'default_val': ''},
-    'IODEF_FILENAME': {'default_val': 'iodef.xml'},
-    'ROSE_LAUNCHER_PREOPTS_XIOS': {'default_val': 'unset'},
-    'XIOS_EXEC': {},
-    'XIOS_LINK': {'default_val': 'xios.exe'}
+LFRIC_ENVIRONMENT_VARS_INITIAL = {
+    'CONFIG_NL_PATH_LFRIC': {},
+    'LFRIC_EXEC': {},
+    'LFRIC_LINK': {},
+    'ROSE_LAUNCHER_PREOPTS_LFRIC': {'default_val': 'unset',
+                                    'triggers': [
+                                        [lambda my_val: my_val == 'unset',
+                                         ['LFRIC_NODES', 'OMPTHR_LFRIC',
+                                          'LFRIC_NPROC',
+                                          'LFRICHYPERTHREADS']]]},
+    'LFRIC_NPROC': {},
+    'LFRIC_NODES': {},
+    'OMPTHR_LFRIC': {},
+    'LFRICHYPERTHREADS': {}
     }

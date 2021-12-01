@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021 Met Office. All rights reserved.
+ (C) Crown copyright 2020 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -22,7 +22,7 @@ import unittest
 import sys
 import os
 
-assert sys.version_info >= (3, 6)
+assert sys.version_info >= (2, 7)
 
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
 
@@ -31,18 +31,14 @@ def main():
     Run unit tests
     '''
     groups = {
-        'all': 'test*.py',
-        'env_lib': 'test_env_lib.py',
-        'aprun_command': 'test_aprun_command_construction.py',
-        'mct': 'test_mct_driver.py',
-        'lfric': 'test_lfric_driver.py',
-        'xios': 'test_xios_driver.py',
-        'dependency_checker': 'test_driver_dependencies.py',
-        'cpmip': 'test_cpmip*py',
-    }
+        'all': 'test_*.py',
+        'lib': 'test_read_nl_lib*.py',
+        'rose_conf': 'test_read_rose_app_conf.py',
+        'f90_nl': 'test_read_nl.py',
+        }
 
     parser = argparse.ArgumentParser(
-        description='MOCI Drivers App UnitTests',
+        description='NGMS suite library unit tests',
         formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument('-g', '--group',
