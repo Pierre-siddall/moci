@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021 Met Office. All rights reserved.
+ (C) Crown copyright 2022 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -254,7 +254,7 @@ N ROUTINE  MEAN  MEDIAN  SD % of mean  MAX (PE)  MIN  (PE)
         '''
         Test the measurement of oasis timings from the UM
         '''
-        expected_result = (3685.3, 130.68, 20.91)
+        expected_result = (3685.3, 130.69, 20.91)
         self.assertEqual(cpmip_um.get_um_info(self.pe0_output_name),
                          expected_result)
 
@@ -263,7 +263,7 @@ N ROUTINE  MEAN  MEDIAN  SD % of mean  MAX (PE)  MIN  (PE)
         Test the measurement of oasis timings from the UM for the hybrid
         model
         '''
-        expected_result = (3685.3, 145.43, 24.36)
+        expected_result = (3685.3, 145.44, 24.36)
         self.assertEqual(cpmip_um.get_um_info(self.pe0_hybrid_name),
                          expected_result)
 

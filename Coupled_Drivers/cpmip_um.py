@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021 Met Office. All rights reserved.
+ (C) Crown copyright 2022 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -100,6 +100,7 @@ def get_um_info(pe0_output):
     get_times = False
 
     # Zero times in case they're not in output
+    oasis3_grid_time = 0
     geto2a_time = 0
     puta2o_time = 0
     inita2o_time = 0
@@ -107,6 +108,7 @@ def get_um_info(pe0_output):
     put_hyb_time = 0
     init_hyb_time = 0
 
+    oasis3_grid_regex = re.compile(r"\d+\s*oasis3_grid\s*(\d+.\d+)")
     geto2a_regex = re.compile(r"\d+\s*oasis3_geto2a\s*(\d+.\d+)")
     puta2o_regex = re.compile(r"\d+\s*oasis3_puta2o\s*(\d+.\d+)")
     inita2o_regex = re.compile(r"\d+\s*oasis3_inita2o\s*(\d+.\d+)")
@@ -122,6 +124,7 @@ def get_um_info(pe0_output):
                 get_times = False
             # Pull out the average times for the coupling routines
             if get_times:
+                oasis3_grid_match = oasis3_grid_regex.search(line)
                 geto2a_match = geto2a_regex.search(line)
                 puta2o_match = puta2o_regex.search(line)
                 inita2o_match = inita2o_regex.search(line)
@@ -129,6 +132,8 @@ def get_um_info(pe0_output):
                 put_hyb_match = put_hyb_regex.search(line)
                 init_hyb_match = init_hyb_regex.search(line)
                 um_shell_match = um_shell_regex.search(line)
+                if oasis3_grid_match:
+                    oasis3_grid_time = float(oasis3_grid_match.group(1))
                 if geto2a_match:
                     geto2a_time = float(geto2a_match.group(1))
                 if puta2o_match:
@@ -147,7 +152,7 @@ def get_um_info(pe0_output):
         model_time = um_shell_time
         put_time = puta2o_time + put_hyb_time
         coupling_time = put_time + geto2a_time + inita2o_time + \
-            get_hyb_time + init_hyb_time
+            get_hyb_time + init_hyb_time + oasis3_grid_time
     except NameError:
         sys.stderr.write('[FAIL] Unable to determine Oasis timings from'
                          ' the UM standard output\n')
