@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021 Met Office. All rights reserved.
+ (C) Crown copyright 2022 Met Office. All rights reserved.
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
  of the code, the use, duplication or disclosure of it is strictly
@@ -16,12 +16,21 @@ NAME
 DESCRIPTION
     Driver for the UM component, called from link_drivers
 '''
+import datetime
 import os
 import sys
 import shutil
 import glob
 import re
 import stat
+
+try:
+    import cf_units
+except ImportError:
+    error = ('Unable to import cf_units. Ensure scitools module '
+             'has been loaded first.')
+    sys.exit(error)
+
 import common
 import error
 import save_um_state
@@ -33,57 +42,193 @@ try:
 except ImportError:
     pass
 
+
+def _expand_fortran_namelist(nl_text):
+    """
+    In fortran namelists there is the opportunity to collapse N repeated
+    values (v) into the form N*V. This can cause problems if you try
+    to parse the data. This function expands these entries.
+
+    """
+    # Define the pattern in order to search for instances in the namelist
+    # of the string N*v, where the value optionally has a decimal point.
+    pattern = r"(\d+)\*([\d\.]+)"
+    while re.search(pattern, nl_text):
+        match = re.search(pattern, nl_text)
+        repeats = int(match.group(1))
+        value = match.group(2)
+        value_list = [value]*repeats
+        values_str = ", ".join(value_list)
+        # The matched pattern needs to have the "*" escaped
+        # or it treats it as a matching extension
+        nl_text = re.sub(match.group(0).replace('*', r'\*'),
+                         values_str, nl_text)
+
+    return nl_text
+
+
+def _grab_file_info(infile, pattern):
+    '''
+    Retrieve the required information from a text file, as specified
+    by the Regex argument.
+    '''
+    file_handle = common.open_text_file(infile, 'r')
+    for line in file_handle.readlines():
+        # Expand any N repeating namelist values V of the form N*V
+        line = _expand_fortran_namelist(line)
+        match = re.search(pattern, line)
+        if match:
+            file_info = match.group(1)
+            break
+    file_handle.close()
+
+    if match is None:
+        msg = "Pattern %s not found in file %s" % (pattern, infile)
+        sys.stderr.write(msg)
+        sys.exit(error.IOERROR)
+
+    return file_info
+
+
 def _grab_xhist_date(xhistfile):
     '''
     Retrieve the checkpoint dump date from the variable CHECKPOINT_DUMP_IM
     in a Unified Model xhist file
     '''
-    xhist_handle = common.open_text_file(xhistfile, 'r')
-    for line in xhist_handle.readlines():
-        match = re.search(r"CHECKPOINT_DUMP_IM\s*=\s*'\S*da(\d{8})", line)
-        if match:
-            checkpoint_date = match.group(1)
-            break
-    else:
-        sys.stderr.write('Unable to find checkpoint date within XHIST file %s'
-                         '\nPlease check the contents of this file and'
-                         ' rerun. It is possible that this cycle of the'
-                         '\nmodel has not been configured to produce a'
-                         ' checkpoint restart, (in which case there will be no'
-                         '\nvalue for CHECKPOINT_DUMP_IM), or there is a file'
-                         ' system delay, especially on Lustre (the file will'
-                         '\nbe zero length)' % xhistfile)
-        sys.exit(error.CORRUPTED_MODEL_FILE_ERROR)
+    # Pattern that defines the CHECKPOINT_DUMP_IM variable, which
+    # specifies the location of the UM restart dump. The dump file
+    # name from climate suites has the format *daYYYYmmdd.
+    checkpoint_pattern = r"CHECKPOINT_DUMP_IM\s*=\s*'\S*da(\d{8})"
+    checkpoint_date = _grab_file_info(xhistfile, checkpoint_pattern)
 
-    xhist_handle.close()
     return checkpoint_date
 
 
-def verify_fix_rst(xhistfile, cyclepoint, workdir, task_name, temp_hist_name):
+def _grab_xhist_start_date(xhistfile):
     '''
-    Verify that the restart dump the UM is attempting to pick up is for the
-    start of the cycle. The cyclepoint variable has the form yyyymmddThhmmZ.
-    If they don't match, attempt an automatic fix
+    Get the model basis time from MODEL_DATA_TIME in a Unified Model
+    xhist file.
     '''
-    cycle_date_string = cyclepoint.split('T')[0]
+    # Pattern that defines the MODEL_DATA_TIME entry that specifies
+    # the model basis time, which has the format YYYY,mm,dd,HH,MM,SS.
+    start_date_pattern = r"MODEL_DATA_TIME\s*=\s*([\d\s,]+),"
+    start_date = _grab_file_info(xhistfile, start_date_pattern)
+    start_date = datetime.datetime.strptime(
+        start_date.replace(" ", ""), "%Y,%m,%d,%H,%M,%S")
+
+    return start_date
+
+
+def _grab_xhist_completed_steps(xhistfile):
+    '''
+    Get the number of completed model steps from the H_STEPIM
+    variable in the Unified Model xhist file.
+    '''
+    # Pattern that defines the H_STEPIM entry that defines the number of
+    # model time-steps.
+    steps_pattern = r"H_STEPIM\s*=\s*(\d+),"
+    n_steps = _grab_file_info(xhistfile, steps_pattern)
+
+    return int(n_steps)
+
+
+def _grab_atmos_timestep_info(atmos_cntl_file):
+    '''
+    Get the number of seconds per period and the number of steps per
+    period from the Unified Model's ATMOSCNTL file.
+    '''
+    # Define patterns that respectively specify the number of steps per
+    # time period, and the number of seconds per period.
+    n_steps_pattern = r"steps_per_periodim\s*=\s*(\d+),"
+    n_secs_pattern = r"secs_per_periodim\s*=\s*(\d+),"
+
+    n_steps_per_period = _grab_file_info(
+        atmos_cntl_file, n_steps_pattern)
+    n_secs_per_period = _grab_file_info(
+        atmos_cntl_file, n_secs_pattern)
+
+    return float(n_steps_per_period), float(n_secs_per_period)
+
+
+def _calc_current_model_date(xhistfile, calendar, prev_work_dir):
+    '''
+    Calculates the current model date based on the model start date
+    for the previous model step, and the number of completed
+    timesteps.
+    '''
+    ref_date_format = 'seconds since %Y-%m-%d %H:%M:%S'
+
+    if calendar == "360day":
+        calendar = "360_day"
+
+    # Retrieve the model start date for this model run, and
+    # the number of completed steps from the UM history file.
+    model_start_date = _grab_xhist_start_date(xhistfile)
+    n_completed_steps = _grab_xhist_completed_steps(xhistfile)
+
+    # Get the number of time steps per period and the number of
+    # seconds per period from the UM namelist.
+    n_steps_per_period, n_secs_per_period = _grab_atmos_timestep_info(
+        os.path.join(prev_work_dir, 'ATMOSCNTL'))
+
+    timestep_seconds = n_secs_per_period / n_steps_per_period
+    progress_seconds = n_completed_steps * timestep_seconds
+
+    # Provide a reference time for the timestep incrementation.
+    ref_time = model_start_date.strftime(ref_date_format)
+    model_date_num_secs = cf_units.date2num(
+        model_start_date, ref_time, calendar=calendar) + progress_seconds
+
+    current_model_date = cf_units.num2date(
+        model_date_num_secs, ref_time, calendar=calendar)
+
+    return current_model_date
+
+
+def verify_fix_rst(xhistfile, cyclepoint, workdir, task_name, temp_hist_name,
+                   calendar, task_param_run=None):
+    '''
+    Verify that the date associated with the restart dump the UM is
+    attempting to pick up is consistent with the start date of the
+    current CRUN. If they don't match, attempt an automatic
+    fix. Alternatively, look within the user-defined path defined by
+    the environment variable PREV_MODEL_WORKDIR if so specified. The
+    cyclepoint variable has the form yyyymmddThhmmZ.
+    '''
+    # Compare the checkpoint date from the history file with the
+    # current model date. This is calculated using the number of
+    # completed timesteps completed thus far, and the model basis
+    # time. The two should be consistent.
     checkpoint_date = _grab_xhist_date(xhistfile)
-    if checkpoint_date != cycle_date_string:
+
+    #find the work directory for the previous cycle
+    prev_work_dir = common.find_previous_workdir(
+        cyclepoint, workdir, task_name, task_param_run)
+
+    current_model_date = _calc_current_model_date(
+        xhistfile, calendar, prev_work_dir)
+
+    current_model_date = current_model_date.strftime('%Y%m%d')
+
+    # If we are running a seasonal forecast, the NRUN and CRUNS are
+    # done during the same cycle, unlike other climate suites. For the
+    # former, we can compare the UM dump restart date with the
+    # expected model progress.
+    if checkpoint_date != current_model_date:
         # write the message to both standard out and standard error
         msg = '[WARN] The UM restart data does not match the ' \
-            ' current cycle time\n.' \
-            '   Cycle time is %s\n' \
-            '   UM restart time is %s\n' % (cycle_date_string, checkpoint_date)
+            ' current model time\n.' \
+            ' Current model date is %s\n' \
+            ' UM restart time is %s\n' % (current_model_date, checkpoint_date)
         sys.stdout.write(msg)
-        #find the work directory for the previous cycle
-        prev_work_dir = common.find_previous_workdir(cyclepoint, workdir,
-                                                     task_name)
+
         old_hist_path = os.path.join(prev_work_dir, 'history_archive')
         old_hist_files = [f for f in os.listdir(old_hist_path) if
                           temp_hist_name in f]
         old_hist_files.sort(reverse=True)
         for o_h_f in old_hist_files:
             xhist_date = _grab_xhist_date(os.path.join(old_hist_path, o_h_f))
-            if xhist_date == cycle_date_string:
+            if xhist_date == current_model_date:
                 shutil.copy(os.path.join(old_hist_path, o_h_f),
                             xhistfile)
                 sys.stdout.write('%s\n' % ('*'*42,))
@@ -141,11 +286,25 @@ def _setup_executable(common_env):
                              um_envar['HISTORY'])
             sys.exit(error.MISSING_DRIVER_FILE_ERROR)
         if common_env['DRIVERS_VERIFY_RST'] == 'True':
-            verify_fix_rst(um_envar['HISTORY'],
-                           common_env['CYLC_TASK_CYCLE_POINT'],
-                           common_env['CYLC_TASK_WORK_DIR'],
-                           common_env['CYLC_TASK_NAME'],
-                           'temp_hist')
+
+            # In seasonal forecasting, model runs are split into NRUNs and
+            # CRUNs within the same cycle. Use the CYLC_TASK_PARAM_run
+            # variable to access the previous model step work directory.
+            if common_env['SEASONAL'] == 'True':
+                verify_fix_rst(um_envar['HISTORY'],
+                               common_env['CYLC_TASK_CYCLE_POINT'],
+                               common_env['CYLC_TASK_WORK_DIR'],
+                               common_env['CYLC_TASK_NAME'],
+                               'temp_hist',
+                               common_env['CALENDAR'],
+                               common_env['CYLC_TASK_PARAM_run'])
+            else:
+                verify_fix_rst(um_envar['HISTORY'],
+                               common_env['CYLC_TASK_CYCLE_POINT'],
+                               common_env['CYLC_TASK_WORK_DIR'],
+                               common_env['CYLC_TASK_NAME'],
+                               'temp_hist',
+                               common_env['CALENDAR'])
     um_envar.add('HISTORY_TEMP', 'thist')
 
     # Calculate total number of processes
