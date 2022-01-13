@@ -1,6 +1,6 @@
 {% if EXTRACT_HOST is defined %}
     [[LINUX_DESKTOP]]
-        pre-script = "module load scitools/production-os45-1"
+        pre-script = "module load scitools/default-current"
         [[[job]]]
             batch system = background
         [[[remote]]]
@@ -8,7 +8,7 @@
 {% endif %}
     
     [[LINUX_SERVER]]
-        pre-script = "module load scitools/production-os45-1"
+        pre-script = "module load scitools/default-current"
         [[[job]]]
             batch system = slurm
             execution time limit = PT15M
@@ -40,7 +40,7 @@ module load scitools scitools/default-current ;
 module swap ifort/16.0_64 ;
 module load um_tools ;
 {% else %}
-module load scitools/production-os45-1
+module load scitools/production_legacy-os42-1
 {% endif %}
 module list ;
 echo ;

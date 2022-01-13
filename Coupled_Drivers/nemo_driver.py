@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2022 Met Office. All rights reserved.
+ (C) Crown copyright 2021 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -28,14 +28,6 @@ import shutil
 import inc_days
 import common
 import error
-
-try:
-    import cf_units
-except ImportError:
-    error = ('Unable to import cf_units. Ensure the scitools module has '
-             'been loaded first.')
-    sys.exit(error)
-
 import dr_env_lib.nemo_def
 import dr_env_lib.env_lib
 import write_namcouple
@@ -124,73 +116,25 @@ def _verify_nemo_rst(cyclepointstr, nemo_rst, nemo_nl, nemo_nproc):
             sys.exit(error.MISSING_MODEL_FILE_ERROR)
 
 
-def _calc_current_model_date(model_basis_time, time_step, num_steps,
-                             calendar):
+def _verify_fix_rst(restartdate, cyclepoint, nemo_rst):
     '''
-    Calculate the current model date using the basis time,
-    and the number of time-steps covered in a given model run.
-
-    :arg: datetime model_basis_time : Model basis time
-    :arg: int time_step             : Ocean model timestep (in seconds)
-    :arg: int num_steps             : Num. timesteps covered in this
-                                      model run
-    :arg: string calendar           : Calendar used in the model run
-
-    '''
-    ref_date_format = 'seconds since %Y-%m-%d %H:%M:%S'
-
-    if calendar == "360day":
-        calendar = "360_day"
-
-    # Provide a reference time for the timestep incrementation.
-    ref_time = model_basis_time.strftime(ref_date_format)
-
-    model_progress_secs = cf_units.date2num(
-        model_basis_time, ref_time, calendar=calendar) + (time_step * num_steps)
-
-    current_model_date = cf_units.num2date(
-        model_progress_secs, ref_time, calendar=calendar)
-
-    return current_model_date
-
-
-def _verify_fix_rst(restartdate, nemo_rst, model_basis_time, time_step,
-                    num_steps, calendar):
-    '''
-    Verify that the restart file for nemo corresponds to the model
-    time reached within a given model run. If they don't match, then
+    Verify that the restart file for nemo is at the cyclepoint for the
+    start of this cycle. The cyclepoint variable has form
+    yyyymmddThhmmZ, restart date yyyymmdd. If they don't match, then
     make sure that nemo restarts from the correct restart date
-
-    :arg: string restartdate        : NEMO dump file date
-    :arg: string nemo_rst           : Path to NEMO restart files
-    :arg: string model_basis_time   : Model basis time
-    :arg: int time_step             : Ocean time-step (in seconds)
-    :arg: int num_steps             : Num. of time-steps covered
-    :arg: string calendar           : Calendar used in model
-
     '''
-    # Calculate the model restart time based on the start date of the
-    # last calculated model step, the time-step and the number of
-    # steps. Then convert the date format.
-    model_basis_datetime = datetime.datetime.strptime(
-        model_basis_time, "%Y%m%d")
-
-    model_restart_date = _calc_current_model_date(
-        model_basis_datetime, time_step, num_steps, calendar)
-
-    model_restart_date = model_restart_date.strftime('%Y%m%d')
-
-    if restartdate == model_restart_date:
+    cycle_date_string = cyclepoint.split('T')[0]
+    if restartdate == cycle_date_string:
         sys.stdout.write('[INFO] Validated NEMO restart date\n')
     else:
         # Write the message to both standard out and standard error
         msg = '[WARN] The NEMO restart data does not match the ' \
-            ' current model time\n.' \
-            '   Current model date is %s\n' \
+            ' current cycle time\n.' \
+            '   Cycle time is %s\n' \
             '   NEMO restart time is %s\n' \
             '[WARN] Automatically removing NEMO dumps ahead of ' \
-            'the current model date, and pick up the dump at ' \
-            'this time\n' % (model_restart_date, restartdate)
+            'the current cycletime, and pick up the dump at ' \
+            'this time\n' % (cycle_date_string, restartdate)
         sys.stdout.write(msg)
         sys.stderr.write(msg)
         #Remove all nemo restart files that are later than the correct
@@ -203,9 +147,9 @@ def _verify_fix_rst(restartdate, nemo_rst, model_basis_time, time_step,
                              re.findall(generic_rst_regex, f)]
         for restart_file in all_restart_files:
             fname_date = re.findall(r'\d{8}', restart_file)[0]
-            if fname_date > model_restart_date:
+            if fname_date > cycle_date_string:
                 common.remove_file(os.path.join(nemo_rst, restart_file))
-        restartdate = model_restart_date
+        restartdate = cycle_date_string
     return restartdate
 
 
@@ -304,17 +248,7 @@ def _setup_executable(common_env):
             sys.stdout.write('[INFO] directory is %s\n' % direc)
             sys.stdout.write('[INFO] This is a New Run. Renaming old NEMO'
                              ' history directory\n')
-
-            # In seasonal forecasting, we automatically apply
-            # short-stepping to re-try the model. Before re-attempting
-            # it, remove the associated NEMO history directory.
-            old_hist_dir = "%s.%s" % (direc, time.strftime("%Y%m%d%H%M"))
-
-            if (common_env['SEASONAL'] == 'True' and
-                    int(common_env['CYLC_TASK_TRY_NUMBER']) > 1):
-                common.remove_latest_hist_dir(old_hist_dir)
-
-            os.rename(direc, old_hist_dir)
+            os.rename(direc, '%s.%s' % (direc, time.strftime("%Y%m%d%H%M")))
             os.makedirs(direc)
         elif not os.path.isdir(direc):
             sys.stdout.write('[INFO] Creating NEMO restart directory:\n  %s' %
@@ -390,7 +324,6 @@ def _setup_executable(common_env):
     gl_last_step_match = 'nn_itend='
     gl_step_int_match = 'rn_rdt='
     gl_nemo_restart_date_match = 'ln_rstdate'
-    gl_model_basis_time = 'nn_date0='
 
     # Read values from the nemo namelist file used by the previous cycle
     # (if appropriate), or the configuration namelist if this is the initial
@@ -436,22 +369,14 @@ def _setup_executable(common_env):
 
     nemo_dump_time = "00000000"
 
-    # Get the model basis time for this run (YYYYMMDD)
-    _, model_basis_val = common.exec_subproc(
-        ['grep', gl_model_basis_time, history_nemo_nl])
-    nemo_model_basis = re.findall(r'.+=(.+),', model_basis_val)[0]
-
     if os.path.isfile(latest_nemo_dump):
         nemo_dump_time = re.findall(r'_(\d*)_restart', latest_nemo_dump)[0]
         # Verify the dump time against cycle time if appropriate, do the
         # automatic fix, and check all other restart files match
         if common_env['DRIVERS_VERIFY_RST'] == 'True':
-            nemo_dump_time = _verify_fix_rst(
+            nemo_dump_time = _verify_fix_rst( \
                 nemo_dump_time,
-                nemo_rst,
-                nemo_model_basis, nemo_step_int, nemo_last_step,
-                common_env['CALENDAR'])
-
+                common_env['CYLC_TASK_CYCLE_POINT'], nemo_rst)
             _verify_nemo_rst(nemo_dump_time, nemo_rst, nemo_envar['NEMO_NL'],
                              int(nemo_envar['NEMO_NPROC']))
         # link restart files no that the last output one becomes next input one
