@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021 Met Office. All rights reserved.
+ (C) Crown copyright 2022 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -28,13 +28,13 @@ import sys
 import re
 import datetime
 import time
+import subprocess
 import time2days
 import inc_days
 import common
 import error
 import dr_env_lib.cice_def
 import dr_env_lib.env_lib
-import subprocess
 
 
 def __expand_array(short_array):
@@ -53,14 +53,25 @@ def __expand_array(short_array):
         long_array = long_array[:-1]
     return long_array
 
-def _verify_fix_rst(pointerfile, cyclepoint):
+def _verify_fix_rst(pointerfile, task_start):
     '''
-    Verify the restart file for cice is at the cyclepoint for the start of
-    this cycle. The cyclepoint variable has form yyyymmddThhmmZ, pointerfile
-    contains a string of the path to the restart file. If the dates dont
-    match, fix the date in the pointerfile.
+    Verify the restart file for cice is at the time associated with
+    the TASKSTART variable. The pointerfile contains a string of the
+    path to the restart file. If the dates dont match, fix the date in
+    the pointerfile.
+
     '''
-    cycle_date_string = cyclepoint.split('T')[0]
+    # Convert the format of the task start time. Seasonal forecasting
+    # uses a date format that includes seconds, so account for this in
+    # the choice of date formatting.
+    try:
+        task_start_datetime = datetime.datetime.strptime(
+            task_start, "%Y,%m,%d,%H,%M,%S")
+    except ValueError:
+        task_start_datetime = datetime.datetime.strptime(
+            task_start, "%Y,%m,%d,%H,%M")
+    task_start = task_start_datetime.strftime('%Y%m%d')
+
     # deal with the pointer file
     with common.open_text_file(pointerfile, 'r') as pointer_handle:
         restart_path = pointer_handle.readlines()[0].strip()
@@ -74,18 +85,18 @@ def _verify_fix_rst(pointerfile, cyclepoint):
                              os.path.basename(restart_path))
     restartdate = restartmatch.group(0).replace('-', '')
 
-    if restartdate != cycle_date_string:
+    if restartdate != task_start:
         # write the message to both standard out and standard error
         msg = '[WARN ]The CICE restart data does not match the ' \
-            ' current cycle time\n.' \
-            '   Cycle time is %s\n' \
-            '   CICE restart time is %s\n' % (cycle_date_string, restartdate)
+            ' current task start time\n.' \
+            '   Task start time is %s\n' \
+            '   CICE restart time is %s\n' % (task_start, restartdate)
         sys.stdout.write(msg)
         sys.stderr.write(msg)
-        #Turn the cycle_date_string into form yyyy-mm-dd
-        fixed_restart_date = '%s-%s-%s' % (cycle_date_string[:4],
-                                           cycle_date_string[4:6],
-                                           cycle_date_string[6:8])
+        #Turn the task_start variable into form yyyy-mm-dd
+        fixed_restart_date = '%s-%s-%s' % (task_start[:4],
+                                           task_start[4:6],
+                                           task_start[6:8])
         #Swap the date in the restart path
         restart_path_fixed = restart_path.replace(restartmatch.group(0),
                                                   fixed_restart_date)
@@ -275,7 +286,17 @@ def _setup_executable(common_env):
             sys.stdout.write('[INFO] directory is %s\n' % direc)
             sys.stdout.write('[INFO] This is a New Run. Renaming old CICE'
                              ' history directory\n')
-            os.rename(direc, '%s.%s' % (direc, time.strftime("%Y%m%d%H%M")))
+
+            # In seasonal forecasting, we automatically apply
+            # short-stepping to re-try the model. Before re-attempting
+            # it, remove the associated CICE history directory.
+            old_hist_dir = "%s.%s" % (direc, time.strftime("%Y%m%d%H%M"))
+
+            if (common_env['SEASONAL'] == 'True' and
+                    int(common_env['CYLC_TASK_TRY_NUMBER']) > 1):
+                common.remove_latest_hist_dir(old_hist_dir)
+
+            os.rename(direc, old_hist_dir)
             os.makedirs(direc)
         elif not os.path.isdir(direc):
             sys.stdout.write('[INFO] Creating CICE output directory %s\n' %
@@ -316,7 +337,7 @@ def _setup_executable(common_env):
     # if this is a continuation verify the restart file date
     if cice_runtype == 'continue' and \
             common_env['DRIVERS_VERIFY_RST'] == 'True':
-        _verify_fix_rst(cice_restart, common_env['CYLC_TASK_CYCLE_POINT'])
+        _verify_fix_rst(cice_restart, common_env['TASKSTART'])
 
     # if this is a continuation from a failed NWP job we check that the last
     # CICE dump matches the time of LAST_DUMP_HOURS

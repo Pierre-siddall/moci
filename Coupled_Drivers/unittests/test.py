@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021 Met Office. All rights reserved.
+ (C) Crown copyright 2022 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -39,6 +39,10 @@ def main():
         'xios': 'test_xios_driver.py',
         'dependency_checker': 'test_driver_dependencies.py',
         'cpmip': 'test_cpmip*py',
+        'nemo_driver': 'test_nemo_driver.py',
+        'um_driver': 'test_um_driver.py',
+        'cice_driver': 'test_cice_driver.py',
+        'common': 'test_common.py'
     }
 
     parser = argparse.ArgumentParser(

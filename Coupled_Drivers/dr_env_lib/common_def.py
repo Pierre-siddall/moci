@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021 Met Office. All rights reserved.
+ (C) Crown copyright 2022 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -40,6 +40,13 @@ COMMON_ENVIRONMENT_VARS_INIT_FIN = {
     'CYLC_TASK_PARAM_run': {'default_val': False},
     'CONTINUE': {'default_val': 'false'},
     'CONTINUE_FROM_FAIL': {'default_val': 'false'},
+    # The following variable is associated with running seasonal forecasts.
+    # If true, it allows us to handle the fact that multiple CRUNS are
+    # run within the same cycle, thereby allowing us to fnd appropriate
+    # running directories. CYLC_TASK_TRY_NUMBER will also allow us to
+    # monitor the number of model attempts.
+    'SEASONAL': {'default_val': 'False'},
+    'CYLC_TASK_TRY_NUMBER': {},
     # if DRIVERS_VERIFY_RST 'False', then automatic restart mode disabled
     'DRIVERS_VERIFY_RST': {'default_val': 'True'},
     'HYBRID_COMPONENT': {'default_val': 'none'},
