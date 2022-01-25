@@ -16,12 +16,13 @@ MODULE_STR = {{ MODULES|join(' ') }}
 [scheduling]
     [[dependencies]]
 	graph = """
-	      	prepare_hpc_host => extract_oasis & extract_xios
-		extract_oasis => build_oasis => run_oasis_tutorial => create_oasis_module
-		create_oasis_module & extract_xios => build_xios
-		build_xios => create_xios_module
-		create_oasis_module & create_xios_module => create_prgenv_module
-		"""
+                prepare_hpc_host => extract_oasis & extract_xios_background
+                extract_oasis => build_oasis => run_oasis_tutorial => create_oasis_module
+                create_oasis_module & extract_xios_background => build_xios
+                build_xios => create_xios_module
+                create_oasis_module & create_xios_module => create_prgenv_module
+                create_xios_module => create_prgenv_module
+                """
 
 [runtime]
     [[root]]
@@ -35,14 +36,17 @@ MODULE_STR = {{ MODULES|join(' ') }}
             --mem=1G
             --qos=normal
             --partition=rhel7
+    [[LOCALHOST]]
+        [[[remote]]]
+            host={{ROSE_ORIG_HOST}}
+        [[[job]]]
+            batch system = background
     [[HPC]]
 	env-script = "{{MODULE_CMD}}"
         [[[job]]]
             batch system = pbs
         [[[remote]]]
             host = $(rose host-select {{ HPC_HOST_OASIS }})
-        [[[directives]]]
-            -W umask=0022
     [[HPC_SERIAL]]
         inherit = None, HPC
         [[[job]]]
@@ -50,13 +54,13 @@ MODULE_STR = {{ MODULES|join(' ') }}
         [[[environment]]]
             ROSE_TASK_N_JOBS = 1
         [[[directives]]]
-            -l ncpus = 1
+            -l select=1:ncpus=1
             -q = shared
     [[OASIS]]
         [[[environment]]]
 	    PRISMPATH=$CYLC_SUITE_RUN_DIR/share/oasis3-mct
     [[extract_oasis]]
-        inherit=LINUX_SERVER
+        inherit=LOCALHOST
         env-script = """
 		     eval $(rose task-env);
 		     export OASIS_BUILD_DIR="~/cylc-run/$ROSE_SUITE_NAME/share"
@@ -65,6 +69,7 @@ MODULE_STR = {{ MODULES|join(' ') }}
         [[[directives]]]
             --mem=8G
         [[[environment]]]
+            HPC_HOST_USERNAME={{HPC_HOST_USERNAME}}
             HPC_HOST_OASIS={{HPC_HOST_OASIS}}
 	    EXTRACT_OASIS={{EXTRACT_OASIS}}
 {% if EXTRACT_OASIS == true %}
@@ -89,8 +94,7 @@ MODULE_STR = {{ MODULES|join(' ') }}
         inherit = None, HPC, OASIS
         [[[directives]]]
             -l walltime = 00:10:00
-	    -l select = 2
-	    -q = normal
+	    -l select=1:ncpus=256:mpiprocs=3+1:ncpus=256:mpiprocs=3
         [[[environment]]]
 	    TEST_MODEL1_EXE=model1
 	    TEST_MODEL2_EXE=model2
@@ -124,9 +128,14 @@ MODULE_STR = {{ MODULES|join(' ') }}
     [[XIOS]]
         [[[environment]]]
             XIOSPATH=$CYLC_SUITE_RUN_DIR/share/xios
-    [[extract_xios]]
-        inherit = None, HPC_SERIAL, XIOS
+    [[extract_xios_background]]
+        inherit = XIOS
+        [[[remote]]]
+            host = login.exz
+        [[[job]]]
+            execution time limit = PT10M
         [[[environment]]]
+            ROSE_TASK_APP=extract_xios
             XIOS_VERSION={{XIOS_VERSION}}
 	    XIOS_REV={{XIOS_REV}}
 	    XIOS_URL={{XIOS_URL}}
@@ -139,12 +148,10 @@ MODULE_STR = {{ MODULES|join(' ') }}
 		     module load $OASIS_MODULE_PATH;
 		     module list;
 		     """
+        [[[job]]]
+            execution time limit = PT2H
 	[[[directives]]]
-	    -l walltime = 02:00:00
-	    -q = shared
-	    -l ncpus = 8
-	    -l mem=24GB
-	    -l tmpsize=12gb
+	    -l select=1:ncpus=8
     [[create_xios_module]]
         inherit = None, HPC_SERIAL, XIOS
 	[[[environment]]]

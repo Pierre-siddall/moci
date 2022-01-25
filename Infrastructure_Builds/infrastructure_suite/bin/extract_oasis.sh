@@ -13,9 +13,10 @@
 #
 # ENVIRONMENT VARIABLES (OPTIONAL):
 #    OASIS_WC_DIR
+#    HPC_HOST_USERNAME
 
 oasis_repository=${OASIS_REPOSITORY:-git@nitrox.cerfacs.fr:globc/OASIS3-MCT/oasis3-mct.git};
-user=$(whoami)
+user=${HPC_HOST_USERNAME:-$(whoami)}
 
 if [ "$EXTRACT_OASIS" = "True" ]; then
     oasis_extract_dir=oasis3-mct
@@ -76,7 +77,7 @@ if [ "$hpc_build" = "True" ] && [ -z "$CYLC_SUITE_RUN_DIR" ]; then
 else
     # we are running in a suite context and only need to upload the oasis
     # source code
-    rsync -r $oasis_extract_dir $user@$HPC_HOST_OASIS:$OASIS_BUILD_DIR/;
+    scp -r $oasis_extract_dir $user@$HPC_HOST_OASIS:$OASIS_BUILD_DIR/;
     if [ $? -ne 0 ]; then
 	1>&2 echo "Unable to succesfully upload oasis source to $HPC_HOST_OASIS"
 	exit 999;

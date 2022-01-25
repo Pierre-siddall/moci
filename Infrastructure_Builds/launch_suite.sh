@@ -33,7 +33,7 @@ if [ $gc_version == $version_default ] || [ $xios_version == $version_default ] 
 fi
 
 # Check we deploy only when extracting code from the Cerfacs GIT repository
-cerfacs_repo_url=\'git@nitrox.cerfacs.fr:globc/OASIS3-MCT/oasis3-mct.git\'
+cerfacs_repo_url=\'https://gitlab.com/cerfacs/oasis3-mct.git\'
 l_extract_oasis=$(grep '^EXTRACT_OASIS=' rose-suite.conf | cut -d '=' -f 2-)
 oasis_repo_conf=$(grep -E '^\!{0,2}OASIS_REPOSITORY=' rose-suite.conf | cut -d '=' -f 2-)
 if [ $l_extract_oasis != "true" ] || [ $cerfacs_repo_url != $oasis_repo_conf ]; then
