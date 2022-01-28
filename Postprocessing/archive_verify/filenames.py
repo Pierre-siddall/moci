@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2021 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2022 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -39,6 +39,7 @@ FNAMES = {
     'atmos_rst': r'{P}a.da{Y1:04d}{M1:02d}{D1:02d}_00',
     'atmos_pp': r'{P}a.{CF}{Y1}{M1}{D1}{H1}.pp',
     'atmos_ff': r'{P}a.{CF}{Y1}{M1}{D1}{H1}',
+    'atmos_ozone': r'{P}a.{CF}{Y1}.pp',
 
     'cice_rst': r'{P}i.restart.{Y1:04d}-{M1:02d}-{D1:02d}-00000{S}',
     'cice_age_rst': r'{P}i.restart.age.{Y1:04d}-{M1:02d}-{D1:02d}-00000{S}',
@@ -56,6 +57,7 @@ COLLECTIONS = {
     'rst': r'{R}da.file',
     'atmos_pp': r'a{S}.pp',
     'atmos_ff': r'a{S}.file',
+    'atmos_ozone': r'a{S}.pp',
     'ncf_mean': r'{R}n{S}.nc.file',
     }
 

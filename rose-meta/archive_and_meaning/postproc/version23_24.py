@@ -29,6 +29,29 @@ class pp23_t550(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
+class pp23_t495(rose.upgrade.MacroUpgrade):
+
+    """Upgrade macro for ticket #495 by EricaNeininger."""
+    BEFORE_TAG = "pp23_t548"
+    AFTER_TAG = "pp23_t495"
+
+    def upgrade(self, config, meta_config=None):
+        """Upgrade a Postproc make app configuration."""
+        self.add_setting(config,
+                         ["namelist:atmospp", "preserve_ozone",],
+                         "false")
+        self.add_setting(config,
+                         ["namelist:atmospp", "ozone_source_stream",],
+                         "p")
+        self.add_setting(config,
+                         ["namelist:atmospp", "ozone_output_stream",],
+                         "")
+        self.add_setting(config,
+                         ["namelist:atmospp", "ozone_fields",],
+                         "00253,30453")
+        return config, self.reports
+
+
 # class pp23_tXXX(rose.upgrade.MacroUpgrade):
 
 #     """Upgrade macro for ticket #XXX by <Author>."""

@@ -18,9 +18,11 @@ import shutil
 try:
     # mock is integrated into unittest as of Python 3.3
     import unittest.mock as mock
+    OPEN_FUNC = 'builtins.open'
 except ImportError:
     # mock is a standalone package (back-ported)
     import mock
+    OPEN_FUNC = '__builtin__.open'
 
 import testing_functions as func
 import runtime_environment
@@ -583,7 +585,7 @@ class MeaningTests(unittest.TestCase):
         self.assertListEqual(
             mock_set.mock_calls,
             [mock.call(os.getcwd(),
-                       r'^RUNIDa\.([p][m])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+                       r'^RUNIDa\.([p][m])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$'),
              mock.call(self.flagdir,
                        r'^RUNIDa\.([p][m])\d{4}(aug|nov|feb|may).arch$'),
              mock.call(os.getcwd(),
@@ -618,7 +620,7 @@ class MeaningTests(unittest.TestCase):
         self.assertListEqual(
             mock_set.mock_calls,
             [mock.call(os.getcwd(),
-                       r'^RUNIDa\.([p][m])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+                       r'^RUNIDa\.([p][m])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$'),
              mock.call(self.flagdir,
                        r'^RUNIDa\.([p][m])\d{4}(aug|nov|feb|may).arch$'),
              mock.call(os.getcwd(),
@@ -647,13 +649,13 @@ class MeaningTests(unittest.TestCase):
         self.assertEqual(mock_create.call_count, 0)
         mock_set.assert_called_once_with(
             os.getcwd(),
-            r'^RUNIDa\.([p][m])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'
+            r'^RUNIDa\.([p][m])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$'
             )
 
         self.assertListEqual(
             mock_set.mock_calls,
             [mock.call(os.getcwd(),
-                       r'^RUNIDa\.([p][m])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$')]
+                       r'^RUNIDa\.([p][m])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$')]
             )
 
     @mock.patch('atmos.utils.get_subset')
@@ -682,7 +684,7 @@ class MeaningTests(unittest.TestCase):
         self.assertListEqual(
             mock_set.mock_calls,
             [mock.call(os.getcwd(),
-                       r'^RUNIDa\.([p][m])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+                       r'^RUNIDa\.([p][m])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$'),
              mock.call(self.flagdir,
                        r'^RUNIDa\.([p][m])\d{4}(jan|feb|mar|apr|may|jun|'
                        r'jul|aug|sep|oct|nov|dec).arch$'),
@@ -718,7 +720,7 @@ class MeaningTests(unittest.TestCase):
         self.assertListEqual(
             mock_set.mock_calls,
             [mock.call(os.getcwd(),
-                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$'),
              mock.call(self.flagdir,
                        r'^RUNIDa\.([pm][a])\d{4}(jan|feb|mar|apr|may|jun|'
                        r'jul|aug|sep|oct|nov|dec).arch$'),
@@ -761,7 +763,7 @@ class MeaningTests(unittest.TestCase):
         self.assertListEqual(
             mock_set.mock_calls,
             [mock.call(os.getcwd(),
-                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$'),
              mock.call(self.flagdir,
                        r'^RUNIDa\.([pm][a])\d{4}(01|02|03|04|05|06|07|08|'
                        '09|10|11|12)21.arch$'),
@@ -801,7 +803,7 @@ class MeaningTests(unittest.TestCase):
         self.assertListEqual(
             mock_set.mock_calls,
             [mock.call(os.getcwd(),
-                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$'),
              mock.call(self.flagdir,
                        r'^RUNIDa\.([pm][a])\d{4}(01|02|03|04|05|06|07|08|'
                        r'09|10|11|12)30_12.arch$'),
@@ -863,7 +865,7 @@ class MeaningTests(unittest.TestCase):
         self.assertListEqual(
             mock_set.mock_calls,
             [mock.call(os.getcwd(),
-                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$'),
              mock.call(self.flagdir,
                        r'^RUNIDa\.([pm][a])\d{4}(jan|feb|mar|apr|may|jun|'
                        r'jul|aug|sep|oct|nov|dec).arch$'),
@@ -907,7 +909,7 @@ class MeaningTests(unittest.TestCase):
         self.assertListEqual(
             mock_set.mock_calls,
             [mock.call(os.getcwd(),
-                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$'),
              mock.call(self.flagdir,
                        r'^RUNIDa\.([pm][a])\d{4}(aug|nov|feb|may).arch$'),
              mock.call(os.getcwd(),
@@ -950,7 +952,7 @@ class MeaningTests(unittest.TestCase):
         self.assertListEqual(
             mock_set.mock_calls,
             [mock.call(os.getcwd(),
-                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$'),
              mock.call(self.flagdir,
                        r'^RUNIDa\.([pm][a])\d{4}(jan|apr|jul|oct).arch$'),
              mock.call(self.flagdir,
@@ -992,7 +994,7 @@ class MeaningTests(unittest.TestCase):
         self.assertListEqual(
             mock_set.mock_calls,
             [mock.call(os.getcwd(),
-                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$'),
              mock.call(self.flagdir,
                        r'^RUNIDa\.([pm][a])\d{4}dec.arch$'),
              mock.call(os.getcwd(),
@@ -1035,7 +1037,7 @@ class MeaningTests(unittest.TestCase):
         self.assertListEqual(
             mock_set.mock_calls,
             [mock.call(os.getcwd(),
-                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$'),
              mock.call(self.flagdir,
                        r'^RUNIDa\.([pm][a])\d{4}son.arch$'),
              mock.call(self.flagdir,
@@ -1079,7 +1081,7 @@ class MeaningTests(unittest.TestCase):
         self.assertListEqual(
             mock_set.mock_calls,
             [mock.call(os.getcwd(),
-                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$'),
              mock.call(self.flagdir,
                        r'^RUNIDa\.([pm][a])\d{3}7ond.arch$'),
              mock.call(os.getcwd(),
@@ -1129,7 +1131,7 @@ class MeaningTests(unittest.TestCase):
         self.assertListEqual(
             mock_set.mock_calls,
             [mock.call(os.getcwd(),
-                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})(_\d{2})?.arch$'),
+                       r'^RUNIDa\.([pm][a])\d{4}(\d{4}|\w{3})?(_\d{2})?.arch$'),
              mock.call(self.flagdir,
                        r'^RUNIDa\.([pm][a])\d{4}(aug|nov|feb|may).arch$'),
              mock.call(os.getcwd(),
@@ -1219,6 +1221,8 @@ class PropertyTests(unittest.TestCase):
                          '([pm][1-9]|[pm][a-l]|[pm][n-r]|[pm][t-x]|[pm][z])')
         self.atmos.naml.atmospp.process_streams = ['ma', 't-z']
         self.assertEqual(self.atmos.streams, '([m][a]|[pm][t-z])')
+        self.atmos.naml.atmospp.ozone_output_stream = 'o'
+        self.assertEqual(self.atmos.streams, '([m][a]|[pm][t-z]|[pm][o])')
         self.atmos.naml.atmospp.process_streams = ''
         self.assertEqual(self.atmos.streams, '')
 
@@ -1234,7 +1238,7 @@ class PropertyTests(unittest.TestCase):
         '''Test the fieldsfile regular expression'''
         func.logtest('Assert correct return of fields file regex:')
         self.atmos.suite.prefix = 'PREFIX'
-        ff_match = r'^PREFIXa\.(expr)\d{4}(\d{4}|\w{3})' \
+        ff_match = r'^PREFIXa\.(expr)\d{4}(\d{4}|\w{3})?' \
             r'(_\d{2})?$'
         self.assertEqual(self.atmos.ff_match('(expr)'), ff_match)
 
@@ -1242,7 +1246,7 @@ class PropertyTests(unittest.TestCase):
         '''Test the fieldsfile regular expression - Prefix=$RUNID'''
         func.logtest('Assert correct return of fields file regex - RUNID:')
         del self.atmos.suite.prefix
-        ff_pattern = r'^TESTPa\.(expr)\d{4}(\d{4}|\w{3})' \
+        ff_pattern = r'^TESTPa\.(expr)\d{4}(\d{4}|\w{3})?' \
             r'(_\d{2})?$'
         self.assertEqual(self.atmos.ff_match('(expr)'), ff_pattern)
 
@@ -1276,4 +1280,131 @@ class PropertyTests(unittest.TestCase):
         self.atmos.naml.atmospp.fields_to_netcdf = ['field1']
         self.assertEqual(self.atmos.netcdf_fields, {})
         self.assertIn('Incorrect format of &atmospp/fields_to_netcdf',
+                      func.capture('err'))
+
+class OzoneTests(unittest.TestCase):
+    '''Unit tests relating to the extraction of ozone fields to pp'''
+    def setUp(self):
+        self.atmos = atmos.AtmosPostProc()
+        self.atmos.share = os.getcwd()
+        self.atmos.work = 'WorkDir'
+        self.atmos.suite = mock.Mock()
+        self.atmos.suite.prefix='RUNID'
+        with mock.patch('atmos.utils.os.environ',
+                        return_value={'CYCLEPERIOD', 'P1M'}):
+            self.atmos.suite.cyclepoint = atmos.utils.\
+                                          CylcCycle('19780901T0000Z')
+
+    def tearDown(self):
+        # files = ['logfile', self.dfiles[0], self.ffiles[0],
+        #          self.ffiles[0] + '.pp']
+        for fname in []:
+            try:
+                os.remove(fname)
+            except OSError:
+                pass
+
+    @mock.patch('atmos.housekeeping.get_marked_files')
+    @mock.patch('atmos.utils.compare_mod_times')
+    def test_do_ozone(self, mock_modtimes, mock_getfiles):
+        '''Test do_ozone'''
+        func.logtest('Assert running of do_ozone method:')
+        self.atmos.naml.atmospp.ozone_source_stream = 's'
+        self.atmos.naml.atmospp.ozone_output_stream = ''
+        sfiles = ['s1a.p41976mon', 's1a.p41977mon', 's1a.p41978mon']
+        mock_getfiles.side_effect = [
+            # Get .arch flags
+            [sfiles[-1]],
+            # Get list of source files in sharedir
+            [os.path.basename(f) for f in sfiles]]
+        spaths = [os.path.join(os.getcwd(), f) for f in sfiles]
+        mock_modtimes.side_effect = [spaths[0], spaths[1] + '.pp', spaths[2]]
+
+        with mock.patch('atmos.transform.extract_to_pp',
+                        return_value=0) as mock_extract:
+            with mock.patch('atmos.transform.convert_to_pp') as mock_convert:
+                with mock.patch('atmos.utils.remove_files') as mock_rm:
+                    with mock.patch(OPEN_FUNC) as mock_open:
+                        self.atmos.do_ozone()
+
+        self.assertIn(mock.call([spaths[0], spaths[0] + '.pp']),
+                      mock_modtimes.mock_calls)
+        self.assertIn(mock.call([spaths[1], spaths[1] + '.pp']),
+                      mock_modtimes.mock_calls)
+        self.assertIn(mock.call([spaths[2], spaths[2] + '.pp']),
+                      mock_modtimes.mock_calls)
+        self.assertIn(mock.call('WorkDir',
+                                r'^RUNIDa\.ps\d{4}(\d{4}|\w{3})?(_\d{2})?$',
+                                '.arch'),
+                      mock_getfiles.mock_calls)
+        self.assertIn(mock.call(os.getcwd(),
+                                r'^RUNIDa\.ps\d{4}(\d{4}|\w{3})?(_\d{2})?$',
+                                ''),
+                      mock_getfiles.mock_calls)
+
+        mock_open.assert_called_once_with(
+            os.path.join('WorkDir', sfiles[0] + '.arch'), 'w')
+        mock_rm.assert_called_once_with(
+            [sfiles[-1] + '.arch'], path=self.atmos.work
+        )
+        self.assertListEqual(
+            sorted(mock_convert.mock_calls),
+            [mock.call(spaths[0], '/projects/um1/vn10.8/xc40/utilities',
+                       True),
+             mock.call(spaths[2], '/projects/um1/vn10.8/xc40/utilities',
+                       False)]
+        )
+        self.assertListEqual(sorted(mock_extract.mock_calls), [])
+
+    @mock.patch('atmos.housekeeping.get_marked_files')
+    def test_do_ozone_extract(self, mock_getfiles):
+        '''Test do_ozone with extraction of fields'''
+        func.logtest('Assert running of do_ozone method:')
+        self.atmos.naml.atmospp.ozone_output_stream = 'z'
+        mock_getfiles.side_effect = [['archflag'], ['source1', 'source2'],
+                                     ['archa.po1978', 'archa.po1979']]
+        with mock.patch('atmos.transform.extract_to_pp',
+                        return_value=0) as mock_extract:
+            self.atmos.do_ozone()
+        mock_extract.assert_called_once_with(
+            [os.path.join(os.getcwd(), 'source1'),
+             os.path.join(os.getcwd(), 'source2')],
+            [253, 30453], 'pz', data_freq='1m'
+            )
+
+        self.assertIn(mock.call('WorkDir',
+                                r'^RUNIDa\.pz\d{4}(\d{4}|\w{3})?(_\d{2})?$',
+                                '.arch'),
+                      mock_getfiles.mock_calls)
+        self.assertIn(mock.call(os.getcwd(),
+                                r'^RUNIDa\.p4\d{4}(\d{4}|\w{3})?(_\d{2})?$',
+                                ''),
+                      mock_getfiles.mock_calls)
+
+    @mock.patch('atmos.housekeeping.get_marked_files')
+    def test_do_ozone_conflict(self, mock_getfiles):
+        '''Test do_ozone with extraction to existing UM output'''
+        func.logtest('Assert running of do_ozone method:')
+        self.atmos.naml.atmospp.ozone_output_stream = 'z'
+        mock_getfiles.side_effect = [['archa.pz1979feb.arch'],
+                                     ['source1', 'source2'],
+                                     ['archa.po1978', 'archa.po1979']]
+        with self.assertRaises(SystemExit):
+            self.atmos.do_ozone()
+        self.assertIn('output stream for ozone redistribution appears to '
+                      'match existing UM output',
+                      func.capture('err'))
+
+    @mock.patch('atmos.housekeeping.get_marked_files')
+    def test_do_ozone_error(self, mock_getfiles):
+        '''Test do_ozone with extraction to existing UM output'''
+        func.logtest('Assert running of do_ozone method:')
+        self.atmos.naml.atmospp.ozone_output_stream = 'z'
+        mock_getfiles.side_effect = [['archa.pz1972feb.arch'],
+                                     ['source1', 'source2'],
+                                     []]
+        with mock.patch('atmos.transform.extract_to_pp', side_effect=[1]):
+            with self.assertRaises(SystemExit):
+                self.atmos.do_ozone()
+        self.assertIn('Failed extracting ozone fields',
                       func.capture('err'))

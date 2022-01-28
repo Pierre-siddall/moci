@@ -45,6 +45,10 @@ class AtmosNamelist(object):
     streams_to_cutout = None
     cutout_coords = None
     cutout_coords_type = 'coords'
+    preserve_ozone = False
+    ozone_fields = '00253', '30453'
+    ozone_source_stream = 'p4'
+    ozone_output_stream = None
 
     create_means = False
     create_monthly_mean = False

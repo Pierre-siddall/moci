@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021-2022 Met Office. All rights reserved.
+ (C) Crown copyright 2018-22 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -19,7 +19,8 @@ DESCRIPTION
        Convertion from fieldsfile to pp format
        Extraction of a regional sub-domain from global fieldsfile
        Extraction of fields to NetCDF format (requires IRIS)
-       creation of means
+       Extraction of fields to PP format (requires IRIS)
+       Creation of means
 '''
 
 import os
@@ -33,9 +34,11 @@ from validation import MULE_AVAIL, VALID_STR, identify_dates
 
 try:
     import iris_transform
+    IRIS_AVAIL = True
 except ImportError:
     # Iris is not part of the standard Python package
     utils.log_msg('Iris Module is not available', level='WARN')
+    IRIS_AVAIL = False
 
 if MULE_AVAIL:
     import mule
@@ -176,30 +179,111 @@ def extract_to_netcdf(fieldsfile, fields, ncftype, complevel):
     if icode == 0:
         current_output = ''
         # Loop over requested fields
-        for field in sorted(all_cubes.field_attributes):
-            fattr = all_cubes.field_attributes[field]
+        for field in all_cubes.fields:
             descriptor = '_' + stream_id
-            if fattr['Descriptor']:
-                descriptor += '-' + fattr['Descriptor']
+            if field.fieldname:
+                descriptor += '-' + field.fieldname
             ncfilename = NCF_TEMPLATE.format(P=ncf_prefix,
-                                             B=fattr['DataFrequency'],
-                                             S=fattr['StartDate'],
-                                             E=fattr['EndDate'],
+                                             B=field.data_frequency,
+                                             S=field.startdate,
+                                             E=field.enddate,
                                              C=descriptor)
             if ncfilename != current_output:
                 # Failure recovery - remove any pre-existing files
                 utils.remove_files(ncfilename, ignore_non_exist=True)
                 current_output = ncfilename
-            icode += iris_transform.save_format(fattr['IrisCube'],
-                                                ncfilename,
-                                                'netcdf',
-                                                kwargs={'complevel': complevel,
-                                                        'ncftype': ncftype})
+
+            icode += iris_transform.save_format(
+                field.cube, ncfilename, 'netcdf',
+                kwargs={'complevel': complevel, 'ncftype': ncftype}
+            )
             if dirname:
                 utils.move_files(ncfilename, dirname)
 
     return icode
 
+
+@timer.run_timer
+def extract_to_pp(sourcefiles, fields, outstream, data_freq=None):
+    '''
+    Extract given field(s) to PP format.
+
+    Multiple instances of the same field in the same file will result
+    in only the final instance being extracted.
+
+    Arguments:
+       sourcefiles - <type str>  Full filename(s), including path, of
+                                 source data.  List permitted.
+       fields      - <type list> fieldnames or STASHcodes
+       outstream   - <type str>  2char stream identifier for output
+    Optional Arguments:
+       data_freq   - <type str>  Data frequency \d+[ymdh]
+    '''
+    if IRIS_AVAIL is False:
+        utils.log_msg(
+            'IRIS module required to extract fields to PP format',
+            level='WARN'
+        )
+        return None
+
+    # Regular expression to match UM output filename:
+    #    "<RUNID>a.<STREAM ID><YEAR>"
+    #  <match.group(1) = Filename datestamp year (4 digit)
+    source_regex = re.compile(r'^(.+a\.)\w{2}(\d{4})')
+    current_year = utils.CylcCycle().startcycle['strlist'][0]
+    sources = []
+
+    for sfile in utils.ensure_list(sourcefiles):
+        try:
+            prefix, year = source_regex.match(sfile).groups()
+        except AttributeError:
+            year = current_year
+            prefix = os.path.dirname(sfile)
+            prefix = os.path.join(prefix, os.environ['CYLC_SUITE_NAME'] + 'a.')
+
+        if year == current_year:
+            # Only process source file from the current year
+            sources.append(sfile)
+
+    source_items = iris_transform.IrisCubes(sources,
+                                            {f: None for f in fields})
+
+    if data_freq:
+        for item in source_items.fields:
+            if item.data_frequency != data_freq:
+                source_items.fields.remove(item)
+
+    if len(sourcefiles) < 1:
+        utils.log_msg('No source files found for field extraction\n\t',
+                      level='WARN')
+        return 0
+    if len(source_items.fields) < 1:
+        utils.log_msg('No requested fields found in source file:\n\t'
+                      + sourcefiles[0],
+                      level='WARN')
+        return 0
+
+    outfile = prefix + outstream + current_year + '.pp'
+    if os.path.isfile(outfile):
+        # Update the existing file contents
+        existing_items = iris_transform.IrisCubes(outfile, None)
+        for add_field in source_items.fields:
+            existing_items.add_item(add_field)
+        source_items = existing_items
+
+    # Write source_items to file - first item to new file, then append
+    icode = 0
+    tmpfile = 'tmp.pp'
+    utils.remove_files(tmpfile, ignore_non_exist=True)
+    for field in source_items.fields:
+        icode += iris_transform.save_format(field.cube, tmpfile, 'pp',
+                                            kwargs={'append': True})
+    if icode == 0:
+        # Copy temporary file to destination
+        utils.log_msg('Writing fields to ' + str(outfile))
+        os.rename(tmpfile, outfile)
+
+    return icode
 
 @timer.run_timer
 def cutout_subdomain(full_fname, mule_utils, coord_type, coords):

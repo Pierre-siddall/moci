@@ -15,6 +15,8 @@
 import unittest
 import os
 import re
+import shutil
+
 try:
     # mock is integrated into unittest as of Python 3.3
     import unittest.mock as mock
@@ -397,6 +399,7 @@ class HeaderTests(unittest.TestCase):
                                              logfile=self.logfile)
         self.assertIn('Validity time mismatch', func.capture('err'))
         self.logfile.close()
+
         self.assertIn('ARCHIVE FAILED', open('logfile', 'r').read())
 
     @mock.patch('validation.mule_headers')
@@ -793,7 +796,6 @@ class AtmosTransformTests(unittest.TestCase):
         mock_save.assert_called_once_with(mock.ANY, outfile, 'netcdf',
                                           kwargs={'ncftype': 'NETCDF',
                                                   'complevel': 5})
-
         self.assertEqual(icode, 10)
 
     @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
@@ -803,20 +805,22 @@ class AtmosTransformTests(unittest.TestCase):
         '''Test identification of suite and stream IDs'''
         func.logtest('Assert identification of suite and stream IDs:')
 
-        class DummyLoad(object):
-            ''' Dummy class to simulate iris.load return value '''
-            field_attributes = {
-                'field1': {'Descriptor': 'F1',
-                           'StartDate': 'YYYYMMDD',
-                           'EndDate': 'YYYYMMDD',
-                           'DataFrequency': '1d',
-                           'IrisCube': 'CUBE'}
-                }
+        class DummyCube(object):
+            '''
+            Dummy class to simulate a <type iris_transform.CubeContainer>
+            '''
+            def __init__(self):
+                self.fieldname = 'F1'
+                self.startdate = 'YYY1M1D1'
+                self.enddate = 'YYY2M2D2'
+                self.data_frequency = '1d'
+                self.cube = 'CUBE'
 
-        mock_load.return_value = DummyLoad()
+        type(mock_load.return_value).fields = \
+            mock.PropertyMock(return_value=[DummyCube()])
         _ = atmos_transform.extract_to_netcdf('RUNIDa.mf2000', {}, 'TYPE', None)
 
-        outfile = 'atmos_RUNIDa_1d_YYYYMMDD-YYYYMMDD_mf-F1.nc'
+        outfile = 'atmos_RUNIDa_1d_YYY1M1D1-YYY2M2D2_mf-F1.nc'
         mock_save.assert_called_once_with('CUBE', outfile, 'netcdf',
                                           kwargs={'ncftype': 'TYPE',
                                                   'complevel': None})
@@ -838,6 +842,133 @@ class AtmosTransformTests(unittest.TestCase):
                                                        {}, 'TYPE', None)
             self.assertEqual(rtnval, -1)
         self.assertIn('Iris module is not available', func.capture('err'))
+
+    @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
+    @mock.patch('atmos_transform.iris_transform.save_format', return_value=0)
+    @mock.patch('atmos_transform.os.rename')
+    def test_extract_to_pp(self, mock_rename, mock_save):
+        '''Test extraction of single field to PP format'''
+        func.logtest('Assert extract to PP - single field:')
+        sourcefiles = [os.path.join(os.path.dirname(self.ppfile),
+                                    'RUNIDa.pa{}feb'.format(f))
+                       for f in [1999, 2000]]
+        shutil.copy(self.ppfile, sourcefiles[1])
+        icode = atmos_transform.extract_to_pp(sourcefiles,
+                                              ['air_temperature'],
+                                              'po')
+        os.remove(sourcefiles[1])
+
+        mock_save.assert_called_once_with(mock.ANY, 'tmp.pp', 'pp',
+                                          kwargs={'append': True})
+        self.assertIsInstance(mock_save.call_args[0][0],
+                              atmos_transform.iris_transform.iris.cube.Cube)
+        self.assertEqual(icode, 0)
+
+    @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
+    @mock.patch('atmos_transform.iris_transform.save_format', return_value=0)
+    @mock.patch('atmos_transform.os.rename')
+    def test_extract_to_pp_duplicate(self, mock_rename, mock_save):
+        '''Test extraction of single field to PP format - duplicate found'''
+        func.logtest('Assert extract to PP - single field:')
+        source_load = atmos_transform.iris_transform.iris.load(self.ppfile)
+        existing_load = atmos_transform.iris_transform.iris.cube.CubeList()
+        existing_load.append(source_load[0].copy())
+        outfile = 'suiteIDa.po2000.pp'
+        with mock.patch('atmos_transform.iris_transform.iris.load',
+                        side_effect=[source_load, existing_load]):
+            with mock.patch('atmos_transform.os.path.isfile',
+                            return_value=True):
+                icode = atmos_transform.extract_to_pp('filename',
+                                                      ['air_temperature'],
+                                                      'po')
+                mock_save.assert_called_once_with(source_load[0],
+                                                  'tmp.pp', 'pp',
+                                                  kwargs={'append': True})
+                mock_rename.assert_called_once_with('tmp.pp', outfile)
+        self.assertEqual(source_load, existing_load)
+        self.assertEqual(icode, 0)
+
+    @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
+    @mock.patch('atmos_transform.iris_transform.save_format', return_value=0)
+    @mock.patch('atmos_transform.os.rename')
+    def test_extract_to_pp_append(self, mock_rename, mock_save):
+        '''Test extraction of single field to PP format - append time slice'''
+        func.logtest('Assert extract to PP - apend time slice:')
+        source_load = atmos_transform.iris_transform.iris.load(self.ppfile)
+        existing_load = atmos_transform.iris_transform.iris.cube.CubeList()
+        existing_load.append(source_load[0].copy())
+        source_load[0].replace_coord(
+            source_load[0].coord('time') + (4 * 360 * 30)
+            )
+        outfile = 'suiteIDa.po2000.pp'
+        with mock.patch('atmos_transform.iris_transform.iris.load',
+                        side_effect=[source_load, existing_load]):
+            with mock.patch('atmos_transform.os.path.isfile',
+                            return_value=True):
+                icode = atmos_transform.extract_to_pp('filename',
+                                                      ['air_temperature'],
+                                                      'po')
+        mock_save.assert_called_once_with(
+            (existing_load + source_load).merge()[0],
+            'tmp.pp', 'pp', kwargs={'append': True}
+        )
+        mock_rename.assert_called_once_with('tmp.pp', outfile)
+        self.assertEqual(icode, 0)
+
+    @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
+    @mock.patch('atmos_transform.iris_transform.save_format', return_value=0)
+    @mock.patch('atmos_transform.os.rename')
+    def test_extract_to_pp_noinfo(self, mock_rename, mock_save):
+        '''Test extraction of single field to PP format without source info'''
+        func.logtest('Assert extract to PP - single field:')
+        sourcefile = self.ppfile
+        icode = atmos_transform.extract_to_pp(sourcefile, ['air_temperature'],
+                                              'po', data_freq='4y')
+
+        mock_save.assert_called_once_with(mock.ANY, 'tmp.pp', 'pp',
+                                          kwargs={'append': True})
+        self.assertIsInstance(mock_save.call_args[0][0],
+                              atmos_transform.iris_transform.iris.cube.Cube)
+        outfile = os.path.join(os.path.dirname(self.ppfile),
+                               'suiteIDa.po2000.pp')
+        mock_rename.assert_called_once_with('tmp.pp', outfile)
+        self.assertEqual(icode, 0)
+
+    @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
+    @mock.patch('atmos_transform.iris_transform.save_format', return_value=0)
+    def test_extract_to_pp_no_data(self, mock_save):
+        '''Test extraction to pp - no source cubes found'''
+        func.logtest('Assert extract to PP - no source cubes:')
+        rval = atmos_transform.extract_to_pp(self.ppfile,
+                                             ['air_temperature'],
+                                             'po',
+                                             data_freq='1d')
+        self.assertIn('No requested fields found', func.capture('err'))
+        self.assertListEqual(mock_save.mock_calls, [])
+        self.assertEqual(rval, 0)
+
+    @unittest.skipUnless(IRIS_AVAIL, 'Python module "Iris" is not available')
+    @mock.patch('atmos_transform.iris_transform.save_format', return_value=0)
+    def test_extract_to_pp_no_sourcefile(self, mock_save):
+        '''Test extraction to pp - no source files found'''
+        func.logtest('Assert extract to PP - no source cubes:')
+        rval = atmos_transform.extract_to_pp('',
+                                             ['air_temperature'],
+                                             'po',
+                                             data_freq='1d')
+        self.assertIn('No source files found', func.capture('err'))
+        self.assertListEqual(mock_save.mock_calls, [])
+        self.assertEqual(rval, 0)
+
+    def test_extract_to_pp_no_iris(self):
+        '''Test extraction to pp - no source files found'''
+        func.logtest('Assert extract to PP - no source cubes:')
+        with mock.patch('atmos_transform.IRIS_AVAIL', False):
+            self.assertIsNone(atmos_transform.extract_to_pp('sfile',
+                                                            ['field'],
+                                                            'po'))
+        self.assertIn('IRIS module required to extract fields to PP format',
+                      func.capture('err'))
 
     @mock.patch('atmos_transform.MULE_AVAIL', True)
     @mock.patch('atmos_transform.utils.exec_subproc',
@@ -1279,14 +1410,14 @@ class DatestringTests(unittest.TestCase):
             )
 
     def test_identify_dates_regex(self):
+        ''' Test identify_dates returned regular expression '''
         func.logtest('Assert return from identify_dates - regex input:')
         # Example climatemean.set_date_regex
         self.assertListEqual(validation.identify_dates(
             r'(19950301|19950601|19950901|19951201)'
-            ),
+        ),
                              [['1995', '03', '01'], ['1995', '06', '01'],
-                              ['1995', '09', '01'], ['1995', '12', '01']]
-                            )
+                              ['1995', '09', '01'], ['1995', '12', '01']])
 
         # Example climatemean.end_date_regex
         self.assertListEqual(

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2021 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2022 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -114,15 +114,24 @@ def nlist_date(date, description):
 
 def atmos_stream_items(naml):
     '''
+    Namelist variables containing stream identifier values will follow
+    the naming convention:
+      * streams_<period>     - e.g. streams_10d
+      * <function>_stream[s] - e.g. ff_streams, ozone_stream
+
     Atmosphere stream IDs should be two character.
     Format = [pm][a-z0-9]
     Single character namelist input is accepted, in which case the
     first character is assumed to be "p".
+
+    Return the namelist with all streams variables containing
+    a list of 2 character values.
+
     Arguments:
        naml - <type utils.Variables> Namelist object
     '''
     stream_namelists = [a for a in dir(naml) if
-                        a.startswith('streams') or a.endswith('_streams')]
+                        a.startswith('streams_') or re.match(r'^.*_streams?$', a)]
 
     for namelist in stream_namelists:
         val = getattr(naml, namelist)
@@ -238,7 +247,16 @@ class ArchivedFiles(object):
             key = 'rst'
         else:
             # Atmosphere fields/pp files
-            if str(stream) in self.naml.ff_streams:
+            ozone_stream = self.naml.ozone_stream
+            if isinstance(ozone_stream, list) and len(ozone_stream) > 0:
+                ozone_stream = ozone_stream[0]
+            if str(stream) == ozone_stream:
+                try:
+                    ozone_1y = str(stream) in self.naml.streams_1y
+                except AttributeError:
+                    ozone_1y = False
+                key = 'atmos_ozone' if ozone_1y else 'atmos_pp'
+            elif str(stream) in self.naml.ff_streams:
                 key = 'atmos_ff'
             else:
                 key = 'atmos_pp'
@@ -553,6 +571,25 @@ class DiagnosticFiles(ArchivedFiles):
         except AttributeError:
             intermittent_streams = []
 
+        try:
+            ozone_stream = self.naml.ozone_stream
+        except AttributeError:
+            ozone_stream = None
+        if isinstance(ozone_stream, list) and len(ozone_stream) > 0:
+            ozone_stream = ozone_stream[0]
+            try:
+                umoutput = ozone_stream in self.naml.streams_1m
+            except TypeError:
+                # Default namelist value: streams_1m=None
+                umoutput = False
+            if not umoutput:
+                # Additional 1y stream, archived with a delay of 2 years
+                try:
+                    self.naml.streams_1y.append(ozone_stream)
+                except AttributeError:
+                    self.naml.streams_1y = [ozone_stream]
+                    all_streams.append('streams_1y')
+
         for base, delta, streams, descript in \
                 self.gen_reinit_period(list(set(all_streams))):
             date = self.get_period_startdate(delta[-1])
@@ -624,6 +661,12 @@ class DiagnosticFiles(ArchivedFiles):
                            base_cm and stream in base_cm.component_stream and \
                            date >= cm_edate:
                             # Base component stream - awaiting higher mean
+                            continue
+
+                        if stream == ozone_stream and base == '1y' and \
+                           date >= utils.add_period_to_date(edate, '-1y11m'):
+                            # 2 year archiving delay for PostProc produced
+                            # ozone output
                             continue
 
                         if stream in self.tlim and \

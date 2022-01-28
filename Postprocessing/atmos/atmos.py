@@ -104,7 +104,8 @@ class AtmosPostProc(control.RunPostProc):
         process = self.suite.naml.process_toplevel is True
         archive = self.suite.naml.archive_toplevel is True
         return OrderedDict(
-            [('do_meaning', self.naml.atmospp.create_means),
+            [('do_ozone', self.naml.atmospp.preserve_ozone),
+             ('do_meaning', self.naml.atmospp.create_means),
              ('do_transform', process and
               (self.naml.atmospp.convert_pp or
                self.naml.atmospp.streams_to_netcdf)),
@@ -129,7 +130,14 @@ class AtmosPostProc(control.RunPostProc):
         '''
         Returns a regular expression for the fieldsfile
         instantaneous streams to process'''
-        return self._stream_expr(self.naml.atmospp.process_streams,
+        requested_streams = self.naml.atmospp.process_streams
+        if requested_streams:
+            ozone_stream = self.naml.atmospp.ozone_output_stream
+            if ozone_stream:
+                requested_streams = utils.ensure_list(requested_streams)
+                requested_streams.append(ozone_stream)
+
+        return self._stream_expr(requested_streams,
                                  nullstring=True,
                                  default=['1-9', 'a-l', 'n-r', 't-x', 'z'])
 
@@ -223,7 +231,7 @@ class AtmosPostProc(control.RunPostProc):
 
         if streams:
             streams = utils.ensure_list(streams[:])
-            if inverse != any([str(s).startswith('^') for s in streams]):
+            if inverse != any(str(s).startswith('^') for s in streams):
                 inv = ('?!', validation.VALID_STR)
 
             else:
@@ -258,7 +266,12 @@ class AtmosPostProc(control.RunPostProc):
             prefix = utils.load_env('RUNID', required=True)
 
         if date_regex is None:
-            date_regex = r'\d{4}(\d{4}|\w{3})(_\d{2})?'
+            # Regular expression to match UM output filename datestamp:
+            #     "YYYYMMDD[_HH]" or "YYYYSSS"
+            #  <match>.groups() = (<month,day,hour or season>, <hours>)
+            #  <match>.group(1) not be present for ozone output (year only)
+            #  <match>.group(2) only present for files reinitialised hourly
+            date_regex = r'\d{4}(\d{4}|\w{3})?(_\d{2})?'
 
         ff_pattern = r'^{}a\.{}{}$'.format(prefix, str(stream_expr), date_regex)
         try:
@@ -515,6 +528,102 @@ class AtmosPostProc(control.RunPostProc):
                     _ = self.update_meanfile(meanfile, setend)
 
             basestream = 'p' + meanfile.period[-1]
+
+    @timer.run_timer
+    def do_ozone(self):
+        '''
+        Process density and tropopause height data for later use in
+        ozone redistribution.
+        FIELDSFILES on disk required.
+        '''
+        source_stream = str(self.naml.atmospp.ozone_source_stream)
+        if len(source_stream) < 2:
+            source_stream = 'p' + source_stream
+        output_stream = self.naml.atmospp.ozone_output_stream
+
+        if output_stream:
+            if len(output_stream) < 2:
+                output_stream = 'p' + output_stream
+            # Make sure there aren't any arch flags produced by the UM
+            archflags = housekeeping.get_marked_files(
+                self.work, self.ff_match(output_stream), '.arch'
+            )
+            for flag in archflags:
+                # Test for potential conflict with UM output - there should be
+                # no recent files marked for processing
+                try:
+                    year = re.match(
+                        # Regular expression to UM output filename:
+                        #     "<RUNID>a.<STREAM ID><YEAR>"
+                        #  <match>.group(1) = Filename datestamp year
+                        r'^.*a.{}(\d{{4}})'.format(validation.VALID_STR), flag
+                    ).group(1)
+                except AttributeError:
+                    year = 0
+                if int(year) >= \
+                   self.suite.cyclepoint.startcycle['intlist'][0] - 1:
+                    # Potential conflict between UM output and new file
+                    utils.log_msg(
+                        'do_ozone - Requested output stream for ozone '
+                        'redistribution appears to match existing UM output',
+                        level='FAIL'
+                    )
+
+            fields = utils.ensure_list(self.naml.atmospp.ozone_fields)
+            source_files = housekeeping.get_marked_files(
+                self.share, self.ff_match(source_stream), '')
+
+            utils.log_msg(
+                'Attempting to extract ozone fields {} from\n\t{}'.
+                format(fields, '\n\t'.join(source_files))
+                )
+            # Assume data frequency for ozone fields is always 1m
+            icode = transform.extract_to_pp(
+                [os.path.join(self.share, s) for s in source_files],
+                fields, output_stream, data_freq='1m'
+                )
+            if icode == 0:
+                utils.log_msg('Successfully extracted ozone fields')
+            else:
+                # Fail immediately - we don't want source file(s)
+                # subsequently processed and archived
+                utils.log_msg('Failed extracting ozone fields',
+                              level='FAIL')
+
+            output_files = housekeeping.get_marked_files(
+                self.share, self.ff_match(output_stream), ''
+            )
+        else:
+            # Input to ozone redistribution is direct UM output.
+            # Collect .arch flags for source files
+            archflags = housekeeping.get_marked_files(
+                self.work,
+                self.ff_match(source_stream),
+                '.arch'
+            )
+            utils.remove_files([f + '.arch' for f in archflags],
+                               path=self.work)
+
+            # Convert any source files available to pp format
+            output_files = housekeeping.get_marked_files(
+                self.share, self.ff_match(source_stream), ''
+            )
+            for sfile in output_files:
+                rmff = sfile in archflags
+                sfile = utils.add_path(sfile, self.share)[0]
+                if utils.compare_mod_times([sfile, sfile + '.pp']) == sfile:
+                    transform.convert_to_pp(sfile,
+                                            self.naml.atmospp.um_utils,
+                                            not rmff)
+                elif rmff:
+                    utils.remove_files(sfile, ignore_non_exist=True)
+
+        for ofile in output_files:
+            year = re.match(r'^.*a.{}(\d{{4}})'.format(validation.VALID_STR),
+                            ofile).group(1)
+            if int(year) < self.suite.cyclepoint.startcycle['intlist'][0] - 1:
+                # Create .arch file for file older than 2 years
+                open(os.path.join(self.work, ofile + '.arch'), 'w').close()
 
     @timer.run_timer
     def do_transform(self, finalcycle=False):

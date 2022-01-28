@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2022 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -217,6 +217,32 @@ def check_directory(datadir):
     return datadir
 
 
+def compare_mod_times(pathlist, last_mod=True):
+    '''
+    Compare the modification time of files.
+    Return the last modified file, or first listed of multiple
+    files modified last.
+
+    Optional arguments:
+       last_mod <type bool> Set to False to return the oldest file
+    '''
+    mod_times = []
+    pathlist = ensure_list(pathlist)
+    for path in pathlist:
+        try:
+            mod_times.append(os.path.getmtime(path))
+        except OSError:
+            mod_times.append(None)
+
+    valid_times = [p for p in mod_times if p]
+    if valid_times:
+        min_id = mod_times.index(min(valid_times))
+        max_id = mod_times.index(max(valid_times))
+        return pathlist[max_id if last_mod else min_id]
+    else:
+        return None
+
+
 def ensure_list(value, listnone=False):
     '''
     Return a list for a given input.
@@ -224,7 +250,7 @@ def ensure_list(value, listnone=False):
                                     False=Return []
     '''
     if value or listnone:
-        if not isinstance(value, (list, tuple)):
+        if not isinstance(value, (list, tuple, type({}.keys()))):
             value = [value]
     else:
         value = []

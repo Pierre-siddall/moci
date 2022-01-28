@@ -272,6 +272,7 @@ class ArchivedFilesTests(unittest.TestCase):
         naml.streams_90d = 'abc'
         naml.ff_streams = 1
         naml.spawn_netcdf_streams = ''
+        naml.ozone_stream = '4'
         with mock.patch('expected_content.utils.get_debugmode',
                         return_value=True):
             naml = expected_content.atmos_stream_items(naml)
@@ -281,6 +282,7 @@ class ArchivedFilesTests(unittest.TestCase):
         self.assertListEqual(naml.streams_90d, ['abc'])
         self.assertListEqual(naml.spawn_netcdf_streams, [])
         self.assertListEqual(naml.ff_streams, ['p1'])
+        self.assertListEqual(naml.ozone_stream, ['p4'])
         self.assertIn('Unidentifiable atmosphere streamID "abc" in '
                       '&atmosverify/streams_90d', func.capture('err'))
 
@@ -1001,6 +1003,39 @@ class DiagnosticFilesTests(unittest.TestCase):
         for key in outfiles:
             self.assertListEqual(sorted(expected[key]), sorted(outfiles[key]))
         self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
+
+    def test_expected_atmos_ozone_um(self):
+        ''' Assert verification of ozone stream - monthly UM output '''
+        func.logtest('Verify ozone stream retained on disk')
+        self.files.naml.meanstreams = []
+        self.files.naml.streams_1m = ['ma', 'p4']
+        self.files.naml.ozone_stream = ['p4']
+        self.files.edate = [1999, 12, 1]
+
+        outfiles = ['PREFIXa.p41995sep.pp', 'PREFIXa.p41999oct.pp']
+        expected = self.files.expected_diags()
+        self.assertEqual(expected['ap4.pp'][0], outfiles[0])
+        self.assertEqual(expected['ap4.pp'][-1], outfiles[1])
+        self.assertListEqual(sorted(expected.keys()), ['ama.pp', 'ap4.pp'])
+
+    def test_expected_atmos_ozone_pp(self):
+        ''' Assert verification of ozone stream - yearly PP output '''
+        func.logtest('Verify ozone stream retained on disk')
+        self.files.naml.meanstreams = []
+        self.files.naml.ozone_stream = ['p4']
+        self.files.edate = [1999, 12, 1]
+
+        outfiles = ['PREFIXa.p41995.pp',
+                    'PREFIXa.p41996.pp',
+                    'PREFIXa.p41997.pp']
+        expected = self.files.expected_diags()
+        self.assertListEqual(sorted(expected['ap4.pp']), sorted(outfiles))
+        self.assertListEqual(sorted(expected.keys()), ['ap4.pp'])
+
+        self.files.naml.streams_1m = ['ma']
+        expected = self.files.expected_diags()
+        self.assertListEqual(sorted(expected['ap4.pp']), sorted(outfiles))
+        self.assertListEqual(sorted(expected.keys()), ['ama.pp', 'ap4.pp'])
 
     def test_expected_atmos_final(self):
         ''' Assert correct list of expected files - atmos finalcycle'''

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2022 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -59,6 +59,7 @@ class AtmosVerify(object):
     tlim_streams = None
     tlim_starts = None
     tlim_ends = None
+    ozone_stream = None
 
 
 class NemoVerify(object):

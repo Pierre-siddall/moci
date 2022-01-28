@@ -324,6 +324,31 @@ class PathTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             _ = utils.add_path(self.files[0], None)
 
+    def test_compare_mod_times(self):
+        '''Test return of last modified file path '''
+        func.logtest('Test return of last modified file path')
+        with mock.patch('utils.os.path.getmtime', side_effect=[1, 3, 2]):
+            self.assertEqual(utils.compare_mod_times(self.files), self.files[1])
+
+    def test_compare_mod_times_oldest(self):
+        '''Test return of oldest modified file path '''
+        func.logtest('Test return of oldest modified file path')
+        with mock.patch('utils.os.path.getmtime', side_effect=[1, 3, 2]):
+            self.assertEqual(
+                utils.compare_mod_times(self.files, last_mod=False),
+                self.files[0]
+            )
+
+    def test_compare_mod_times_one(self):
+        '''Test return of last modified file path - no existing files'''
+        func.logtest('Test return of last modified file path')
+        self.assertEqual(utils.compare_mod_times([__file__, 'dummy']), __file__)
+
+    def test_compare_mod_times_none(self):
+        '''Test return of last modified file path - no existing files'''
+        func.logtest('Test return of last modified file path')
+        self.assertIsNone(utils.compare_mod_times(self.files))
+
 
 class FileManipulationTests(unittest.TestCase):
     '''Unit tests for file manipulations'''
