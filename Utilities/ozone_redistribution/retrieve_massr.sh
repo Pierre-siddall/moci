@@ -13,7 +13,7 @@
 #   -s  STASHcode(s), comma separated
 #   -o  Output filename
 #
-# Requried environment
+# Required environment
 #   OZONE_SHARE - Share directory to put final output
 ######################################################################
 STDERR=select.err
@@ -27,6 +27,7 @@ error_analysis () {
   case $(cat $STDERR) in
     *'command not found'* )
        RC=$RC_ERROR
+       echo [WARN] moo command is unavailable.
        ;;
     *'no such data'*|*'no file atoms are matched'* )
         # No data - OK if within 1 year of Nrun
@@ -59,25 +60,33 @@ month = [$first_month .. $last_month]
 year = $year
 end" > query
 
+# Extract data
+rm -rf $output_file
 echo [MOOSE] moo select -C query $archive_path $output_file
 moo select -C query $archive_path $output_file > $STDOUT 2> $STDERR
 RC=$?
-months=$(grep -o months=.. $STDOUT)
 
+# Assess Moose output
+months=$(grep -Eo "(months|files)=.." $STDOUT)
 case $months in 
     "months="?? )
         num=${months//[^0-9]/}
         echo [INFO] $num months extracted from $archive_path
+        ;;
+    "files="?? )
+        num=${files//[^0-9]/}
+        echo [INFO] Data extracted from $num files at $archive_path
         ;;
     * )
         error_analysis
         ;;
 esac
 
+# Copy to SHARE directory
 if [[ "$RC" == "$RC_OK" ]] && [[ -f "$output_file" ]] ; then
-    # echo [DEBUG] Copying $output_file tp $OZONE_SHARE 
+    echo [INFO] Copying $output_file to $OZONE_SHARE 
     cp $output_file $OZONE_SHARE/
-    $RC = $?
+    RC=$?
 fi
 
 exit $RC

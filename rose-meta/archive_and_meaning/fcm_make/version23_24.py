@@ -24,4 +24,13 @@ class pp23_t577(rose.upgrade.MacroUpgrade):
 
     def upgrade(self, config, meta_config=None):
         """Upgrade a Postproc make app configuration to postproc_2.4."""
+        """Upgrade a Postproc make app configuration."""
+        # Upgrade extract revision keywords
+        self.change_setting_value(config, ["env", "config_base"],
+                                  "fcm:moci.xm_tr", forced=True)
+        self.change_setting_value(config, ["env", "config_rev"],
+                                  "@postproc_2.4", forced=True)
+        self.change_setting_value(config, ["env", "pp_rev"],
+                                  "postproc_2.4", forced=True)
+
         return config, self.reports
