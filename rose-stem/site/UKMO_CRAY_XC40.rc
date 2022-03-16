@@ -21,6 +21,8 @@
     [[POSTPROC_RESOURCE]]
         inherit = LINUX, PYTHON_ENV
         pre-script = "run_python_env.sh"
+	[[[job]]]
+            execution time limit = PT25M
 
     [[VERIFY_RESOURCE]]
         inherit = POSTPROC_RESOURCE
