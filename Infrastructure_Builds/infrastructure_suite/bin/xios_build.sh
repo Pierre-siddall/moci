@@ -5,36 +5,21 @@
 # DESCRIPTION: Creates .arch files and builds XIOS
 #
 # ENVIRONMENT VARIABLES (COMPULSORY):
-#    XIOS_ONLY 
-#    XIOSPATH
-#
-# ENVIRONMENT VARIABLES (OPTIONAL)
-#    OASIS_ROOT
-#    OASIS_LIB
 #    BLITZ_INCDIR
 #    BLITZ_LIBDIR
 #    BOOST_INCDIR
 #    BOOST_LIBDIR  
+#    OASIS_ROOT
+#    OASIS_LIB
+#    XIOSPATH
+#
 
-if [ "$XIOS_ONLY" = "False" ]; then
-    echo OASIS_ROOT;
-    echo $OASIS_ROOT;
-    echo OASIS_LIBDIR;
-    echo $OASIS_LIB;
-fi
+echo OASIS_ROOT
+echo $OASIS_ROOT
+echo OASIS_LIBDIR
+echo $OASIS_LIB
 
 cd $XIOSPATH/arch
-
-#Set our Oasis paths if required
-if [ "$XIOS_ONLY" = "True" ]; then
-    OASIS_INCDIR="";
-    OASIS_LIBDIR="";
-    OASIS_LIB="";
-else
-    OASIS_INCDIR="-I$OASIS_ROOT/build/lib/psmile.MPI1";
-    OASIS_LIBDIR="-L$OASIS_LIB";
-    OASIS_LIB="-lpsmile.MPI1 -lscrip -lmct -lmpeu";
-fi
 
 cat << EOF > arch-EX_UKMO.env
 export HDF5_INC_DIR=""
@@ -49,9 +34,9 @@ export BOOST_LIB_DIR=""
 export BLITZ_INC_DIR=""
 export BLITZ_LIB_DIR=""
 
-export OASIS_INCDIR="$OASIS_INCDIR"
-export OASIS_LIBDIR="$OASIS_LIBDIR"
-export OASIS_LIB="$OASIS_LIB"
+export OASIS_INCDIR="-I$OASIS_ROOT/build/lib/psmile.MPI1"
+export OASIS_LIBDIR="-L$OASIS_LIB"
+export OASIS_LIB="-lpsmile.MPI1 -lscrip -lmct -lmpeu"
 EOF
 
 cat << EOF > arch-EX_UKMO.fcm
@@ -117,19 +102,14 @@ BLITZ_INCDIR="-I$BLITZ_INCDIR"
 BLITZ_LIBDIR="-L$BLITZ_LIBDIR"
 BLITZ_LIB=""
 
-OASIS_INCDIR="$OASIS_INCDIR"
-OASIS_LIBDIR="$OASIS_LIBDIR"
-OASIS_LIB="$OASIS_LIB"
+OASIS_INCDIR="-I$OASIS_ROOT/build/lib/psmile.MPI1"
+OASIS_LIBDIR="-L$OASIS_LIB"
+OASIS_LIB="-lpsmile.MPI1 -lscrip -lmct -lmpeu"
 EOF
 
 cd $XIOSPATH
 
-if [ "$XIOS_ONLY" = "True" ]; then
-    echo "Trying to build without OASIS";
-    ./make_xios --job 8 --arch EX_UKMO
-else
-    ./make_xios --use_oasis oasis3_mct --job 8 --arch EX_UKMO
-fi
+./make_xios --use_oasis oasis3_mct --job 8 --arch EX_UKMO
 if [ $? -ne 0 ]; then
     1>&2 echo "Unable to succesfully build XIOS. Please see compiler output for more informaton"
     exit 999;
