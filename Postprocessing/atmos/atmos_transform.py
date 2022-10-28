@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2018-22 Met Office. All rights reserved.
+ (C) Crown copyright 2018-2022 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -175,7 +175,7 @@ def extract_to_netcdf(fieldsfile, fields, ncftype, complevel):
         utils.log_msg(msg + os.path.basename(fieldsfile), level='WARN')
         suite_id = os.environ['CYLC_SUITE_NAME']
         stream_id = 'p9'
-    ncf_prefix = 'atmos_{}a'.format(suite_id)
+    ncf_prefix = 'atmos_{}a'.format(suite_id.lower())
     try:
         all_cubes = iris_transform.IrisCubes(fieldsfile, fields)
         icode = 0

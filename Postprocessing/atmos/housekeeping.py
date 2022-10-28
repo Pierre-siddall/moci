@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2022 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -37,7 +37,8 @@ FILETYPE = OrderedDict([
     ('pp_mean_names', ([], lambda p, s:
                        re.compile(r'^{0}a\.({1})'.format(p, s)))),
     ('nc_names', ([], lambda p, s:
-                  re.compile(r'^atmos_{0}a_.*_({1})'.format(p, s)))),
+                  re.compile(r'^atmos_{0}a_.*_({1})'.format(p.lower(),
+                                                                str(s))))),
     ])
 RTN = 0
 REGEX = 1
@@ -47,23 +48,41 @@ def read_arch_logfile(logfile, prefix, inst, mean, ncfile):
     '''
     Read the archiving script log file, and identify the lines corresponding
     to dumps, instantaneous pp files, and mean pp files, and separate
+    Arguments:
+      logfile <type str> Full file path and name of the archive log file
+      prefix  <type str> RUNID environment variable
+      inst    <type str> Regular expression for instantaneous stream IDs
+      mean    <type str> Regular expression for mean stream IDs
+      ncfile  <type str> or <type None> Regular expression for NetCDF output
     '''
-    for line in open(logfile, 'r').readlines():
-        fname, tag = line.split(' ', 1)
-        tag = 'FAILED' not in tag
-        for ftype in FILETYPE:
-            if ftype == 'pp_inst_names':
-                stream = inst
-            elif ftype == 'pp_mean_names':
-                stream = mean
-            elif ftype == 'nc_names':
-                # ncfile could potentially be of NoneType - cast to string
-                stream = str(ncfile)
-            else:
-                stream = '*'
-            if stream and FILETYPE[ftype][REGEX](prefix, stream).\
+    for ftype in FILETYPE:
+        # Initialise log as empty
+        try:
+            FILETYPE[ftype][RTN].clear()
+        except AttributeError:
+            # Pre Python version 3.3
+            del FILETYPE[ftype][RTN][:]
+
+    with open(logfile, 'r') as log_fh:
+        for line in log_fh.readlines():
+            if line.strip() == '':
+                continue
+            fname, tag = line.split(' ', 1)
+            tag = 'FAILED' not in tag
+            for ftype in FILETYPE:
+                if ftype == 'pp_inst_names':
+                    stream = inst
+                elif ftype == 'pp_mean_names':
+                    stream = mean
+                elif ftype == 'nc_names':
+                    # ncfile could potentially be of NoneType - cast to string
+                    stream = str(ncfile)
+                else:
+                    stream = ''
+
+                if  FILETYPE[ftype][REGEX](prefix, stream).\
                     search(os.path.basename(fname)):
-                FILETYPE[ftype][RTN].append((fname, tag))
+                    FILETYPE[ftype][RTN].append((fname, tag))
 
     return tuple(FILETYPE[ftype][RTN] for ftype in FILETYPE)
 
@@ -101,7 +120,7 @@ def delete_dumps(atmos, dump_names, archived):
                 to_delete.append(fname)
 
     if to_delete:
-        msg = 'Removing dump files:\n' + '\n '.join([f for f in to_delete])
+        msg = 'Removing dump files:\n' + '\n '.join(to_delete)
         if utils.get_debugmode() and archived:
             # Append "ARCHIVED" suffix to archived files, rather than deleting
             utils.log_msg(msg, level='DEBUG')
@@ -150,7 +169,7 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, nc_names, archived):
                 to_delete.append(ppfile)
 
     if to_delete:
-        msg = 'Removing pp files:\n ' + '\n '.join([f for f in to_delete])
+        msg = 'Removing pp files:\n ' + '\n '.join(to_delete)
         if utils.get_debugmode() and archived:
             # Append "ARCHIVED" suffix to files, rather than deleting
             utils.log_msg(msg, level='DEBUG')
@@ -172,7 +191,7 @@ def delete_ppfiles(atmos, pp_inst_names, pp_mean_names, nc_names, archived):
                 del_dot_arch.append(os.path.basename(fname[:lim]) + ".arch")
 
         msg = 'Removing .arch files from work directory:\n ' + \
-            '\n '.join([f for f in del_dot_arch])
+            '\n '.join(del_dot_arch)
         if utils.get_debugmode() and archived:
             # Append "ARCHIVED" suffix to files, rather than deleting
             utils.log_msg(msg, level='DEBUG')
@@ -199,4 +218,3 @@ def get_marked_files(datadir, pattern, suffix):
         marked_files = [fn.replace(suffix, '') for fn in marked_files]
 
     return marked_files
-

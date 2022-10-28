@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2020 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2022 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -162,7 +162,14 @@ class _Moose(object):
 
         if model_id == 'a':  # Atmosphere output
             if self._file_id.endswith('.nc'):
-                file_id = 'n' + self._file_id.split('_')[-1][1]
+                fn_facets = self._file_id.split('_')
+                if re.match('^[pm][a-z0-9](-.*)?$', fn_facets[-1]):
+                    # Use stream id for collection if provided in filename
+                    stream_id = fn_facets[-1][1]
+                else:
+                    # Otherwise use frequency
+                    stream_id = fn_facets[0][-1]
+                file_id = 'n' + stream_id
                 ext = '.nc.file'
             else:
                 file_id = self._file_id[:2]

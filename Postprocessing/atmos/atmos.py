@@ -761,7 +761,7 @@ class AtmosPostProc(control.RunPostProc):
                                                self.suite.prefix,
                                                self.streams,
                                                self.means,
-                                               self.netcdf_streams)
+                                               '')
 
         housekeeping.delete_dumps(self, dump, archived)
         housekeeping.delete_ppfiles(self, pp_inst, pp_mean, ncfile,

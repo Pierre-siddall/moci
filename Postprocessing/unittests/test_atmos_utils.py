@@ -69,7 +69,7 @@ class HousekeepTests(unittest.TestCase):
                           'DUMP3', 'DUMP3a']
 
     def tearDown(self):
-        for fname in runtime_environment.RUNTIME_FILES:
+        for fname in runtime_environment.RUNTIME_FILES + ['LOGFILE']:
             try:
                 os.remove(fname)
             except OSError:
@@ -102,6 +102,35 @@ class HousekeepTests(unittest.TestCase):
              mock.call(['MEAN1.arch', 'MEAN3.arch'], path='WorkDir',
                        ignore_non_exist=True)]
             )
+
+    def test_read_log(self):
+        '''Test read the archive log file'''
+        logs = '''
+RUNIDa.da19790901_00 ARCHIVE OK
+RUNIDa.da19850101_00 ARCHIVE FAILED
+RUNIDa.pb20010511.pp NOT ARCHIVED. Empty file
+RUNIDa.mb20010521.pp ARCHIVE OK
+RUNIDa.pf2000may.pp ARCHIVE_OK
+RUNIDa.ps2000djf.pp ARCHIVE_OK
+atmos_runida_1d_1999010100_1999010200_ph-tag.nc ARCHIVE OK
+atmos_runida_1m_1999010100_1999020100_generic-tag.nc ARCHIVE OK
+'''
+        with open('LOGFILE', 'w') as logfile:
+            logfile.write(logs)
+
+        rval = housekeeping.read_arch_logfile('LOGFILE', 'RUNID',
+                                              '([pm][a-c])', '([p][msy])', '')
+
+        expected = (
+            [('RUNIDa.da19790901_00', True), ('RUNIDa.da19850101_00', False)],
+            [('RUNIDa.mb20010521.pp', True), ('RUNIDa.pb20010511.pp', True)],
+            [('RUNIDa.ps2000djf.pp', True)],
+            [('atmos_runida_1d_1999010100_1999010200_ph-tag.nc', True),
+             ('atmos_runida_1m_1999010100_1999020100_generic-tag.nc', True)]
+        )
+
+        for i, item in enumerate(rval):
+            self.assertListEqual(sorted(item), expected[i])
 
     @mock.patch('utils.remove_files')
     def test_delete_ncfiles_archived(self, mock_rm):
@@ -771,7 +800,7 @@ class AtmosTransformTests(unittest.TestCase):
         icode = atmos_transform.extract_to_netcdf(self.ppfile,
                                                   {'air_temperature': 'F1'},
                                                   'NETCDF4', None)
-        outfile = 'atmos_suiteIDa_4y_19941201-19981201_p9-F1.nc'
+        outfile = 'atmos_suiteida_4y_19941201-19981201_p9-F1.nc'
         mock_save.assert_called_once_with(mock.ANY, outfile, 'netcdf',
                                           kwargs={'ncftype': 'NETCDF4',
                                                   'complevel': None})
@@ -789,7 +818,7 @@ class AtmosTransformTests(unittest.TestCase):
         icode = atmos_transform.extract_to_netcdf(self.ppfile,
                                                   {'air_temperature': 'F1'},
                                                   'NETCDF', 5)
-        outfile = 'atmos_suiteIDa_4y_19941201-19981201_p9-F1.nc'
+        outfile = 'atmos_suiteida_4y_19941201-19981201_p9-F1.nc'
         mock_save.assert_called_once_with(mock.ANY, outfile, 'netcdf',
                                           kwargs={'ncftype': 'NETCDF',
                                                   'complevel': 5})
@@ -818,7 +847,7 @@ class AtmosTransformTests(unittest.TestCase):
             mock.PropertyMock(return_value=[DummyCube()])
         _ = atmos_transform.extract_to_netcdf('RUNIDa.mf2000', {}, 'TYPE', None)
 
-        outfile = 'atmos_RUNIDa_1d_YYY1M1D1-YYY2M2D2_mf-F1.nc'
+        outfile = 'atmos_runida_1d_YYY1M1D1-YYY2M2D2_mf-F1.nc'
         mock_save.assert_called_once_with('CUBE', outfile, 'netcdf',
                                           kwargs={'ncftype': 'TYPE',
                                                   'complevel': None})

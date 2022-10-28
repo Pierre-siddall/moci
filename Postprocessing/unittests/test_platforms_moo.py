@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2020 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2022 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -293,9 +293,18 @@ class MooseTests(unittest.TestCase):
         '''Test formation of collection name - atmosphere netCDF'''
         func.logtest('test formation of collection name with atmos netCDF:')
         self.inst._model_id = 'a'
-        self.inst._file_id = 'YYYYMMDD-YYYYMMDD_pm-TAG.nc'
+        self.inst._file_id = '1d_YYYYMMDD-YYYYMMDD_pm-TAG.nc'
         collection = self.inst._collection()
         self.assertEqual(collection, 'anm.nc.file')
+        self.assertFalse(self.inst.fl_pp)
+
+    def test_collection_atmos_netcdf_noid(self):
+        '''Test formation of collection name - atmosphere netCDF with no ID'''
+        func.logtest('test formation of coll. name with atmos netCDF (no ID):')
+        self.inst._model_id = 'a'
+        self.inst._file_id = '1d_YYYYMMDD-YYYYMMDD_genericTAG.nc'
+        collection = self.inst._collection()
+        self.assertEqual(collection, 'and.nc.file')
         self.assertFalse(self.inst.fl_pp)
 
     def test_collection_ocean_restart(self):
