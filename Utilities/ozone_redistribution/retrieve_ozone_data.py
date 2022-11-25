@@ -34,6 +34,7 @@
     CYLC_SUITE_NAME
 
  Optional Environment:
+    COMPLETE_YEARS_ONLY     - Source only complete years of data (ANTS v1.0.0+)
     RETRIEVE_ARCHIVE_SCRIPT - Site specific archive retrival script
     PRIMARY_ARCHIVE         - Archive path for this suite
     SECONDARY_ARCHIVE       - Secondary archive for data before Nrun
@@ -181,6 +182,7 @@ def setup_environment():
     ENV.add_var('RUNID')
     ENV.add_var('SOURCE_STREAM')
     ENV.add_var('GET_STASH', default=os.environ.get('STASHCODES', '253, 30453'))
+    ENV.add_var('COMPLETE_YEARS_ONLY', default=False)
 
     ENV.add_var('RETRIEVE_ARCHIVE_SCRIPT', default='')
     ENV.add_var('PRIMARY_ARCHIVE', required=False)
@@ -256,7 +258,7 @@ def stash_fmt(stashcode):
                               str(stashcode).zfill(5)[2:])
 
 
-def link_sourcefiles(year, first_cycle):
+def link_sourcefiles(year, first_cycle, unlink=False):
     '''
     Create soft links in $OZONE_SHARE to source files in the
     model data directory
@@ -275,15 +277,24 @@ def link_sourcefiles(year, first_cycle):
                                              ENV.SOURCE_STREAM,
                                              year)
 
-    for sfile in [f for f in os.listdir(model_data)
-                  if re.match(source_regex, f)]:
-        new_link = os.path.join(ENV.OZONE_SHARE, sfile)
-        try:
-            os.symlink(os.path.join(model_data, sfile), new_link)
-        except SymlinkExistsError:
-            os.unlink(new_link)
-            os.symlink(os.path.join(model_data, sfile), new_link)
-        data_on_disk = True
+    if unlink is True:
+        # Remove old links found in OZONE_SHARE
+        for lfile in [ln for ln in os.listdir(ENV.OZONE_SHARE)
+                      if re.match(source_regex, ln)]:
+            old_link = os.path.join(ENV.OZONE_SHARE, lfile)
+            print('[INFO] --> Ignoring source data:', old_link)
+            os.unlink(old_link)
+
+    else:
+        for sfile in [f for f in os.listdir(model_data)
+                      if re.match(source_regex, f)]:
+            new_link = os.path.join(ENV.OZONE_SHARE, sfile)
+            try:
+                os.symlink(os.path.join(model_data, sfile), new_link)
+            except SymlinkExistsError:
+                os.unlink(new_link)
+                os.symlink(os.path.join(model_data, sfile), new_link)
+            data_on_disk = True
 
     return data_on_disk
 
@@ -450,7 +461,12 @@ def main():
                                          ENV.SECONDARY_ARCHIVE]):
                 year_data = get_archived_data(year_data, archive, i + 1)
 
-        available_months += 12 - len(year_data.missing_months)
+
+        if ENV.COMPLETE_YEARS_ONLY and not year_data.complete_year:
+            print('[INFO] Complete years only requested...')
+            _ = link_sourcefiles(year, False, unlink=True)
+        else:
+            available_months += 12 - len(year_data.missing_months)
 
     if available_months < 12:
         # Minimum of 12 months data required for redistribution
