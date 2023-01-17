@@ -1,0 +1,208 @@
+#!/usr/bin/env python
+#
+#*****************************COPYRIGHT******************************
+#(C) Crown copyright Met Office. All rights reserved.
+# For further details please refer to the file COPYRIGHT.txt
+# which you should have received as part of this distribution.
+#*****************************COPYRIGHT******************************
+"""
+ CODE OWNER
+   Erica Neininger
+
+ NAME
+   compare_ocean_ice_output
+
+ USAGE
+   Compare restart and norm files output from an ocean-ice job. 
+   Outputs compared include:
+
+   * NEMO run.stat files or solver.stat files
+   * NEMO restart files
+   * NEMO iceberg restart files
+   * NEMO tracer restart files
+   * SI3 restart files
+         NEMO/SI3 restart files must be rebuilt if output is multiple file
+   * CICE restart files
+"""
+import os
+import argparse
+
+import compare_nemo_solver_stat
+import compare_utils
+import test_common
+
+FMT_COMPARE = '\n[INFO] Comparing the contents of {ftype} files:\n'
+FMT_FILENAMES = '\tfile 1: {f1}\nfile 2: {f2}\n'
+
+def get_command_line_arguments():
+    """
+    Get command line arguments
+    """
+    desc_msg = 'Compare output from 2 ocean-ice tasks.'
+    parser = argparse.ArgumentParser(description=desc_msg)
+    parser.add_argument('--solver-file1',
+                        dest='solver_path1',
+                        required=True,
+                        help='Path to 1st NEMO norm file (solver|run.stat).')
+    parser.add_argument('--solver-file2',
+                        dest='solver_path2',
+                        required=True,
+                        help='Path to 2nd NEMO norm file (solver|run.stat).')
+    parser.add_argument('--solver-file2-offset',
+                        dest='solver_offset2',
+                        help=test_common.HELP_SOLVER_OFFSET,
+                        type=int,
+                        default=0)
+
+    parser.add_argument('--nemo-file1',
+                        dest='nemo_path1',
+                        help='Path to the first NEMO restart file')
+    parser.add_argument('--nemo-file2',
+                        dest='nemo_path2',
+                        help='Path to the second NEMO restart file')
+
+    parser.add_argument('--iceberg-file1',
+                        dest='iberg_path1',
+                        help='Path to the first NEMO icebergs restart file')
+    parser.add_argument('--iceberg-file2',
+                        dest='iberg_path2',
+                        help='Path to the second NEMO icebergs restart file')
+
+    parser.add_argument('--ptrc-file1',
+                        dest='ptrc_path1',
+                        help='Path to the first NEMO tracer restart file')
+    parser.add_argument('--ptrc-file2',
+                        dest='ptrc_path2',
+                        help='Path to the second NEMO tracer restart file')
+
+    parser.add_argument('--si3-file1',
+                        dest='si3_path1',
+                        help='Path to the first SI3 restart file')
+    parser.add_argument('--si3-file2',
+                        dest='si3_path2',
+                        help='Path to the second SI3 restart file')
+
+    parser.add_argument('--cice-file1',
+                        dest='cice_path1',
+                        help='Path to the first CICE restart file')
+    parser.add_argument('--cice-file2',
+                        dest='cice_path2',
+                        help='Path to the second CICE restart file')
+
+    parser.add_argument('--list-errors',
+                        dest='list_errors',
+                        action='store_true',
+                        help=test_common.HELP_LIST_ERRORS)
+
+    parser.add_argument('--stop-on-error',
+                        dest='stop_on_error',
+                        action='store_true',
+                        help=test_common.HELP_STOP_ON_ERROR)
+
+    parser.add_argument('--ignore-variables',
+                        dest='ignore_variables',
+                        help=test_common.HELP_IGNORE_VARIABLES,
+			default='')
+
+    return parser.parse_args()
+
+
+def main():
+    """
+    Main function for compare_ocean_ice_ouput
+    """
+    cmd_args1 = get_command_line_arguments()
+
+    io_manager = test_common.TestIO()
+
+    ignore_variables = [iv1 for iv1 in cmd_args1.ignore_variables.split(',')
+                        if len(iv1) > 0]
+
+    file_types = {
+        # Dictionary values should be a tuple consisiting of:
+        #   <2 file paths>, <callback function>, <callback func. argument list>
+        'NEMO [solver|run].stat':
+        ((cmd_args1.solver_path1, cmd_args1.solver_path2),
+         compare_nemo_solver_stat.compare_solver_stat_files,
+         [cmd_args1.solver_path1, cmd_args1.solver_path2,
+          cmd_args1.list_errors, cmd_args1.stop_on_error,
+          cmd_args1.solver_offset2,
+          io_manager]),
+
+        'NEMO restart':
+        ((cmd_args1.nemo_path1, cmd_args1.nemo_path2),
+         compare_utils.compare_cube_list_files,
+         [cmd_args1.nemo_path1, cmd_args1.nemo_path2,
+          cmd_args1.stop_on_error,
+          True, 1, ignore_variables, True, io_manager]),
+
+        'NEMO iceberg restart':
+        ((cmd_args1.iberg_path1, cmd_args1.iberg_path2),
+         compare_utils.compare_cube_list_files,
+         [cmd_args1.nemo_path1, cmd_args1.nemo_path2,
+          cmd_args1.stop_on_error,
+          True, 1, ignore_variables, True, io_manager]),
+
+        'NEMO tracer restart':
+        ((cmd_args1.ptrc_path1, cmd_args1.ptrc_path2),
+        compare_utils.compare_cube_list_files,
+        [cmd_args1.ptrc_path1, cmd_args1.ptrc_path2,
+         cmd_args1.stop_on_error,
+         True, 1, ignore_variables, True, io_manager]),
+
+        'SI3 restart':
+        ((cmd_args1.si3_path1, cmd_args1.si3_path2),
+         compare_utils.compare_cube_list_files,
+         [cmd_args1.si3_path1, cmd_args1.si3_path2,
+          cmd_args1.stop_on_error,
+          True, 1, ignore_variables, True, io_manager]),
+
+        'CICE restart':
+        ((cmd_args1.cice_path1, cmd_args1.cice_path2),
+         compare_utils.compare_cube_list_files,
+         [cmd_args1.cice_path1, cmd_args1.cice_path2,
+          cmd_args1.stop_on_error,
+          False, 0, ignore_variables, True, io_manager])
+        }
+
+    errors_found = False
+    for filetype, args in file_types.items():
+        paths, callback, callback_args = args
+        if all(paths):
+            msg1 = FMT_COMPARE.format(ftype=filetype)
+            msg1 += FMT_FILENAMES.format(f1=paths[0], f2=paths[1])
+            io_manager.write_out(msg1)
+            files_absent = [f for f in paths if not os.path.isfile(f)]
+            if files_absent:
+                msg1 = '[FAIL] Cannot find file(s):\n\t{}\n'
+                io_manager.write_error(msg1.format('\n\t'.join(files_absent)))
+                exit(-1)
+            else:
+                rtn_val = callback(*callback_args)
+            
+            if rtn_val:
+                errors_found = True
+                if callback == compare_utils.compare_cube_list_files:
+                    compare_utils.print_cube_errors(filetype,
+                                                    rtn_val,
+                                                    io_manager)
+                    msg1 = '[ERROR] Number of {{}} file cube errors found: {}\n'.\
+                           format(len(rtn_val))
+                else:
+                    msg1 = '[ERROR] Mismatches found in {} files.\n'
+                io_manager.write_both(msg1.format(filetype))
+
+            else:
+                io_manager.write_out('[OK] Comparison of {} files PASSED.\n'.
+                                     format(filetype))
+
+    if errors_found:
+        io_manager.write_both('[FAIL] Exiting eith errors')
+        exit(-1)
+    else:
+        io_manager.write_out('All outputs match!')
+
+
+
+if __name__ == '__main__':
+    main()

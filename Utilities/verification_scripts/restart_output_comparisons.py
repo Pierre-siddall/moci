@@ -62,7 +62,8 @@ class RoseAnaRestartTask(AnalysisTask):
 
 class NemoSolverStatComparison(RoseAnaRestartTask):
     """
-    Analysis class for comparing norm values in NEMO solver.stat output files
+    Analysis class for comparing norm values in NEMO solver.stat
+    or run.stat output files
     """
     def __init__(self, parent_app, task_options):
         """
@@ -211,4 +212,35 @@ class NemoDiagnostic(NetCdfComparison):
                                             self)
         else:
             self.write_out('Nemo diagnostic files match!\n')
+            self.passed = True
+
+
+class SI3Diagnostic(NetCdfComparison):
+    """
+    Analysis class to compare SI3 diagnostic output files.
+    """
+    def run_analysis(self):
+        """
+        Function called by rose_ana task to do comparison of NEMO files.
+        """
+        self.load_settings()
+
+        msg1 = 'Comparing SI3 diagnostic files:\n'
+        msg1 += 'file 1: {0}\n'.format(self.file1)
+        msg1 += 'file 2: {0}\n'.format(self.file2)
+        self.write_out(msg1)
+
+        error_list = \
+            compare_utils.compare_netcdf_diagnostic_files(self.file1,
+                                                          self.file2,
+                                                          self.stop_on_error,
+                                                          self)
+
+        if len(error_list) > 0:
+            self.write_both('Mismatches found in SI3 diagnostic files\n')
+            compare_utils.print_cube_errors('NEMO diagnostic',
+                                            error_list,
+                                            self)
+        else:
+            self.write_out('SI3 diagnostic files match!\n')
             self.passed = True

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 # *****************************COPYRIGHT******************************
 # (C) Crown copyright Met Office. All rights reserved.
 # For further details please refer to the file COPYRIGHT.txt
@@ -254,7 +254,7 @@ def print_cube_errors(name, error_list, io_manager):
             msg1 += '{0} max diff {1:g}\n'.format(error1.cube_name,
                                                   error1.max_error)
 
-        io_manager.write_both(msg1)
+        io_manager.write_error(msg1)
     else:
         io_manager.write_out('No mismatches in {0} files.\n'.format(name))
 
@@ -275,8 +275,25 @@ def find_matching_timesteps(cube1, cube2):
                 contain 3 elements: the time value, and the indices of that
                 time in each cube.
     """
-    timesteps1 = list(cube1.coord(NEMO_TIME_COORD_NAME).cells())
-    timesteps2 = list(cube2.coord(NEMO_TIME_COORD_NAME).cells())
+    try:
+        timesteps1 = list(cube1.coord(NEMO_TIME_COORD_NAME).cells())
+        timesteps2 = list(cube2.coord(NEMO_TIME_COORD_NAME).cells())
+    except iris.exceptions.CoordinateNotFoundError:
+        # GC5 output has 1 DimCoord and 1 AuxCoord called "time"
+        for coord in cube1.coords():
+            if isinstance(coord, iris.coords.DimCoord) and \
+                    coord.standard_name == NEMO_TIME_COORD_NAME:
+                timesteps1 = list(coord.cells())
+                break
+        else:
+            timesteps1 = []
+        for coord in cube2.coords():
+            if isinstance(coord, iris.coords.DimCoord) and \
+                    coord.standard_name == NEMO_TIME_COORD_NAME:
+                timesteps2 = list(coord.cells())
+                break
+        else:
+            timesteps2 = []
 
     ts_list = [ts for ts in timesteps1 if ts in timesteps2]
     ix1_list = [ix1 for ix1, ts in enumerate(timesteps1) if ts in ts_list]
@@ -373,12 +390,10 @@ def compare_cubes_at_timesteps(diag_path1,
             # load cubes here, to ensure that only the data for the current
             # variable is loaded into memory, reducing memory required
             try:
-                if save_memory:
-
-
+                try:
                     coord_dict1 = {
                         NEMO_TIME_COORD_NAME: functools.partial(ts_comp_func,
-                                                                timestamp)
+                                                                timestamp),
                         }
 
                     current_constraint = \
@@ -386,18 +401,18 @@ def compare_cubes_at_timesteps(diag_path1,
                                         coord_values=coord_dict1)
                     cube1 = iris.load_cube(diag_path1, current_constraint)
                     cube2 = iris.load_cube(diag_path2, current_constraint)
-
                     compare_cubes(cube1,
                                   cube2,
                                   ignore_halos,
                                   halo_size)
-                # in some cases, loading each cube by name can cause errors
-                # so we also have the option to just load all the data
-                else:
+                except iris.exceptions.ConstraintMismatchError:
+                    # in some cases, loading each cube by name can cause errors
+                    # so we also have the option to just load all the data
                     compare_cubes(cube_list1[cix1][ix1],
                                   cube_list2[cix1][ix2],
                                   ignore_halos,
                                   halo_size)
+
             except test_common.DataSizeMismatchError as error1:
                 error1.file_name1 = diag_path1
                 error1.file_name2 = diag_path2
