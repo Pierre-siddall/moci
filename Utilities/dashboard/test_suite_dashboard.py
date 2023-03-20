@@ -1,20 +1,39 @@
 #!/usr/bin/env python
 """
-Script to generate a dashboard web page to monitor the MOCI nightly test suites.
-The script interogates the cylc suite database of each test suite and present
-an overview in tabular form.
+*****************************COPYRIGHT******************************
+ (C) Crown copyright 2023 Met Office. All rights reserved.
 
-Note: this script is written for python version 2.6, because this is the
-version run by the www-hc web server.
+ Use, duplication or disclosure of this code is subject to the restrictions
+ as set forth in the licence. If no licence has been raised with this copy
+ of the code, the use, duplication or disclosure of it is strictly
+ prohibited. Permission to do so must first be obtained in writing from the
+ Met Office Information Asset Owner at the following address:
 
+ Met Office, FitzRoy Road, Exeter, Devon, EX1 3PB, United Kingdom
+*****************************COPYRIGHT******************************
+NAME
+    test_suite_dashboard.py
+
+DESCRIPTION
+    Generate a dashboard web page to monitor a suite of tests.
+    The script interogates the cylc suite database of each test suite
+    and present an overview in tabular form.
+
+    Please note: This script is compatibile with Python3, however it
+                 MUST be backwards compatible because the www-hc web server
+                 currently runs Python2.6.
 """
+
+import sys
 import os
+import re
 import sqlite3
-import ConfigParser
+import configparser
+from functools import reduce
+
 import datetime
 import dateutil.parser
 
-import sys
 
 DT_STR_TEMPLATE = \
     '{dt.year}-{dt.month:02d}-{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}'
@@ -29,7 +48,6 @@ class SqlDatabase(object):
         :param path_db: path to the database file
         """
         self.path_db = path_db
-        # print 'opening databse {0}'.format(path_db)
         self.db_connection = sqlite3.connect(path_db)
         self.db_cursor = self.db_connection.cursor()
 
@@ -67,47 +85,67 @@ class CylcDB(SqlDatabase):
     CYLC_DB_FNAME = 'cylc-suite.db'
     STATUS_SUCCEEDED = 'succeeded'
     STATUS_WAITING = 'waiting'
+    STATUS_QUEUED = 'queued'
+    STATUS_READY = 'ready'
     STATUS_SUBMITTED = 'submitted'
     STATUS_FAILED = 'failed'
     STATUS_RUNNING = 'running'
     STATUS_OTHER = 'other'
+    STATUS_HELD = 'held'
+    STATUS_RETRY = 'retrying'
 
-    HIGHLIGHT_COLOURS = {STATUS_SUCCEEDED: None,
+    HIGHLIGHT_COLOURS = {STATUS_SUCCEEDED: '#FFFFFF', # No highlight
                          STATUS_WAITING: '#FF7700',  # highlight orange
                          STATUS_FAILED: '#FF0000',  # highlight red
                          STATUS_RUNNING: '#00FF00',  # highlight green
                          STATUS_OTHER: '#FFFF00',  # highlight yellow
+                         'SummaryBar': '#DDDEE5',  # Highlight grey
                         }
 
     def __init__(self,
                  title,
                  description,
-                 path,
+                 cylc_run_path,
                  rose_bush_url,
                  family_list,
-                 test_categories):
+                 test_categories,
+                 test_frequency):
         """
         Initialiser function for a CylcDB object.
         :param suite_path: The path to the cylc-run directory of the suite.
         """
-        self.title = title
+        suite_name = os.path.basename(cylc_run_path)
+        if suite_name.startswith(title):
+            self.title = suite_name
+        else:
+            self.title = title
         self.description = description
-        self.suite_run_dir = path
+        self.suite_run_dir = cylc_run_path
         self.rose_bush_url = rose_bush_url
         path_db = os.path.join(self.suite_run_dir,
                                CylcDB.CYLC_DB_FNAME)
         self.test_categories = test_categories
         self.family_list = family_list
+        try:
+            test_freq_hrs = re.match(r'^(\d*)[dD]', test_frequency).group(1)
+            test_freq_hrs = int(test_freq_hrs) * 24
+        except AttributeError:
+            test_freq_hrs = re.match(r'^(\d*)[hH]?', test_frequency).group(1)
+        self.test_freq_hrs = int(test_freq_hrs)
+
         SqlDatabase.__init__(self, path_db)
+
 
     def suite_date_valid(self, start_dt_str):
         '''
         Takes the suite start date and ensure it has run within the
-        past 24 hours. Returns True if true, False if not
+        past <self.test_freq_hrs> hours.
+        Returns True if true, False if not
         '''
-        past24h = datetime.datetime.now() - datetime.timedelta(days=1)
-        past24h = DT_STR_TEMPLATE.format(dt=past24h)
-        return start_dt_str > past24h
+        past_hrs = datetime.datetime.now() - \
+                   datetime.timedelta(hours=self.test_freq_hrs)
+        past_hrs = DT_STR_TEMPLATE.format(dt=past_hrs)
+        return start_dt_str > past_hrs
 
     def get_tasks_in_family(self, family_name, leaf_only):
         """
@@ -135,46 +173,7 @@ class CylcDB(SqlDatabase):
             family_task_list = [t1[0] for t1 in fts1 if family_name in t1[1]]
         return family_task_list
 
-    def get_task_status_at_cycle(self, task, cycle):
-        """
-        Get the status of a cylc tasks at a particular cycle.
-        :param task: The name of the task to query
-        :param cycle: The cycle of the task to query
-        :return: The statius of the task (a string)
-        """
-        columns = ['name', 'status', 'cycle']
-        tsl1 = self.select_from_table(CylcDB.TNAME_TASK_STATES, columns)
-        tsl1 = [(t1[2], t1[1]) for t1 in tsl1 if
-                t1[2] == cycle and t1[0] == task]
-        return tsl1
-
-    def get_task_status_list(self, task):
-        """
-        Get a list of statuses for all tasks with the specified name.
-        :param task: The name of the task to query
-        :return: A list of task  statuses
-        """
-        columns = ['name', 'status', 'cycle']
-        tsl1 = self.select_from_table(CylcDB.TNAME_TASK_STATES, columns)
-        tsl1 = [t1[1] for t1 in tsl1 if t1[1] == task]
-        return tsl1
-
-    def get_family_task_status_list_at_cycle(self, family, cycle):
-        """
-        Get a list of statuses for all tasks in a specified family at
-        the specified cycle.
-        :param family: The name of the family to retrieve
-        :param cycle: The cycle to retrieve family tasks at
-        :return:A list of task statuses
-        """
-        ftl1 = self.get_tasks_in_family(family, True)
-        columns = ['name', 'status', 'cycle']
-        tsl1 = self.select_from_table(CylcDB.TNAME_TASK_STATES, columns)
-        tsl1 = [(t1[0], t1[1]) for t1 in tsl1 if
-                t1[0] in ftl1 and t1[2] == cycle]
-        return tsl1
-
-    def get_family_task_status_list(self, family):
+    def get_family_task_status(self, family):
         """
         Get a list of statuses for all tasks in a specified family.
         :param family: The name of the family to retrieve
@@ -202,19 +201,23 @@ class CylcDB(SqlDatabase):
         :return: A dictionary with the number of tasks from the specified
                  family in each status category.
         """
-        ftsl1 = self.get_family_task_status_list(family)
-        summary1 = {CylcDB.STATUS_SUCCEEDED: sum(
-            1 for t1 in ftsl1 if t1[2] == CylcDB.STATUS_SUCCEEDED),
-                    CylcDB.STATUS_RUNNING: sum(
-                        1 for t1 in ftsl1 if t1[2] == CylcDB.STATUS_RUNNING),
-                    CylcDB.STATUS_FAILED: sum(
-                        1 for t1 in ftsl1 if t1[2] == CylcDB.STATUS_FAILED),
-                    CylcDB.STATUS_WAITING: sum(
-                        1 for t1 in ftsl1 if
-                        t1[2] in [CylcDB.STATUS_WAITING,
-                                  CylcDB.STATUS_SUBMITTED]),
-                    CylcDB.STATUS_OTHER: 0}
-        summary1[CylcDB.STATUS_OTHER] = len(ftsl1) - sum(summary1.values())
+        summary1 = {
+            CylcDB.STATUS_SUCCEEDED: 0,
+            CylcDB.STATUS_RUNNING: 0,
+            CylcDB.STATUS_FAILED: 0,
+            CylcDB.STATUS_WAITING: 0,
+            CylcDB.STATUS_OTHER: 0,
+        }
+        for _, _, status in self.get_family_task_status(family):
+            try:
+                summary1[status] += 1
+            except KeyError:
+                if status in [CylcDB.STATUS_SUBMITTED,
+                              CylcDB.STATUS_READY,
+                              CylcDB.STATUS_QUEUED]:
+                    summary1[CylcDB.STATUS_WAITING] += 1
+                else:
+                    summary1[CylcDB.STATUS_OTHER] += 1
         return summary1
 
     def create_summary_list(self, family_list):
@@ -249,7 +252,7 @@ class CylcDB(SqlDatabase):
 
     def create_summary_table(self, family_list):
         """
-        Create a summary table in html of the tasks in rach family of tasks
+        Create a summary table in html of the tasks in each family of tasks
         in the family_list input argument.
         :param family_list: A list of task family names.
         :return: string - containing html table of summary of tasks in
@@ -258,33 +261,59 @@ class CylcDB(SqlDatabase):
         if not family_list:
             return ''
 
+        row_fmt = '<td bgcolor={col}>{name}</td>'
+
         html_output1 = '<table>\n'
         summary1 = self.get_family_task_summary(family_list[0])
         # add header row
         header_list1 = summary1.keys()
-        header_html = '<tr><td>Task Family</td>'
+        header_html = '<tr>' + row_fmt.format(
+            col=CylcDB.HIGHLIGHT_COLOURS['SummaryBar'],
+            name='Task Family'
+        )
         for cat1 in header_list1:
-            link1 = self.rose_bush_url + '&task_status={0}'.format(cat1)
-            cell_html = '<td><a href={url}>{name} </a></td>'
-            cell_html = cell_html.format(name=cat1,
-                                         url=link1)
+            statuses = [cat1]
+            if cat1 == CylcDB.STATUS_WAITING:
+                statuses.append(CylcDB.STATUS_QUEUED)
+                statuses.append(CylcDB.STATUS_READY)
+                statuses.append(CylcDB.STATUS_SUBMITTED)
+            elif cat1 == CylcDB.STATUS_OTHER:
+                statuses.append(CylcDB.STATUS_HELD)
+                statuses.append(CylcDB.STATUS_RETRY)
+                statuses.append('submit-' + CylcDB.STATUS_RETRY)
+                statuses.append('submit-' + CylcDB.STATUS_FAILED)
+            link1 = self.rose_bush_url.replace('cycles', 'taskjobs')
+            for status in statuses:
+                link1 += '&task_status={0}'.format(status)
+
+            cell_html = row_fmt.format(
+                col=CylcDB.HIGHLIGHT_COLOURS['SummaryBar'],
+                name='<a href={url}>{cat} </a>'.format(url=link1, cat=cat1)
+            )
             header_html += cell_html
         header_html += '</tr>\n'
         html_output1 += header_html
 
         for fam1 in family_list:
             summary1 = self.get_family_task_summary(fam1)
+            if fam1 == '':
+                fam1 = '~~~ ALL tasks'
+                cell_col = 'SummaryBar'
+            else:
+                cell_col = CylcDB.STATUS_SUCCEEDED
+            row_html = '<tr>' + row_fmt.format(
+                col=CylcDB.HIGHLIGHT_COLOURS[cell_col],
+                name=fam1
+            )
 
-            row_html = '<tr><td>{0}</td>'.format(fam1)
             for cat1 in summary1.keys():
-                if CylcDB.HIGHLIGHT_COLOURS[cat1] is not None and \
-                                summary1[cat1] > 0:
-                    row_html += \
-                        '<td bgcolor={0}>{1:d}</td>'.format(
-                            CylcDB.HIGHLIGHT_COLOURS[cat1],
-                            summary1[cat1])
-                else:
-                    row_html += '<td >{0:d}</td>'.format(summary1[cat1])
+                shade = cell_col
+                if summary1[cat1] > 0 and cat1 != CylcDB.STATUS_SUCCEEDED:
+                    shade = cat1
+                row_html += row_fmt.format(
+                    col=CylcDB.HIGHLIGHT_COLOURS[shade],
+                    name=summary1[cat1]
+                )
             row_html += '</tr>\n'
             html_output1 += row_html
         html_output1 += '</table>\n'
@@ -313,9 +342,15 @@ class CylcDB(SqlDatabase):
         start_dt_str = \
             DT_STR_TEMPLATE.format(dt=self.get_suite_start_time())
         html_output1 += 'suite started at {0}<br>\n'.format(start_dt_str)
-        if not self.suite_date_valid(start_dt_str):
+        lastsubmit_dt_str = \
+            DT_STR_TEMPLATE.format(dt=self.get_suite_lastsubmit_time())
+        html_output1 += 'suite last submitted a task at {0}<br>\n'.format(
+            lastsubmit_dt_str
+        )
+        if not self.suite_date_valid(lastsubmit_dt_str):
             html_output1 += '<b><font color="red"> Warning </font>'
-            html_output1 += 'This suite has not been run in the past 24'
+            html_output1 += 'This suite has not submitted a task in the past '
+            html_output1 += str(self.test_freq_hrs)
             html_output1 += ' hours. Please investigate</b><br>\n'
         html_output1 += \
         self.create_summary_list(self.test_categories)
@@ -338,6 +373,16 @@ class CylcDB(SqlDatabase):
         start_datetime = min(dt_list)
         return start_datetime
 
+    def get_suite_lastsubmit_time(self):
+        """
+        Get the time of the last task submission for a suite.
+        :return: A python datetime object with the submission time of the
+                 first task submitted.
+        """
+        dt_list = self.select_from_table('task_events', ['time'])
+        dt_list = [dateutil.parser.parse(dt1[0]) for dt1 in dt_list]
+        lastsubmit_datetime = max(dt_list)
+        return lastsubmit_datetime
 
 
 def create_html_table(table1):
@@ -356,7 +401,7 @@ def create_html_table(table1):
     return html_output1
 
 
-def print_html_header():
+def print_html_header(logo_file, wiki_url):
     """
     Create a standard hml header.
     :return: A string containing a standard html header.
@@ -364,17 +409,16 @@ def print_html_header():
     dt_str = DT_STR_TEMPLATE.format(dt=datetime.datetime.now())
     time_gen_str = '<p>Dashboard generated at {0}</p><br>'.format(dt_str)
 
-    print '''<!DOCTYPE html>
-<html>\n \
+    print('Content-Type: text/html;charset=utf-8\n')
+    print('''<html>\n \
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <head>
-    <meta charset="utf-8">
-    <title> MOCI test suite dashboard</title>
+    <title> Test Suite Dashboard</title>
     <link rel="stylesheet" type="text/css" href="dashboard.css">
 </head>
+ <body>
 
-<body>
-
-        \n
+         \n'
 
 
 <div class="row">
@@ -382,16 +426,16 @@ def print_html_header():
         <a href="http://www.metoffice.gov.uk" target="_blank" title="opens in a new window"><img src="http://www.metoffice.gov.uk/lib/template/logos/MO_Master_W.jpg" alt="Met Office" title="www.metoffice.gov.uk" width="120" height="109" /></a>
     </div>
     <div class="header_text_cell">
-        <h1> MOCI test suite dashboard</h1>
+        <h1> Test Suite Dashboard</h1>
         {time_gen_str}
     </div>
     <div class="header_logo_cell">
-         <a href="http://code.metoffice.gov.uk/trac/moci"><img src="moci_logo_small.png" title="MOCI"/></a>
+         <a href="{wiki}"><img src="{logo}" title="LOGO" width="350"/></a>
     </div>
 </div>
 
 
-'''.format(time_gen_str=time_gen_str)
+'''.format(time_gen_str=time_gen_str, wiki=wiki_url, logo=logo_file))
 
 def read_config(conf_path):
     """
@@ -399,55 +443,63 @@ def read_config(conf_path):
     :param conf_path: The path to the config file.
     :return: A dictionary with the details of all the suites to report on.
     """
-    dash_parser = ConfigParser.ConfigParser()
+    dash_parser = configparser.ConfigParser()
     dash_parser.read(conf_path)
 
     cylc_run_path = dash_parser.get('base', 'cylc_run_path')
+    rose_bush_base_url = dash_parser.get('base', 'rose_bush_base_url')
+    logo_file = dash_parser.get('base', 'logo_file')
+    wiki_url = dash_parser.get('base', 'wiki_url')
 
     suite_sections = [s1 for s1 in dash_parser.sections() if 'base' != s1]
     dash_dict = {}
     for suite1 in suite_sections:
-        suite_dict1 = dict(dash_parser.items(suite1))
-        try:
-            suite_dict1['family_list'] = suite_dict1['family_list'].split(',')
-        except KeyError:
-            suite_dict1['family_list'] = []
-        try:
-            suite_dict1['test_categories'] = \
-                suite_dict1['test_categories'].split(',')
-        except KeyError:
-            suite_dict1['test_categories'] = []
+        for test1 in os.listdir(cylc_run_path):
+            if re.match(suite1, test1):
+                test_dict1 = dict(dash_parser.items(suite1))
+                test_dict1['family_list'] = test_dict1.get('family_list',
+                                                         '').split(',')
+                test_dict1['test_categories'] = test_dict1.get(
+                    'test_categories', ''
+                ).split(',')
+                test_dict1['cylc_run_path'] = os.path.join(cylc_run_path, test1)
+                test_dict1['rose_bush_url'] = rose_bush_base_url + test1
 
-        suite_dict1['path'] = os.path.join(cylc_run_path, suite1)
-        dash_dict[suite1] = suite_dict1
+                dash_dict[test1] = test_dict1
 
-
-    return dash_dict
+    return dash_dict, logo_file, wiki_url
 
 
 def main():
     """
     The main function for this module.
     """
-    print_html_header()
-
     try:
-        conf_path = os.environ['MOCI_DASH_CONF_PATH']
+        conf_path = os.environ['DASH_CONF_PATH']
     except KeyError:
-        conf_path = 'moci_dashboard.conf'
+        conf_path = 'dashboard.conf'
 
-    dash_dict = read_config(conf_path)
-    for suite1 in dash_dict.keys():
+    dash_dict, logo_file, wiki_url = read_config(conf_path)
+
+    print_html_header(logo_file, wiki_url)
+
+    html_output = {}
+    for suite1 in sorted(dash_dict.keys()):
         try:
             cdb1 = CylcDB(**dash_dict[suite1])
-            print(cdb1.to_html())
-
+            suite_started = cdb1.get_suite_start_time()
+            html_output[str(suite_started)] = cdb1.to_html()
+           # print(cdb1.to_html())
         except:
             # no exception type specified as whatever the error,
             # I want the dashboard to report an error for that suite and
             # continue looking at the other suites.
             print('<br><b><font color=red>ERROR: test suite output {0} '
                   'not found or corrupt.</font></b><br>'.format(suite1))
+            print('</div>\n')
+
+    for _, suite_html1 in reversed(sorted(html_output.items())):
+        print(suite_html1)
         print('</div>\n')
 
 
