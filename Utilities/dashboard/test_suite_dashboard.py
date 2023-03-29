@@ -32,7 +32,7 @@ import configparser
 from functools import reduce
 
 import datetime
-import dateutil.parser
+import pytz
 
 
 DT_STR_TEMPLATE = \
@@ -162,16 +162,15 @@ class CylcDB(SqlDatabase):
         # for "leaf" tasks only (i.e. tasks that are actually executed) we want
         # to exclude all tasks that are inherited from, as usually tasks that
         # are run are not inherited from.
+
+        # Pre-filter for family name because reduce is expensive
+        fts1 = [t1 for t1 in fts1 if family_name in t1[1]]
         if leaf_only:
             parent_tasks = \
                 set(reduce(lambda x, y: x + y,
                            [t1[1].split(' ')[1:] for t1 in fts1]))
-            family_task_list = [t1[0] for t1 in fts1
-                                if family_name in t1[1] and t1[
-                                    0] not in parent_tasks]
-        else:
-            family_task_list = [t1[0] for t1 in fts1 if family_name in t1[1]]
-        return family_task_list
+            fts1 = [t1 for t1 in fts1 if t1[0] not in parent_tasks]
+        return [t1[0] for t1 in fts1]
 
     def get_family_task_status(self, family):
         """
@@ -369,7 +368,7 @@ class CylcDB(SqlDatabase):
                  first task submitted.
         """
         dt_list = self.select_from_table('task_events', ['time'])
-        dt_list = [dateutil.parser.parse(dt1[0]) for dt1 in dt_list]
+        dt_list = [self._parse_date(dt1[0]) for dt1 in dt_list]
         start_datetime = min(dt_list)
         return start_datetime
 
@@ -380,9 +379,21 @@ class CylcDB(SqlDatabase):
                  first task submitted.
         """
         dt_list = self.select_from_table('task_events', ['time'])
-        dt_list = [dateutil.parser.parse(dt1[0]) for dt1 in dt_list]
+        dt_list = [self._parse_date(dt1[0]) for dt1 in dt_list]
         lastsubmit_datetime = max(dt_list)
         return lastsubmit_datetime
+
+    @staticmethod
+    def _parse_date(value):
+        """Custom date parser which assumes UTC.
+        :param value: An iso format string.
+        :return A python datetime object.
+        """
+
+        return datetime.datetime(int(value[:4]), int(value[5:7]),
+                                 int(value[8:10]), int(value[11:13]),
+                                 int(value[14:16]), int(value[17:19]),
+                                 tzinfo=pytz.UTC)
 
 
 def create_html_table(table1):
