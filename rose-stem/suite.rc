@@ -137,8 +137,7 @@
             submission timeout = PT12H # 12 hours
             execution timeout  =  PT3H # 3 hours
         [[[environment]]]
-            SOURCE_MOCI_BASE = {{ SOURCE_MOCI_BASE }}
-            SOURCE_MOCI_REV = {{ SOURCE_MOCI_REV }}
+            SOURCE_MOCI_BASE = {{ HOST_SOURCE_MOCI_BASE }}
 
     [[LINUX]]
 {% if USE_LINUX_SERVER %}
