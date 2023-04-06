@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021 Met Office. All rights reserved.
+ (C) Crown copyright 2023 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -59,8 +59,11 @@ def _update_iodef(
                                 text_bool[is_coupled_mode])
         # Update the list of coupled components
         elif '<!' not in line and 'oasis_codes_id' in line:
-            line = '<variable id="oasis_codes_id"   type="string" >' \
+            if oasis_components.strip():
+                line = '<variable id="oasis_codes_id"   type="string" >' \
                    + oasis_components+'</variable>'
+            else:
+                line =  '<!-- oasis_codes_id not required -->'
 
         iodef_swap.write(line)
 

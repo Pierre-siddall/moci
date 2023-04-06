@@ -198,8 +198,8 @@ def _verify_fix_rst(restartdate, nemo_rst, model_basis_time, time_step,
         #Remove all nemo restart files that are later than the correct
         #cycle times
         #Make our generic restart regular expression, to cover normal NEMO
-        #restart, and potential iceberg, SI3 or passive tracer restart files, for
-        #both the rebuilt and non rebuilt cases
+        #restart, and potential iceberg, SI3 or passive tracer restart files,
+        #for both the rebuilt and non rebuilt cases
         generic_rst_regex = r'(icebergs)?.*restart(_trc)?(_ice)?(_\d+)?\.nc'
         all_restart_files = [f for f in os.listdir(nemo_rst) if
                              re.findall(generic_rst_regex, f)]
@@ -397,6 +397,13 @@ def _setup_executable(common_env):
     # Read values from the nemo namelist file used by the previous cycle
     # (if appropriate), or the configuration namelist if this is the initial
     # cycle.
+
+    # Make sure this file exists before trying to read it since restarted models
+    # may have had old work directories removed for numerous reasons.
+    if not os.path.isfile(history_nemo_nl):
+        sys.stderr.write('[FAIL] Cannot find namelist file %s to extract '
+                        'timestep data.\n' % history_nemo_nl)
+        sys.exit(error.MISSING_MODEL_FILE_ERROR)
 
     # First timestep of the previous cycle
     _, first_step_val = common.exec_subproc(['grep', gl_first_step_match,
@@ -954,7 +961,8 @@ def run_driver(common_env, mode, run_info):
     '''
     if mode == 'run_driver':
         exe_envar = _setup_executable(common_env)
-        launch_cmd = _set_launcher_command(common_env['ROSE_LAUNCHER'], exe_envar)
+        launch_cmd = \
+              _set_launcher_command(common_env['ROSE_LAUNCHER'], exe_envar)
         if run_info['l_namcouple']:
             model_snd_list = None
         else:

@@ -105,12 +105,12 @@ def _grab_xhist_date(xhistfile):
 
 def _grab_xhist_start_date(xhistfile):
     '''
-    Get the model basis time from MODEL_DATA_TIME in a Unified Model
+    Get the model basis time from ORIGINAL_BASIS_TIME in a Unified Model
     xhist file.
     '''
-    # Pattern that defines the MODEL_DATA_TIME entry that specifies
+    # Pattern that defines the ORIGINAL_BASIS_TIME entry that specifies
     # the model basis time, which has the format YYYY,mm,dd,HH,MM,SS.
-    start_date_pattern = r"MODEL_DATA_TIME\s*=\s*([\d\s,]+),"
+    start_date_pattern = r"ORIGINAL_BASIS_TIME\s*=\s*([\d\s,]+)"
     start_date = _grab_file_info(xhistfile, start_date_pattern)
     start_date = datetime.datetime.strptime(
         start_date.replace(" ", ""), "%Y,%m,%d,%H,%M,%S")
