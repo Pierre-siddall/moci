@@ -1,6 +1,6 @@
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2022 Met Office. All rights reserved.
+ (C) Crown copyright 2023 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -67,7 +67,7 @@ class TestGrabFileInfo(unittest.TestCase):
         # Create a temporary xhist file with dummy entries
         self.xhist_content = (
             "CHECKPOINT_DUMP_IM = 'path/to/dump/cplfca.da20190317_00'\n"
-            "MODEL_DATA_TIME = 2019,  1,  4,  3*0,\n"
+            "ORIGINAL_BASIS_TIME = 2019,  1,  4,  3*0 /\n"
             "H_STEPIM = 6912,"
             )
 
@@ -221,7 +221,7 @@ class TestGrabFileInfo(unittest.TestCase):
         # model progress.
         xhist_content = (
             "CHECKPOINT_DUMP_IM = 'path/to/dump/cplfca.da20190302_00'\n"
-            "MODEL_DATA_TIME = 2019,  1,  4,  3*0,\n"
+            "ORIGINAL_BASIS_TIME =2019,  1,  4,  3*0 /\n"
             "H_STEPIM = 6912,"
             )
 
