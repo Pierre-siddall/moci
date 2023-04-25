@@ -16,7 +16,7 @@ MODULE_STR = {{ MODULES|join(' ') }}
 [scheduling]
     [[dependencies]]
 	graph = """
-                prepare_hpc_host => extract_xios_background => build_xios => create_xios_module => create_prgenv_module => run_xios_toy
+                prepare_hpc_host => extract_xios_background => build_xios => create_xios_module => create_prgenv_module => run_xios_toy_attached & run_xios_toy_server
 {% if not XIOS_ONLY %}
                 prepare_hpc_host => extract_oasis => build_oasis => run_oasis_tutorial => create_oasis_module => build_xios
 {% endif %}
@@ -174,8 +174,7 @@ MODULE_STR = {{ MODULES|join(' ') }}
 {% if MODULE_BASE is defined %}
             MODULE_BASE={{MODULE_BASE}}
 {% endif %}
-    [[run_xios_toy]]
-        inherit = None, HPC_SERIAL
+    [[RUN_XIOS_TOY]]
         env-script = """
                      eval $(cat $CYLC_SUITE_RUN_DIR/share/load_prgenv_mod.sh);
                      module use $TEST_PRGENV_MODULE_PATH
@@ -185,6 +184,17 @@ MODULE_STR = {{ MODULES|join(' ') }}
         [[[environment]]]
             ROSE_TASK_APP=xios_toy
             XIOS_ONLY={{XIOS_ONLY}}
+    [[run_xios_toy_attached]]
+        inherit = RUN_XIOS_TOY, HPC_SERIAL
+        [[[environment]]]
+            XIOS_TEST_MODE=attached
+    [[run_xios_toy_server]]
+        inherit = RUN_XIOS_TOY, HPC
+	[[[directives]]]
+	    -l walltime = 00:10:00
+	    -l select=1:ncpus=256:mpiprocs=1+1:ncpus=256:mpiprocs=1
+        [[[environment]]]
+            XIOS_TEST_MODE=server
     [[create_prgenv_module]]
         inherit = None, HPC_SERIAL
 	env-script = """
