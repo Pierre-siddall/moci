@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 """
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2023 Met Office. All rights reserved.
+ (C) Crown copyright 2023-2024 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -31,13 +31,13 @@ import sqlite3
 import configparser
 from functools import reduce
 import logging
-
+import argparse
 import datetime
 import time
 import socket
 from errno import EAGAIN, EACCES
 from fcntl import flock, LOCK_EX, LOCK_NB, LOCK_UN
-
+import yaml
 
 # Cache settings
 owner = os.stat(sys.argv[0]).st_uid
@@ -618,37 +618,84 @@ def print_html_header(logo_file, wiki_url):
 ''')
 
 
-def read_config(conf_path):
+def suite_sections_from_yaml(yaml_file):
+    """
+    Convert suites from a nightly yaml config file into format expected by this
+    script
+    :param yaml_file: The path to the yaml file
+    :return List of suite dicts
+    """
+
+    with open(yaml_file, "r") as stream:
+        suites = yaml.safe_load(stream)
+
+    parsed_suites = {}
+
+    families = suites["base"].get("families", {})
+
+    for name, suite in suites.items():
+        if name == "base":
+            parsed_suites[name] = suite
+            continue
+        parsed_suites[name] = {}
+        if suite["period"] in ["nightly", "nightly_all"]:
+            parsed_suites[name]["test_frequency"] = "24h"
+        else:
+            parsed_suites[name]["test_frequency"] = "7d"
+        parsed_suites[name]["title"] = name
+        parsed_suites[name]["description"] = (
+            "Overnight Test Suite run every "
+            f"{parsed_suites[name]['test_frequency']} on {suite['repo']} with "
+            f"groups {suite['groups']}."
+        )
+        parsed_suites[name]["family_list"] = families.get(suite["repo"], "")
+        parsed_suites[name]["test_categories"] = "spice,xc40,ex1a"
+
+    return parsed_suites
+
+
+def read_config(conf_path, yaml_path):
     """
     Read in the config info for the dashboard page.
     :param conf_path: The path to the config file.
+    :param yaml_path: Optional path to a yaml_config file with nightly testing
     :return: A dictionary with the details of all the suites to report on.
     """
     dash_parser = configparser.ConfigParser()
     dash_parser.read(conf_path)
 
-    cylc_run_path = dash_parser.get('base', 'cylc_run_path')
-    rose_bush_base_url = dash_parser.get('base', 'rose_bush_base_url')
-    logo_file = dash_parser.get('base', 'logo_file')
-    wiki_url = dash_parser.get('base', 'wiki_url')
+    if yaml_path:
+        dash_parser = suite_sections_from_yaml(yaml_path)
+        cylc_run_path = dash_parser["base"].get("cylc_run_path", "")
+        rose_bush_base_url = dash_parser["base"].get("rose_bush_base_url", "")
+        logo_file = dash_parser["base"].get("logo_file", "")
+        wiki_url = dash_parser["base"].get("wiki_url", "")
+        suite_sections = [s1 for s1 in dash_parser.keys() if 'base' != s1]
+    else:
+        cylc_run_path = dash_parser.get("base", "cylc_run_path")
+        rose_bush_base_url = dash_parser.get("base", "rose_bush_base_url")
+        logo_file = dash_parser.get("base", "logo_file")
+        wiki_url = dash_parser.get("base", "wiki_url")
+        suite_sections = [s1 for s1 in dash_parser.sections() if "base" != s1]
 
-    suite_sections = [s1 for s1 in dash_parser.sections() if 'base' != s1]
     dash_dict = {}
     for suite1 in suite_sections:
         if suite1.startswith("!"):
             continue
-        test_dict1 = dict(dash_parser.items(suite1))
-        test_dict1['family_list'] = test_dict1.get('family_list',
-                                                   '').split(',')
-        test_dict1['test_categories'] = test_dict1.get('test_categories',
-                                                       '').split(',')
+        if yaml_path:
+            test_dict1 = dash_parser[suite1]
+        else:
+            test_dict1 = dict(dash_parser.items(suite1))
+        test_dict1['family_list'] = test_dict1.get("family_list",
+                                                   "").split(",")
+        test_dict1['test_categories'] = test_dict1.get("test_categories",
+                                                       "").split(",")
         test_avail = False
         for test1 in os.listdir(cylc_run_path):
-            if re.match(suite1 + r'(_\d{4}-\d{2}-\d{2})?$', test1):
-                test_dict1['cylc_run_path'] = os.path.join(cylc_run_path,
+            if re.match(suite1 + r"(_\d{4}-\d{2}-\d{2})?$", test1):
+                test_dict1["cylc_run_path"] = os.path.join(cylc_run_path,
                                                            test1)
-                test_dict1['rose_bush_url'] = rose_bush_base_url + test1
-
+                test_dict1["rose_bush_url"] = rose_bush_base_url + test1
                 dash_dict[test1] = test_dict1
                 test_avail = True
         if not test_avail:
@@ -668,12 +715,29 @@ def main():
     logging.info("started")
     tstart = datetime.datetime.now()
 
-    try:
-        conf_path = os.environ['DASH_CONF_PATH']
-    except KeyError:
-        conf_path = 'dashboard.conf'
+    parser = argparse.ArgumentParser(
+        description="Generate html file for Nightly Testing Dashboard"
+    )
+    parser.add_argument(
+        "-c",
+        "--conf_path",
+        default="",
+        help="Path to config file. Required for [base] settings"
+    )
+    parser.add_argument(
+        "-y",
+        "--yaml_conf",
+        default="",
+        help="Path to nightly yaml config file for auto-gen of expected "
+             "test-suites"
+    )
+    args = parser.parse_args()
 
-    dash_dict, logo_file, wiki_url = read_config(conf_path)
+    # Set default as conf_path = dashboard.conf
+    if not args.conf_path and not args.yaml_conf:
+        args.conf_path = "dashboard.conf"
+
+    dash_dict, logo_file, wiki_url = read_config(args.conf_path, args.yaml_conf)
 
     print_html_header(logo_file, wiki_url)
 
