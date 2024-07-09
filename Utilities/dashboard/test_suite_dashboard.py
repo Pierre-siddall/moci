@@ -330,7 +330,7 @@ class CylcDB(SqlDatabase):
 
         # Pre-filter for family name because reduce is expensive
         fts1 = [t1 for t1 in fts1 if family_name in t1[1]]
-        if leaf_only:
+        if leaf_only and fts1:
             parent_tasks = \
                 set(reduce(lambda x, y: x + y,
                            [t1[1].split(' ')[1:] for t1 in fts1]))
@@ -735,6 +735,7 @@ def main():
 
         except TypeError:
             # Incomplete dict as no cylc-runs directory found
+            logging.warn("missing suite %s", suite1)
             freq = dash_dict[suite1]['test_frequency']
             if freq in ['24h', '1d']:
                 period = 'DAILY '
