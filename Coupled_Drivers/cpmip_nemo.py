@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021 Met Office. All rights reserved.
+ (C) Crown copyright 2021-2024 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -52,9 +52,13 @@ def get_nemo_info(nemo_timing_output='timing.output'):
     sbc_cpl_snd_regex = re.compile(r"\s*sbc_cpl_snd\s*\d+.\d+\s*(\d+.\d+)")
     sbc_ice_cice_regex = re.compile(r"\s*sbc_ice_cice\s*\d+.\d+\s*(\d+.\d+)")
 
-    #depending on the particular configuration we may not be able to determine
-    #the time spent in CICE
+    # Depending on the particular configuration we may not be able to determine
+    # the time spent in CICE.
     cice_measurement = False
+    # Zeroing the other timings in case they are not found.
+    rcv_percentge = 0.0
+    init_percentge = 0.0
+    snd_percentge = 0.0
     with common.open_text_file(nemo_timing_output, 'r') as nemo_timing_handle:
         for line in nemo_timing_handle.readlines():
             tot_match = total_time_regex.search(line)

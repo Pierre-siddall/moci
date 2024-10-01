@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2023 Met Office. All rights reserved.
+ (C) Crown copyright 2023-2024 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -22,6 +22,7 @@ DESCRIPTION
 from __future__ import absolute_import
 from __future__ import division
 import math
+import re
 import sys
 import common
 import cpmip_metrics
@@ -32,40 +33,62 @@ import cpmip_xios
 import dr_env_lib.cpmip_def
 import dr_env_lib.env_lib
 
-CORES_PER_NODE = {'broadwell': 36,
+CORES_PER_NODE = {'archer2': 128,
+                  'broadwell': 36,
+                  'genoa': 192,
                   'haswell' :32,
-                  'exz' : 128}
+                  'milan' : 128}
 
 
 def get_allocated_cpus(cpmip_envar):
     '''
-    Grab the allocated CPUs for all component models
+    Grab the allocated CPUs for all component models.
+    Note that nodes array is only used for ARCHER2.
     '''
     models = ['UM', 'JNR', 'NEMO', 'XIOS']
     allocated_cpu = {}
     mpi_tasks = {}
+    nodes = {}
+
     for model in models:
         preopt_string = 'ROSE_LAUNCHER_PREOPTS_%s' % model
         if cpmip_envar.contains(preopt_string):
             preopts = cpmip_envar[preopt_string]
-            preopts = preopts.split(' ')
-            # must have -n for total number MPI tasks
-            n_mpi = float(preopts[preopts.index('-n') + 1])
+            if cpmip_envar.contains('COUPLED_PLATFORM') and \
+               cpmip_envar['COUPLED_PLATFORM'].lower() == 'archer2':
+                n_mpi = float(re.search(r'--ntasks=(\d+)', preopts).group(1))
+                nodes[model] = int(re.search(r'--nodes=(\d+)',
+                                             preopts).group(1))
+                try:
+                    strides = float(re.search(r'--cpus-per-task=(\d+)',
+                                              preopts).group(1))
+                except AttributeError:
+                    strides = 1.0
+                try:
+                    hyperthreads = float(
+                        re.search(r'--threads-per-task=(\d+)',
+                                  preopts).group(1))
+                except AttributeError:
+                    hyperthreads = 1.0
+            else:
+                preopts = preopts.split(' ')
+                # must have -n for total number MPI tasks
+                n_mpi = float(preopts[preopts.index('-n') + 1])
+                try:
+                    strides = float(preopts[preopts.index('-d') + 1])
+                except ValueError:
+                    strides = 1.0
+                try:
+                    hyperthreads = float(preopts[preopts.index('-j') + 1])
+                except ValueError:
+                    hyperthreads = 1.0
             mpi_tasks[model] = int(n_mpi)
-            try:
-                strides = float(preopts[preopts.index('-d') + 1])
-            except ValueError:
-                strides = 1.0
-            try:
-                hyperthreads = float(preopts[preopts.index('-j') + 1])
-            except ValueError:
-                hyperthreads = 1.0
             cores = int((n_mpi * strides) / hyperthreads)
             allocated_cpu[model] = cores
         else:
             allocated_cpu[model] = 0
             mpi_tasks[model] = 0
-    return allocated_cpu, mpi_tasks
+    return allocated_cpu, mpi_tasks, nodes
 
 
 def _update_namelists_for_metrics(common_env, cpmip_envar):
@@ -152,7 +175,6 @@ def _setup_cpmip_controller(common_env):
         # components)
         cpmip_metrics.data_intensity_initial(common_env, cpmip_envar)
 
-
     return cpmip_envar
 
 
@@ -175,7 +197,7 @@ def _finalize_cpmip_controller(common_env):
     # Load the environment variables required
     cpmip_envar = _load_environment_variables_finalise(cpmip_envar)
 
-    cpus, mpi_tasks = get_allocated_cpus(cpmip_envar)
+    cpus, mpi_tasks, nodes = get_allocated_cpus(cpmip_envar)
     # Processor resource for all components
     um_cpus = cpus['UM']
     jnr_cpus = cpus['JNR']
@@ -208,13 +230,14 @@ def _finalize_cpmip_controller(common_env):
     else:
         cice_time = False
 
-    if cpmip_envar['COUPLED_PLATFORM'].lower() == 'exz':
+    if cpmip_envar['COUPLED_PLATFORM'].lower() == 'ex':
         # Get the number of nodes from the -l PBS directives for each model.
         # These come in the same order they appear in the models environment
         # variable
-        pbs_l_nodes = cpmip_utils.get_select_nodes(
+        pbs_l_nodes, coretype = cpmip_utils.get_select_nodes(
             cpmip_envar['CYLC_TASK_LOG_ROOT'])
-        plat_cores_per_node = CORES_PER_NODE['exz']
+        sys.stdout.write('[INFO] Coretype is %s' % coretype)
+        plat_cores_per_node = CORES_PER_NODE[coretype]
         number_nodes = sum(pbs_l_nodes)
         allocated_cpus = number_nodes * plat_cores_per_node
         allocated_um = 0
@@ -233,6 +256,34 @@ def _finalize_cpmip_controller(common_env):
             elif i_model == 'xios':
                 allocated_xios = pbs_l_nodes.pop(0) * plat_cores_per_node
 
+    elif cpmip_envar['COUPLED_PLATFORM'].lower() == 'archer2':
+        # Nodes for ARCHER2 is already stored in nodes array
+        plat_cores_per_node = CORES_PER_NODE['archer2']
+        number_nodes = 0
+        allocated_cpus = 0
+        allocated_um = 0
+        allocated_jnr = 0
+        allocated_nemo = 0
+        allocated_xios = 0
+        for i_model in common_env['models'].split():
+            if i_model == 'cice':
+                pass
+            elif i_model == 'um':
+                number_nodes += nodes['UM']
+                allocated_um = nodes['UM'] * plat_cores_per_node
+                allocated_cpus += allocated_um
+            elif i_model == 'jnr':
+                number_nodes += nodes['JNR']
+                allocated_jnr = nodes['JNR'] * plat_cores_per_node
+                allocated_cpus += allocated_jnr
+            elif i_model == 'nemo':
+                number_nodes += nodes['NEMO']
+                allocated_nemo = nodes['NEMO'] * plat_cores_per_node
+                allocated_cpus += allocated_nemo
+            elif i_model == 'xios':
+                number_nodes += nodes['XIOS']
+                allocated_xios = nodes['XIOS'] * plat_cores_per_node
+                allocated_cpus += allocated_xios
     else:
         # Get the arguments from the -l PBS directive (for the XC40 systems)
         pbs_l_dict = cpmip_utils.get_jobfile_info(
@@ -255,7 +306,7 @@ def _finalize_cpmip_controller(common_env):
             allocated_nemo = int(math.ceil(
                 nemo_cpus/float(plat_cores_per_node))) * plat_cores_per_node
             allocated_xios = int(math.ceil(
-                xios_cpus/float(plat_cores_per_node))) *plat_cores_per_node
+                xios_cpus/float(plat_cores_per_node))) * plat_cores_per_node
         elif int(cpmip_envar['PPN']) > 0:
             plat_cores_per_node = int(cpmip_envar['PPN'])
             sys.stdout.write('[INFO] plat_cores_per_node = %s\n' %
@@ -279,8 +330,7 @@ def _finalize_cpmip_controller(common_env):
             allocated_xios = xios_cpus
 
 
-    # calculate the CPMIP coupling
-    # metric. This provides a fractional value
+    # Calculate the CPMIP coupling metric. This provides a fractional value
     # of the resource wasted. We assume that we can encapuslate the resource
     # used by a model run in units of (number cores * time). Where possible
     # use allocated cores to ensure consistancy with the definition of the
@@ -297,7 +347,7 @@ def _finalize_cpmip_controller(common_env):
         jnr_resource = 0
     if 'nemo' in common_env['models']:
         nemo_resource = float(allocated_nemo * nemo_time)
-        # we assume that XIOS takes the whole length of the model run. If
+        # We assume that XIOS takes the whole length of the model run. If
         # XIOS is not used, or used in attatched mode xios_cpus will be 0,
         # so this line still makes sense
         xios_resource = float(allocated_xios *

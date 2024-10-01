@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2023 Met Office. All rights reserved.
+ (C) Crown copyright 2023-2024 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -34,7 +34,8 @@ class TestGlobals(unittest.TestCase):
         Test the controller global variables
         '''
         self.assertEqual(cpmip_controller.CORES_PER_NODE,
-                         {'broadwell': 36, 'haswell': 32, 'exz': 128})
+                         {'archer2': 128, 'broadwell': 36, 'genoa': 192,
+                          'haswell': 32, 'milan': 128})
 
 class TestAllocatedCpus(unittest.TestCase):
     '''
@@ -47,11 +48,11 @@ class TestAllocatedCpus(unittest.TestCase):
         cpmip_envar = dr_env_lib.env_lib.LoadEnvar()
         self.assertEqual(cpmip_controller.get_allocated_cpus(cpmip_envar),
                          ({'JNR': 0, 'NEMO': 0, 'UM': 0, 'XIOS': 0},
-                          {'JNR': 0, 'NEMO': 0, 'UM': 0, 'XIOS': 0}))
+                          {'JNR': 0, 'NEMO': 0, 'UM': 0, 'XIOS': 0}, {}))
 
     def test_no_nproc(self):
         '''
-        Check that an error is raided if the preopts do not contain -n
+        Check that an error is raised if the preopts do not contain -n
         '''
         cpmip_envar = dr_env_lib.env_lib.LoadEnvar()
         cpmip_envar['ROSE_LAUNCHER_PREOPTS_UM'] = ''
@@ -70,7 +71,7 @@ class TestAllocatedCpus(unittest.TestCase):
         cpmip_envar['ROSE_LAUNCHER_PREOPTS_XIOS'] = '-n 6'
         self.assertEqual(cpmip_controller.get_allocated_cpus(cpmip_envar),
                          ({'JNR': 32, 'NEMO': 32, 'UM': 64, 'XIOS': 6},
-                          {'JNR': 32, 'NEMO': 32, 'UM': 64, 'XIOS': 6}))
+                          {'JNR': 32, 'NEMO': 32, 'UM': 64, 'XIOS': 6}, {}))
 
     def test_threads_and_hyper(self):
         '''
@@ -84,8 +85,38 @@ class TestAllocatedCpus(unittest.TestCase):
         cpmip_envar['ROSE_LAUNCHER_PREOPTS_XIOS'] = '-n 6 -j 2'
         self.assertEqual(cpmip_controller.get_allocated_cpus(cpmip_envar),
                          ({'JNR': 32, 'NEMO': 32, 'UM': 128, 'XIOS': 3},
-                          {'JNR': 32, 'NEMO': 32, 'UM': 64, 'XIOS': 6}))
+                          {'JNR': 32, 'NEMO': 32, 'UM': 64, 'XIOS': 6}, {}))
 
+    def test_slurm_nodes(self):
+        '''
+        Check that resource usage on Slurm, which is used on ARCHER2, can
+        be determined.
+        '''
+        cpmip_envar = dr_env_lib.env_lib.LoadEnvar()
+        cpmip_envar['COUPLED_PLATFORM'] = 'archer2'
+        cpmip_envar['ROSE_LAUNCHER_PREOPTS_UM'] \
+            = '--nodes=9 --ntasks=576 --cpus-per-task=2'
+        cpmip_envar['ROSE_LAUNCHER_PREOPTS_JNR'] \
+            = '--nodes=4 --ntasks=512'
+        cpmip_envar['ROSE_LAUNCHER_PREOPTS_NEMO'] \
+            = '--nodes=2 --ntasks=256 --cpus-per-task=1'
+        cpmip_envar['ROSE_LAUNCHER_PREOPTS_XIOS'] \
+            = '--nodes=1 --ntasks=6 --cpus-per-task=1'
+        self.assertEqual(cpmip_controller.get_allocated_cpus(cpmip_envar),
+                         ({'JNR': 512, 'NEMO': 256, 'UM': 1152, 'XIOS': 6},
+                          {'JNR': 512, 'NEMO': 256, 'UM': 576, 'XIOS': 6},
+                          {'JNR': 4, 'NEMO': 2, 'UM': 9, 'XIOS': 1}))
+
+    def test_no_nodes(self):
+        '''
+        Check that an error is raised if running on ARCHER2 and the preopts
+        do not contain -nodes
+        '''
+        cpmip_envar = dr_env_lib.env_lib.LoadEnvar()
+        cpmip_envar['COUPLED_PLATFORM'] = 'archer2'
+        cpmip_envar['ROSE_LAUNCHER_PREOPTS_UM'] = ''
+        with self.assertRaises(AttributeError):
+            cpmip_controller.get_allocated_cpus(cpmip_envar)
 
 class TestUpdateNamelist(unittest.TestCase):
     '''

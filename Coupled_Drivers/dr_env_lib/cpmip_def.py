@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021 Met Office. All rights reserved.
+ (C) Crown copyright 2021-2024 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -32,7 +32,7 @@ CPMIP_ENVIRONMENT_VARS_INITIAL = {
     'PPN': {'default_val': '0'}}
 
 CPMIP_ENVIRONMENT_VARS_FINAL = {
-    'COUPLED_PLATFORM': {'default_val': 'exz'},
+    'COUPLED_PLATFORM': {'default_val': 'ex'},
     'DATAM': {},
     'CYLC_TASK_CYCLE_POINT': {},
     'CYCLE': {},

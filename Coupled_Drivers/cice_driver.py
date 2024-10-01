@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2023 Met Office. All rights reserved.
+ (C) Crown copyright 2023-2024 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -234,7 +234,7 @@ def _setup_executable(common_env):
             tasklength = [int(i) for i in __expand_array(tasklength_val)]
             common_env.add('TASKLENGTH', tasklength)
 
-    if cice_envar['TASK_START_TIME'] is 'unavaliable':
+    if cice_envar['TASK_START_TIME'] == 'unavaliable':
         # This is probably a climate suite
         days_to_year_init = time2days.time2days(model_basis[0], 1, 1, calendar)
         days_to_start = time2days.time2days(run_start[0], run_start[1],

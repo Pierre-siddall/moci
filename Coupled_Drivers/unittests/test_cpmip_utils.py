@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2023 Met Office. All rights reserved.
+ (C) Crown copyright 2023-2024 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -171,7 +171,7 @@ export CYLC_DIR='/common/fcm/cylc-7.8.6'
         self.assertEqual(result, expected_result)
 
 
-class TestPBSJobFileExzCase(unittest.TestCase):
+class TestPBSJobFileExCase(unittest.TestCase):
     '''
     Test the reading of an example PBS job file
     '''
@@ -215,7 +215,7 @@ class TestPBSJobFileExzCase(unittest.TestCase):
         Test the retrival of the pbs -l select directive for nodes for each
         model in MPMD mode is correct
         '''
-        expected_result = [2, 5, 1]
+        expected_result = ([2, 5, 1], 'milan')
         result = cpmip_utils.get_select_nodes(self.jobfile_name)
         self.assertEqual(result, expected_result)
 
@@ -223,7 +223,7 @@ class TestPBSJobFileExzCase(unittest.TestCase):
         '''
         Test the correct retrieval for a single model in the -l select directive
         '''
-        expected_result = [24]
+        expected_result = ([24], 'milan')
         result = cpmip_utils.get_select_nodes(self.onemodel_jobfile_name)
         self.assertEqual(result, expected_result)
 

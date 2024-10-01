@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2023 Met Office. All rights reserved.
+ (C) Crown copyright 2023-2024 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -34,8 +34,14 @@ def get_component_resolution(nlist_file, resolution_variables):
     for res_var in resolution_variables:
         _, out = common.exec_subproc(['grep', res_var, nlist_file],
                                      verbose=True)
-        i_res = int(re.search(r'(\d+)', out).group(0))
-        resolution *= i_res
+        try:
+            i_res = int(re.search(r'(\d+)', out).group(0))
+            resolution *= i_res
+        except AttributeError:
+            msg = '[WARN] Failed to find resolution %s in file %s.\n' % \
+                  (res_var, nlist_file)
+            sys.stdout.write(msg)
+
     return resolution
 
 def get_glob_usage(glob_path, timeout=60):
@@ -193,7 +199,13 @@ def get_select_nodes(jobfile):
     for i_model in split_pbs_line:
         i_model_node = re.match(r'(\d+):', i_model).group(1)
         model_nodes.append(int(i_model_node))
-    return model_nodes
+    # Check for a coretype
+    try:
+        coretype = re.match(r'.+coretype=([a-z]+)', line).group(1)
+    except AttributeError:
+        # As chip not specified assume milan chip
+        coretype = 'milan'
+    return model_nodes, coretype
 
 
 def increment_dump(datestr, resub, resub_units):
