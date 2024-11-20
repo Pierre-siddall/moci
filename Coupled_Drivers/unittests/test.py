@@ -43,7 +43,8 @@ def main():
         'um_driver': 'test_um_driver.py',
         'cice_driver': 'test_cice_driver.py',
         'common': 'test_common.py',
-        'namcouple': 'test_update_namcouple.py'
+        'namcouple': 'test_update_namcouple.py',
+        'link': 'test_link_drivers.py',
     }
 
     parser = argparse.ArgumentParser(
