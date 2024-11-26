@@ -119,6 +119,17 @@ class StencilTests(unittest.TestCase):
         self.assertEqual(sixhr_set,
                          [fname for fname in self.files if '6h_' in fname])
 
+    def test_model_realm_ocean(self):
+        '''Test model_realm returns regular expression for ocean files'''
+        self.assertEqual(self.nemo.model_realm('grid_T'), 'o')
+
+    def test_model_realm_seaice(self):
+        '''Test model_realm returns regular expression for ocean files'''
+        self.assertEqual(self.nemo.model_realm('icemod'), 'i')
+
+    def test_model_realm_both(self):
+        '''Test model_realm returns regular expression for all NEMO files'''
+        self.assertEqual(self.nemo.model_realm('[grid_T|icemod]'), '[io]')
 
 class Propertytests(unittest.TestCase):
     '''Tests relating to the NEMO properties'''

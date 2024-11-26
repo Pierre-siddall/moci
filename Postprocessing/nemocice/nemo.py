@@ -156,8 +156,24 @@ class NemoPostProc(mt.ModelTemplate):
         return r'trajectory_icebergs_\d{6,8}(-\d{8})?'
 
     def model_realm(self, field):
-        ''' Return the standard realm ID character for the model: o=ocean '''
-        return 'i' if field in self.model_components['si3'] else 'o'
+        '''
+        Return the standard realm ID character for the model according
+        to the field argument: <type str>
+            "o"    = individual ocean field
+            "i"    = individual sea ice field
+            "[io]" = regular expression for list of ocean and/or ice fields
+        Arguments:
+            field <type str> Individual fieldname
+                             or  "|" separated list of fieldnames
+        '''
+        if '|' in field:
+            realm = '[io]'
+        elif field in self.model_components['si3']:
+            realm = 'i'
+        else:
+            realm = 'o'
+
+        return realm
 
     def rst_set_stencil(self, rsttype):
         '''
