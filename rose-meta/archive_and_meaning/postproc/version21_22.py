@@ -1,7 +1,10 @@
-import rose.upgrade
 import re
 import sys
 import os
+if sys.version_info[0] == 2:
+    from rose.upgrade import MacroUpgrade
+else:
+    from metomi.rose.upgrade import MacroUpgrade
 
 class UpgradeError(Exception):
 
@@ -17,7 +20,7 @@ class UpgradeError(Exception):
       __str__ = __repr__
 
 
-class pp21_t194(rose.upgrade.MacroUpgrade):
+class pp21_t194(MacroUpgrade):
 
     """Upgrade macro for ticket #194 by EricaNeininger."""
     BEFORE_TAG = "postproc_2.1"
@@ -78,7 +81,7 @@ class pp21_t194(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp21_t236(rose.upgrade.MacroUpgrade):
+class pp21_t236(MacroUpgrade):
 
     """Upgrade macro for ticket #236 by Erica Neininger."""
     BEFORE_TAG = "pp21_t194"
@@ -144,7 +147,7 @@ class pp21_t236(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp21_t221(rose.upgrade.MacroUpgrade):
+class pp21_t221(MacroUpgrade):
 
     """Upgrade macro for ticket #221 by EricaNeininger."""
     BEFORE_TAG = "pp21_t236"
@@ -217,7 +220,7 @@ class pp21_t221(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp21_t238(rose.upgrade.MacroUpgrade):
+class pp21_t238(MacroUpgrade):
 
     """Upgrade macro for ticket #238 by EricaNeininger."""
     BEFORE_TAG = "pp21_t221"
@@ -235,7 +238,7 @@ class pp21_t238(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp21_t265(rose.upgrade.MacroUpgrade):
+class pp21_t265(MacroUpgrade):
 
     """Upgrade macro for ticket #265 by Erica Neininger."""
     BEFORE_TAG = "pp21_t238"
@@ -254,7 +257,7 @@ class pp21_t265(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp20_t122(rose.upgrade.MacroUpgrade):
+class pp20_t122(MacroUpgrade):
 
     """Upgrade macro for ticket #122 by Rosalyn Hatcher."""
     BEFORE_TAG = "pp21_t265"
@@ -295,7 +298,7 @@ class pp20_t122(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp21_t280(rose.upgrade.MacroUpgrade):
+class pp21_t280(MacroUpgrade):
 
     """
     Upgrade macro for ticket #280 by Erica Neininger.

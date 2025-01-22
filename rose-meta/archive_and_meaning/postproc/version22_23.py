@@ -1,6 +1,9 @@
-import rose.upgrade
 import re
 import sys
+if sys.version_info[0] == 2:
+    from rose.upgrade import MacroUpgrade
+else:
+    from metomi.rose.upgrade import MacroUpgrade
 
 class UpgradeError(Exception):
 
@@ -16,7 +19,7 @@ class UpgradeError(Exception):
       __str__ = __repr__
 
 
-class pp22_t282(rose.upgrade.MacroUpgrade):
+class pp22_t282(MacroUpgrade):
 
     """Upgrade macro for ticket #282 by Erica Neininger."""
     BEFORE_TAG = "postproc_2.2"
@@ -34,7 +37,7 @@ class pp22_t282(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp22_t289(rose.upgrade.MacroUpgrade):
+class pp22_t289(MacroUpgrade):
 
     """Upgrade macro for ticket #289 by DaveStorkey."""
     BEFORE_TAG = "pp22_t282"
@@ -49,7 +52,7 @@ class pp22_t289(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp22_t291(rose.upgrade.MacroUpgrade):
+class pp22_t291(MacroUpgrade):
 
     """Upgrade macro for ticket #291 by Erica Neininger."""
     BEFORE_TAG = "pp22_t289"
@@ -98,7 +101,7 @@ class pp22_t291(rose.upgrade.MacroUpgrade):
 
         return config, self.reports
 
-class pp22_t301(rose.upgrade.MacroUpgrade):
+class pp22_t301(MacroUpgrade):
 
     """Upgrade macro for ticket #301 by <Erica Neininger>."""
     BEFORE_TAG = "pp22_t291"
@@ -114,7 +117,7 @@ class pp22_t301(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp22_t356(rose.upgrade.MacroUpgrade):
+class pp22_t356(MacroUpgrade):
 
     """Upgrade macro for ticket #356 by Julien Palmieri."""
     BEFORE_TAG = "pp22_t301"
@@ -138,7 +141,7 @@ class pp22_t356(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp22_t370(rose.upgrade.MacroUpgrade):
+class pp22_t370(MacroUpgrade):
 
     """Upgrade macro for ticket #370 by Erica Neininger."""
     BEFORE_TAG = "pp22_t356"

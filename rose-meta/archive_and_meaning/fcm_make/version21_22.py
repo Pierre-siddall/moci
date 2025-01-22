@@ -1,6 +1,9 @@
-import rose.upgrade
 import re
 import sys
+if sys.version_info[0] == 2:
+    from rose.upgrade import MacroUpgrade
+else:
+    from metomi.rose.upgrade import MacroUpgrade
 
 class UpgradeError(Exception):
 
@@ -16,7 +19,7 @@ class UpgradeError(Exception):
       __str__ = __repr__
 
 
-class pp21_t280(rose.upgrade.MacroUpgrade):
+class pp21_t280(MacroUpgrade):
 
     """Upgrade macro for ticket #280 by Erica Neininger."""
     BEFORE_TAG = "postproc_2.1"

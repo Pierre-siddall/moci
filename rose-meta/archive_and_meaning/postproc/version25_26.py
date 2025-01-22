@@ -19,13 +19,13 @@ class UpgradeError(Exception):
       __str__ = __repr__
 
 
-class pp24_t674(MacroUpgrade):
+class pp25_tXXX(MacroUpgrade):
 
-    """Upgrade macro for ticket #674 by Erica Neininger."""
-    BEFORE_TAG = "postproc_2.4"
-    AFTER_TAG = "postproc_2.5"
+    """Upgrade macro for ticket #XXX by <author>."""
+    BEFORE_TAG = "postproc_2.5"
+    AFTER_TAG = "postproc_2.6"
 
     def upgrade(self, config, meta_config=None):
-        """Upgrade a Postproc app configuration to postproc_2.5."""
+        """Upgrade a Postproc app configuration to postproc_2.6."""
         
         return config, self.reports

@@ -1,7 +1,9 @@
-import rose.upgrade
-import re
 import sys
 import os
+if sys.version_info[0] == 2:
+    from rose.upgrade import MacroUpgrade
+else:
+    from metomi.rose.upgrade import MacroUpgrade
 
 class UpgradeError(Exception):
 
@@ -17,7 +19,7 @@ class UpgradeError(Exception):
       __str__ = __repr__
 
 
-class pp10_t48(rose.upgrade.MacroUpgrade):
+class pp10_t48(MacroUpgrade):
 
     """Upgrade macro for ticket #48 by EricaNeininger."""
     BEFORE_TAG = "postproc_1.0"
@@ -48,7 +50,7 @@ class pp10_t48(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp10_t28(rose.upgrade.MacroUpgrade):
+class pp10_t28(MacroUpgrade):
 
     """Upgrade macro for ticket #28 by Erica Neininger."""
     BEFORE_TAG = "pp10_t48"
@@ -67,7 +69,7 @@ class pp10_t28(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp10_t69(rose.upgrade.MacroUpgrade):
+class pp10_t69(MacroUpgrade):
 
     """Upgrade macro for ticket #69 by EricaNeininger."""
     BEFORE_TAG = "pp10_t28"
@@ -85,7 +87,7 @@ class pp10_t69(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp10_t74(rose.upgrade.MacroUpgrade):
+class pp10_t74(MacroUpgrade):
 
     """Upgrade macro for ticket #74 by TimGraham."""
     BEFORE_TAG = "pp10_t69"
@@ -114,7 +116,7 @@ class pp10_t74(rose.upgrade.MacroUpgrade):
         return config, self.reports
         
 
-class pp10_t79(rose.upgrade.MacroUpgrade):
+class pp10_t79(MacroUpgrade):
 
     """Upgrade macro for ticket #79 by EricaNeininger."""
     BEFORE_TAG = "pp10_t74"
@@ -148,7 +150,7 @@ class pp10_t79(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp10_t44(rose.upgrade.MacroUpgrade):
+class pp10_t44(MacroUpgrade):
 
     """Upgrade macro for ticket #44 by Erica Neininger."""
     BEFORE_TAG = "pp10_t79"
@@ -173,7 +175,7 @@ class pp10_t44(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp10_pp11(rose.upgrade.MacroUpgrade):
+class pp10_pp11(MacroUpgrade):
 
     """Upgrade macro for Version 1.1 Release."""
     BEFORE_TAG = "pp10_t44"

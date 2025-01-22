@@ -1,6 +1,9 @@
-import rose.upgrade
 import re
 import sys
+if sys.version_info[0] == 2:
+    from rose.upgrade import MacroUpgrade
+else:
+    from metomi.rose.upgrade import MacroUpgrade
 
 class UpgradeError(Exception):
 
@@ -16,7 +19,7 @@ class UpgradeError(Exception):
       __str__ = __repr__
 
 
-class pp23_t550(rose.upgrade.MacroUpgrade):
+class pp23_t550(MacroUpgrade):
 
     """Upgrade macro for ticket #550, committed under #548 by EricaNeininger."""
     BEFORE_TAG = "postproc_2.3"
@@ -29,7 +32,7 @@ class pp23_t550(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp23_t495(rose.upgrade.MacroUpgrade):
+class pp23_t495(MacroUpgrade):
 
     """Upgrade macro for ticket #495 by EricaNeininger."""
     BEFORE_TAG = "pp23_t548"
@@ -52,7 +55,7 @@ class pp23_t495(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp23_t577(rose.upgrade.MacroUpgrade):
+class pp23_t577(MacroUpgrade):
 
     """Upgrade macro for ticket #577 by Erica Neininger."""
     BEFORE_TAG = "pp23_t495"

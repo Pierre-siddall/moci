@@ -1,7 +1,10 @@
-import rose.upgrade
 import re
 import sys
 import os
+if sys.version_info[0] == 2:
+    from rose.upgrade import MacroUpgrade
+else:
+    from metomi.rose.upgrade import MacroUpgrade
 
 class UpgradeError(Exception):
 
@@ -17,7 +20,7 @@ class UpgradeError(Exception):
       __str__ = __repr__
 
 
-class pp11_t75(rose.upgrade.MacroUpgrade):
+class pp11_t75(MacroUpgrade):
 
     """Upgrade macro for ticket #75 by EricaNeininger."""
     BEFORE_TAG = "postproc_1.1"
@@ -36,7 +39,7 @@ class pp11_t75(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp11_t76(rose.upgrade.MacroUpgrade):
+class pp11_t76(MacroUpgrade):
 
     """Upgrade macro for ticket #76 by EricaNeininger."""
     BEFORE_TAG = "pp11_t75"
@@ -50,7 +53,7 @@ class pp11_t76(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp11_t37(rose.upgrade.MacroUpgrade):
+class pp11_t37(MacroUpgrade):
 
     """Upgrade macro for ticket #37 by EricaNeininger."""
     BEFORE_TAG = "pp11_t76"
@@ -68,7 +71,7 @@ class pp11_t37(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp11_t80(rose.upgrade.MacroUpgrade):
+class pp11_t80(MacroUpgrade):
 
     """Upgrade macro for ticket #80 by harryshepherd."""
     BEFORE_TAG = "pp11_t37"
@@ -87,7 +90,7 @@ class pp11_t80(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp11_t98(rose.upgrade.MacroUpgrade):
+class pp11_t98(MacroUpgrade):
 
     """Upgrade macro for ticket #98 by EricaNeininger."""
     BEFORE_TAG = "pp11_t80"
@@ -110,7 +113,7 @@ class pp11_t98(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp11_t112(rose.upgrade.MacroUpgrade):
+class pp11_t112(MacroUpgrade):
 
     """Upgrade macro for ticket #112 by <Erica Neininger>."""
     BEFORE_TAG = "pp11_t98"
@@ -125,7 +128,7 @@ class pp11_t112(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp11_t18(rose.upgrade.MacroUpgrade):
+class pp11_t18(MacroUpgrade):
     """Upgrade macro for ticket #18 by EricaNeininger."""
     BEFORE_TAG = "pp11_t112"
     AFTER_TAG = "pp11_t18"
@@ -136,7 +139,7 @@ class pp11_t18(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp11_pp12(rose.upgrade.MacroUpgrade):
+class pp11_pp12(MacroUpgrade):
 
     """Upgrade macro for Version 1.2 Release."""
     BEFORE_TAG = "pp11_t18"

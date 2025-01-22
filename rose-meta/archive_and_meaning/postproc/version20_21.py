@@ -1,6 +1,9 @@
-import rose.upgrade
 import re
 import sys
+if sys.version_info[0] == 2:
+    from rose.upgrade import MacroUpgrade
+else:
+    from metomi.rose.upgrade import MacroUpgrade
 
 class UpgradeError(Exception):
 
@@ -16,7 +19,7 @@ class UpgradeError(Exception):
       __str__ = __repr__
 
 
-class pp20_t100(rose.upgrade.MacroUpgrade):
+class pp20_t100(MacroUpgrade):
 
     """Upgrade macro for ticket #100 by Pierre Mathiot."""
     BEFORE_TAG = "postproc_2.0"
@@ -28,7 +31,7 @@ class pp20_t100(rose.upgrade.MacroUpgrade):
                         ["namelist:nemopostproc", "msk_rebuild",], "false")
         return config, self.reports
 
-class pp20_t189(rose.upgrade.MacroUpgrade):
+class pp20_t189(MacroUpgrade):
 
     """Upgrade macro for ticket #189 by Erica Neininger."""
     BEFORE_TAG = "pp20_t100"
@@ -42,7 +45,7 @@ class pp20_t189(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp20_t109(rose.upgrade.MacroUpgrade):
+class pp20_t109(MacroUpgrade):
 
     """Upgrade macro for ticket #109 by Erica Neininger."""
     BEFORE_TAG = "pp20_t189"
@@ -170,7 +173,7 @@ class pp20_t109(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp12_t198(rose.upgrade.MacroUpgrade):
+class pp12_t198(MacroUpgrade):
 
     """Upgrade macro for ticket #198 by Erica Neininger."""
     BEFORE_TAG = "pp20_t109"
@@ -206,7 +209,7 @@ class pp12_t198(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
         
-class pp20_t206(rose.upgrade.MacroUpgrade):
+class pp20_t206(MacroUpgrade):
 
     """Upgrade macro for ticket #206 by Erica Neininger."""
     BEFORE_TAG = "pp20_t198"
@@ -223,7 +226,7 @@ class pp20_t206(rose.upgrade.MacroUpgrade):
         return config, self.reports
         
 
-class pp20_t184(rose.upgrade.MacroUpgrade):
+class pp20_t184(MacroUpgrade):
 
     """Upgrade macro for ticket #184 by Erica Neininger."""
     BEFORE_TAG = "pp20_t206"
@@ -246,7 +249,7 @@ class pp20_t184(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp20_t214(rose.upgrade.MacroUpgrade):
+class pp20_t214(MacroUpgrade):
 
     """Upgrade macro for ticket #214 by Erica Neininger."""
     BEFORE_TAG = "pp20_t184"
@@ -261,7 +264,7 @@ class pp20_t214(rose.upgrade.MacroUpgrade):
         return config, self.reports
 
 
-class pp20_t181(rose.upgrade.MacroUpgrade):
+class pp20_t181(MacroUpgrade):
 
     """Upgrade macro for ticket #181 by Erica Neininger."""
     BEFORE_TAG = "pp20_t214"
@@ -288,7 +291,7 @@ class pp20_t181(rose.upgrade.MacroUpgrade):
 
         return config, self.reports
 
-class pp20_t228(rose.upgrade.MacroUpgrade):
+class pp20_t228(MacroUpgrade):
 
     """
     Upgrade macro for ticket #228 by Erica Neininger.
