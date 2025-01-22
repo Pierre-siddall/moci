@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 """
 housekeeping_restart
 Author: Stephen Haddad
@@ -34,10 +34,10 @@ def remove_directory(dir1):
     that are not present will simply be skipped.
     """
     try:
-        print 'removing directory {0}'.format(dir1)
+        print('removing directory {0}'.format(dir1))
         shutil.rmtree(dir1)
     except OSError as _:
-        print 'directory {0} not found'.format(dir1)
+        print('directory {0} not found'.format(dir1))
 
 def main():
     """
@@ -45,8 +45,8 @@ def main():
     """
     cmd_args = get_command_line_arguments()
 
-    print 'Executing script to clean up output from restart tests'
-    print 'Mode: {0}'.format(cmd_args.target)
+    print('Executing script to clean up output from restart tests')
+    print('Mode: {0}'.format(cmd_args.target))
 
     dirs_to_remove = []
     if cmd_args.target == 'work':
@@ -65,8 +65,8 @@ def main():
         err_msg = 'unsupported housekeeping mode {0}'.format(cmd_args.target)
         raise Exception(err_msg)
 
-    print 'the following directories will be removed:'
-    print '\n'.join(dirs_to_remove)
+    print('the following directories will be removed:')
+    print('\n'.join(dirs_to_remove))
     for dir1 in dirs_to_remove:
         remove_directory(dir1)
 
