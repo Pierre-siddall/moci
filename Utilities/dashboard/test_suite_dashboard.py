@@ -361,9 +361,12 @@ class CylcDB(SqlDatabase):
         # filter out tasks in list that are after the final cycle but have
         # been included because of the run ahead limit.
         task_list1 = self.select_from_table('task_jobs', ['name', 'cycle'])
-        tsl1 = [t1 for t1 in tsl1 if t1[0:2] in task_list1]
 
-        return tsl1
+        # Use a dictionary to only save the last status for tasks that
+        # appear more than once, relying on python.  Cylc >= 8.5
+        # appears to contain duplicate states.
+        unique_tasks = {t1[0]: t1 for t1 in tsl1 if t1[0:2] in task_list1}
+        return unique_tasks.values()
 
     def get_family_task_summary(self, family):
         """
