@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -15,7 +15,7 @@ NAME
     main_pp.py
 
 SYNOPSIS
-    main_pp.py [atmos] [nemo] [cice]
+    main_pp.py [atmos] [nemo] [cice] [unicicles]
 
 DESCRIPTION
     Post-Processing app for use with Rose Suites - UM vn9.1 ->
@@ -49,6 +49,7 @@ def run_postproc():
         'atmos': 'atmos',
         'nemo': 'nemocice',
         'cice': 'nemocice',
+        'unicicles': 'unicicles',
         }
 
     if len(sys.argv) > 1:

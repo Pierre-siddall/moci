@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -108,6 +108,9 @@ def run_timer(function):
         '''
         Wrapper function for the function to be timed
         '''
+        if kw.get('skiptimer') is not None:
+            # Required for recursive calls of decorated functions
+            return function(*args, **kw)
         fn_label = function.__name__
         if classname:
             fn_label = '.'.join([classname, fn_label])

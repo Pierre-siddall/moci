@@ -159,9 +159,9 @@ class ExecTests(unittest.TestCase):
     def test_utility_avail(self):
         '''Test availability of shell command'''
         func.logtest('Assert availablity of shell command')
-        self.assertTrue(utils.get_utility_avail('mule-cutout'))
+        self.assertTrue(utils.get_utility_avail('echo'))
         self.assertFalse(utils.get_utility_avail('hello_postproc'))
-        
+
 
 class LogTests(unittest.TestCase):
     '''Unit tests for logging output messages'''
@@ -633,6 +633,7 @@ class CycletimeTests(unittest.TestCase):
                              ['2000', '02', '21', '00', '00'])
         self.assertListEqual(cycle.endcycle['intlist'],
                              [2000, 2, 21, 0, 0])
+        self.assertEqual(cycle.period, 'P1M')
 
     def test_cylccycle_specific(self):
         '''Test instantiation of a CylcCycle object - given point'''
@@ -652,6 +653,45 @@ class CycletimeTests(unittest.TestCase):
                                  ['1235', '08', '17', '09', '00'])
             self.assertListEqual(cycle.endcycle['intlist'],
                                  [1235, 8, 17, 9, 0])
+            self.assertEqual(cycle.period, '3h1y')
+
+    def test_cylccycle_period(self):
+        '''Test instantiation of a CylcCycle object - given period'''
+        func.logtest('Assert instantiation of CylcCycle object - given period:')
+        cycle = utils.CylcCycle(cycleperiod='1y')
+
+        # startcycle == $CYLC_TASK_CYCLE_POINT
+        self.assertEqual(cycle.startcycle['iso'], '20000121T0000Z')
+        self.assertListEqual(cycle.startcycle['strlist'],
+                             ['2000', '01', '21', '00', '00'])
+        self.assertListEqual(cycle.startcycle['intlist'],
+                             [2000, 1, 21, 0, 0])
+
+        self.assertEqual(cycle.endcycle['iso'], '20010121T0000Z')
+        self.assertListEqual(cycle.endcycle['strlist'],
+                             ['2001', '01', '21', '00', '00'])
+        self.assertListEqual(cycle.endcycle['intlist'],
+                             [2001, 1, 21, 0, 0])
+        self.assertEqual(cycle.period, '1y')
+
+    def test_cylccycle_periodlist(self):
+        '''Test instantiation of a CylcCycle object - given period list'''
+        func.logtest('Assert instantiation of CylcCycle object - given period:')
+        cycle = utils.CylcCycle(cycleperiod='1,0,1')
+
+        # startcycle == $CYLC_TASK_CYCLE_POINT
+        self.assertEqual(cycle.startcycle['iso'], '20000121T0000Z')
+        self.assertListEqual(cycle.startcycle['strlist'],
+                             ['2000', '01', '21', '00', '00'])
+        self.assertListEqual(cycle.startcycle['intlist'],
+                             [2000, 1, 21, 0, 0])
+
+        self.assertEqual(cycle.endcycle['iso'], '20010122T0000Z')
+        self.assertListEqual(cycle.endcycle['strlist'],
+                             ['2001', '01', '22', '00', '00'])
+        self.assertListEqual(cycle.endcycle['intlist'],
+                             [2001, 1, 22, 0, 0])
+        self.assertEqual(cycle.period, [1, 0, 1])
 
     def test_failed_cylccycle(self):
         ''' Assert failure to instantiate CylcCycle object '''
@@ -690,6 +730,13 @@ class CycletimeTests(unittest.TestCase):
         with mock.patch.dict('utils.os.environ', {'ARCHIVE_FINAL': 'true'}):
             self.assertTrue(utils.finalcycle())
 
+    def test_final_cycle_undefined(self):
+        '''Test assert final cycle with $CYLC_SUITE_FINAL_CYCLE undefined'''
+        func.logtest('Assert final cycle time property - undefined:')
+        with mock.patch.dict('utils.os.environ',
+                             {'CYLC_SUITE_FINAL_CYCLE_POINT': ''}):
+            self.assertFalse(utils.finalcycle())
+        
     def test_not_final_cycle(self):
         '''Test negative assertion of final cycle'''
         func.logtest('Assert final cycle time property - FALSE:')

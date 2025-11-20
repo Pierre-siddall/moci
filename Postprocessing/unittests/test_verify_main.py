@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2024 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -37,6 +37,7 @@ class DummyNamelists(object):
         self.commonverify.prefix = 'runid'
         self.atmosverify = verify_namelist.AtmosVerify()
         self.nemoverify = verify_namelist.NemoVerify()
+        self.uniciclesverify = verify_namelist.UniciclesVerify()
 
 class FilenamesTests(unittest.TestCase):
     ''' Unit tests relating to the filenames module '''
@@ -89,6 +90,17 @@ class FilenamesTests(unittest.TestCase):
         self.assertTupleEqual(filenames.model_components('cice', ''),
                               ('i', 'cice'))
 
+    def test_unicicles_components(self):
+        ''' Assert realm and component for a given model and field '''
+        func.logtest('Assert realm and component:')
+        self.assertTupleEqual(filenames.model_components(
+            'unicicles', 'unicicles_bisicles_ais_rst'), ('c', None))
+        self.assertTupleEqual(filenames.model_components(
+            'unicicles', 'unicicles_bisicles_gris_rst'), ('c', None))
+        self.assertTupleEqual(filenames.model_components(
+            'unicicles', 'unicicles_glint_ais_rst'), ('c', None))
+        self.assertTupleEqual(filenames.model_components(
+            'unicicles', 'unicicles_glint_gris_rst'), ('c', None))
 
 class VerifyArchiveTests(unittest.TestCase):
     ''' Unit tests relating to the main archive_integrity app '''
@@ -365,8 +377,11 @@ class VerifyArchiveTests(unittest.TestCase):
         setattr(namelists, 'atmosverify', verify_namelist.AtmosVerify())
         setattr(namelists, 'nemoverify', verify_namelist.CiceVerify())
         setattr(namelists, 'ciceverify', verify_namelist.NemoVerify())
+        setattr(namelists, 'uniciclesverify',
+                verify_namelist.UniciclesVerify())
         namelists.nemoverify.verify_model = True
         namelists.atmosverify.verify_model = True
+        namelists.uniciclesverify.verify_model = True
         mock_nl.return_value = namelists
         with mock.patch('archive_integrity.utils.finalcycle'):
             archive_integrity.main()

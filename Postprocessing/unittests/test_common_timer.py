@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -244,6 +244,19 @@ class TimerMethodsTests(unittest.TestCase):
         label = 'MyClass.decorated_class_method'
         mock_start.assert_called_once_with(label)
         mock_end.assert_called_once_with(label)
+        self.assertTrue(rtn.startswith('I am a decorated class method: '))
+        self.assertIn('<test_common_timer.MyClass object at', rtn)
+        self.assertTrue(rtn.endswith('>'))
+
+    @mock.patch('timer.PostProcTimer.end_timer')
+    @mock.patch('timer.PostProcTimer.start_timer')
+    def test_runtimer_classmethod_skip(self, mock_start, mock_end):
+        '''test run_timer method - class method, skip timer'''
+        func.logtest('Assert functionality of run_timer - class method:')
+        rtn = MyClass().decorated_class_method(skiptimer=True)
+        label = 'MyClass.decorated_class_method'
+        mock_start.assert_not_called()
+        mock_end.assert_not_called()
         self.assertTrue(rtn.startswith('I am a decorated class method: '))
         self.assertIn('<test_common_timer.MyClass object at', rtn)
         self.assertTrue(rtn.endswith('>'))

@@ -13,11 +13,12 @@
     [[POSTPROC]]
         inherit = POSTPROC_RESOURCE
         [[[environment]]]
-            ROSE_TASK_APP = postproc
-            RUNID      = hg3es
-            DATAM      = $CYLC_WORKFLOW_SHARE_DIR/data/postproc/ATMOSdata
-            NEMO_DATA  = $CYLC_WORKFLOW_SHARE_DIR/data/postproc/NEMOdata
-            CICE_DATA  = $CYLC_WORKFLOW_SHARE_DIR/data/postproc/CICEdata
+            ROSE_TASK_APP  = postproc
+            RUNID          = hg3es
+            DATAM          = $CYLC_WORKFLOW_SHARE_DIR/data/postproc/ATMOSdata
+            NEMO_DATA      = $CYLC_WORKFLOW_SHARE_DIR/data/postproc/NEMOdata
+            CICE_DATA      = $CYLC_WORKFLOW_SHARE_DIR/data/postproc/CICEdata
+            UNICICLES_DATA = $CYLC_WORKFLOW_SHARE_DIR/data/postproc/UNICICLESdata
             INITCYCLE_OVERRIDE = '19811001T0000Z'
             FINALCYCLE_OVERRIDE = '19830101T0000Z'
             ARCHIVE_SET = 'dummy'
@@ -37,7 +38,7 @@
 {%- set CYCLEPOINT = '198%s01T0000Z' % (cycle) %}
 {%- set cyclestring = '%s' % (cycle) %}
     [[{{'postproc_198%s01' % (cycle)}}]]
-        inherit=PP_TASKS
+        inherit = PP_TASKS
         [[[environment]]]
             CYCLEPOINT_OVERRIDE = {{ CYCLEPOINT }}
     {%- if SITE == 'meto' and cyclestring[1:3] in ['03', '06', '09', '12'] %}
@@ -67,7 +68,8 @@
         inherit = {{'postproc_198%s01' % (cycle)}}
         script = """{{TASK_RUN}} --command-key=verify \
 --define='[namelist:atmosverify]verify_model=false' \
---define='[namelist:ciceverify]verify_model=false' """
+--define='[namelist:ciceverify]verify_model=false' \
+--define='[namelist:uniciclesverify]verify_model=false' """
         [[[environment]]]
            ROSE_APP_COMMAND_KEY = verify
         {%- endif %}
@@ -88,7 +90,7 @@
 --define='[namelist:nemoverify]verify_model=false' """
         [[[environment]]]
            ROSE_APP_COMMAND_KEY = pp_atmos
-    {%- endif %}     
+    {%- endif %}
 
     [[{{'coupled_dummy_198%s01' % (cycle)}}]]
         inherit = PP_COUPLED_DUMMY
@@ -96,9 +98,86 @@
             CYCLEPOINT = {{ CYCLEPOINT }}
 {%- endfor %}
 
+    [[pp_unicicles_startup]]
+        inherit = POSTPROC
+        script = """
+predate=$( isodatetime $STARTCYCLE --offset -P5M )
+startdate=$( isodatetime $STARTCYCLE --offset -P2M )
+
+mkdir -p ${UNICICLES_DATA}
+
+echo [INFO] Creating Unicicles initial start up files:
+touch ${UNICICLES_DATA}/${RUNID}c_${startdate}_bisicles-AIS_restart.hdf5
+touch ${UNICICLES_DATA}/${RUNID}c_${startdate}_bisicles-GrIS_restart.hdf5
+touch ${UNICICLES_DATA}/${RUNID}c_${startdate}_glint-AIS_restart.nc
+touch ${UNICICLES_DATA}/${RUNID}c_${startdate}_glint-GrIS_restart.nc
+
+touch ${UNICICLES_DATA}/bisicles_${RUNID}c_3m_${predate}-${startdate}_calving-AIS.hdf5
+touch ${UNICICLES_DATA}/bisicles_${RUNID}c_3m_${predate}-${startdate}_calving-GrIS.hdf5
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${predate}-${startdate}_atmos-icecouple.nc
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${predate}-${startdate}_nemo-bathy-isf.nc
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${predate}-${startdate}_calving.nc
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${predate}-${startdate}_nemo-icecouple.nc
+
+ls ${UNICICLES_DATA}
+"""
+       [[[environment]]]
+           STARTCYCLE = {{ "198" + PP_UNICICLES_CYCLES[0]|string + "01" }}
+           DATE1 =
+           DATE2 =
+ 
+{%- for cycle in PP_UNICICLES_CYCLES %}
+{%- set CYCLEPOINT = '198%s01T0000Z' % (cycle) %}
+{%- set cyclestring = '%s' % (cycle) %}
+
+    [[{{'pp_unicicles_198%s01' % (cycle)}}]]
+        inherit = {{'postproc_198%s01' % (cycle)}}
+        script = """
+startdate=$( isodatetime 198{{cycle}}01 --offset -P2M )
+enddate=$( isodatetime 198{{cycle}}01 --offset P1M )
+touch ${UNICICLES_DATA}/${RUNID}a.da_${enddate}_00-pre_ice
+touch ${UNICICLES_DATA}/${RUNID}c_${enddate}_bisicles-AIS_restart.hdf5
+touch ${UNICICLES_DATA}/${RUNID}c_${enddate}_bisicles-GrIS_restart.hdf5
+touch ${UNICICLES_DATA}/${RUNID}c_${enddate}_glint-AIS_restart.nc
+touch ${UNICICLES_DATA}/${RUNID}c_${enddate}_glint-GrIS_restart.nc
+
+touch ${UNICICLES_DATA}/bisicles_${RUNID}c_3m_${startdate}-${enddate}_nemo-icecouple-AIS.hdf5
+touch ${UNICICLES_DATA}/bisicles_${RUNID}c_3m_${startdate}-${enddate}_plot-AIS.hdf5
+touch ${UNICICLES_DATA}/bisicles_${RUNID}c_3m_${startdate}-${enddate}_calving-AIS.hdf5
+touch ${UNICICLES_DATA}/bisicles_${RUNID}c_3m_${startdate}-${enddate}_plot-GrIS.hdf5
+touch ${UNICICLES_DATA}/bisicles_${RUNID}c_3m_${startdate}-${enddate}_calving-GrIS.hdf5
+
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${startdate}-${enddate}_atmos-icecouple.nc
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${startdate}-${enddate}_nemo-icecouple.nc
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${startdate}-${enddate}_bisicles-icecouple.nc
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${startdate}-${enddate}_bisicles-icecouple-AIS.nc
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${startdate}-${enddate}_bisicles-icecouple-GrIS.nc
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${startdate}-${enddate}_orog-li-AIS.anc
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${startdate}-${enddate}_orog-li-AIS.anc.xml
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${startdate}-${enddate}_orog-li-GrIS.anc
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${startdate}-${enddate}_orog-li-GrIS.anc.xml
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${startdate}-${enddate}_orog-li.anc
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${startdate}-${enddate}_calving.nc
+touch ${UNICICLES_DATA}/unicicles_${RUNID}c_3m_${startdate}-${enddate}_nemo-bathy-isf.nc
+
+echo [INFO] Created the following files to simulate uniCiCles output data:
+ls ${UNICICLES_DATA}/*c_${startdate}_*
+ls ${UNICICLES_DATA}/*c_3m_${startdate}-${enddate}_*
+echo
+echo [INFO] Running PostProc app for UniCiCles...
+echo Command: {{TASK_RUN}} --command-key=pp_unicicles
+{{TASK_RUN}} --command-key=pp_unicicles 
+"""
+        [[[environment]]]
+           ROSE_APP_COMMAND_KEY = pp_unicicles
+           VERIFY_ARCHIVE = true
+           FINALCYCLE_OVERRIDE = '19821201T0000Z'
+{%- endfor %}
+
     [[verify_final]]
        inherit = PP_TESTS, PP_TASKS
        script = """{{TASK_RUN}} --command-key=verify """
+{# --define='[namelist:uniciclesverify]verify_model=false' #}
        [[[environment]]]
            ROSE_APP_COMMAND_KEY = verify
            CYCLEPOINT_OVERRIDE = 19830101T0000Z
@@ -112,7 +191,7 @@
         env-script = "eval $(rose task-env)"
 	# Run each of the main groups (common, atmos, nemocice) first - helps to spot any leaking tests.
         # Finally run 'all' - sweeps up any tests not covered in the main groups
-        script = run_python_env.sh test_postproc -g common -g atmos -g nemocice -g platforms -g all
+        script = run_python_env.sh test_postproc -g common -g atmos -g nemocice -g platforms -g unicicles -g all
 	[[[environment]]]
 	    STASHMASTER = 
 

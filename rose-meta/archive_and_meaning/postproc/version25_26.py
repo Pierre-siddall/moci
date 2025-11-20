@@ -41,3 +41,53 @@ class pp25_t678(MacroUpgrade):
         self.add_setting(config,["namelist:nemoverify","nemo_icb_rst"],"false")
         
         return config, self.reports
+
+class pp25_t646(MacroUpgrade):
+
+    """Upgrade macro for ticket #646 by Marc Stringer."""
+    BEFORE_TAG = "pp25_t678"
+    AFTER_TAG = "pp25_t646"
+
+    def upgrade(self, config, meta_config=None):
+        """Upgrade a Postproc app configuration include UniCiCles."""
+        self.add_setting(config, ["command", "pp_unicicles"],
+                         "run_python_env.sh main_pp.py unicicles")
+        self.add_setting(config,
+                         ["file:uniciclespp.nl", "source"],
+                         ("namelist:unicicles_pp namelist:suitegen " +
+                          "(namelist:moose_arch) (namelist:archer_arch) " +
+                          "(namelist:script_arch)"))
+        verify_source = self.get_setting_value(config,
+                                               ["file:verify.nl", "source"])
+        verify_source += " (namelist:uniciclesverify)"
+        self.change_setting_value(config,
+                                  ["file:verify.nl", "source"], verify_source)
+
+        ## PostProc App
+        self.add_setting(config, ["namelist:unicicles_pp",
+                                  "pp_run"], "false")
+        self.add_setting(config, ["namelist:unicicles_pp",
+                                  "share_directory"], "$UNICICLES_DATA")
+        self.add_setting(config, ["namelist:unicicles_pp",
+                                  "cycle_length"], "1y")
+
+        # archive_integrity App
+        self.add_setting(config, ["namelist:uniciclesverify",
+                                  "verify_model"], "false")
+        self.add_setting(config, ["namelist:uniciclesverify",
+                                  "meanfields"],
+                         "atmos-icecouple,bisicles-icecouple,calving")
+        self.add_setting(config, ["namelist:uniciclesverify",
+                                  "meanstreams"], "1y")
+        self.add_setting(config, ["namelist:uniciclesverify",
+                                  "cycle_length"], "1y")
+        self.add_setting(config, ["namelist:uniciclesverify",
+                                  "unicicles_bisicles_ais_rst"], "false")
+        self.add_setting(config, ["namelist:uniciclesverify",
+                                  "unicicles_bisicles_gris_rst"], "false")
+        self.add_setting(config, ["namelist:uniciclesverify",
+                                  "unicicles_glint_ais_rst"], "false")
+        self.add_setting(config, ["namelist:uniciclesverify",
+                                  "unicicles_glint_gris_rst"], "false")
+
+        return config, self.reports

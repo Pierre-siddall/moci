@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2024 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -152,7 +152,7 @@ class Propertytests(unittest.TestCase):
         self.assertListEqual(self.nemo.mean_fields,
                              ['diad_T', 'diaptr', 'grid_T',
                               'grid_U', 'grid_V', 'grid_W',
-                              'icemod',
+                              'icemod', 'isf_T',
                               'ptrc_T', 'ptrd_T', 'scalar', 'trnd3d'])
         self.assertEqual(self.nemo.naml.processing.region_fieldsfiles, None)
         self.assertListEqual(self.nemo.inst_fields, [])

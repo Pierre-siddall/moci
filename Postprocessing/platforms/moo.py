@@ -38,7 +38,8 @@ import utils
 import timer
 
 # Dictionary of models which Moose is set up to accept
-MODELS = ['atmos', 'jules', 'nemo', 'medusa', 'cice', 'si3']
+MODELS = ['atmos', 'jules', 'nemo', 'medusa', 'cice', 'si3',
+          'bisicles', 'unicicles']
 
 
 @timer.run_timer
@@ -212,6 +213,29 @@ class _Moose(object):
                 msg = 'moo.py - ocean/sea-ice file type not recognised: '
                 utils.log_msg(msg + self._rqst_name, level='ERROR')
                 file_id = ''
+
+        elif model_id == 'c':
+            # UniCiCles (using stream 'c' for the cryosphere)
+            ext = '.file'
+
+            # Determing location of files
+            if re.search('bisicles-.*IS_restart.hdf5', self._file_id) or \
+               re.search('glint-.*IS_restart.nc', self._file_id):
+                # Restart files, which are definitely not diagnostics, are
+                # written to cda.file
+                file_id = 'da'
+            else:
+                fn_facets = self._file_id.split('_')
+                if re.search('.hdf5', self._file_id):
+                    # Ice sheet diagnostics in hdf5.
+                    # Hope to change this after MASS configuration is
+                    # unfrozen (Marc 13/2/24).
+                    file_id = 'h' + fn_facets[0][-1]
+                else:
+                    # Assuming the rest are netcdf files.
+                    # Hope to change this after MASS configuration is
+                    # unfrozen (Marc 13/2/24).
+                    file_id = 'b' + fn_facets[0][-1]
 
         else:
             msg = 'moo.py - Model id "{}" in filename  not recognised.'.\

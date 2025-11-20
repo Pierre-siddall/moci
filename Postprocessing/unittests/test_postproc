@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -24,6 +24,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'common'))
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'platforms'))
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'atmos'))
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'nemocice'))
+sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, 'unicicles'))
 sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir,
                              'archive_verify'))
 
@@ -56,6 +57,7 @@ def main():
         'nemo':      'test_nemocice_nemo.py',
         'cice':      'test_nemocice_cice.py',
         'template':  'test_nemocice_template.py',
+        'unicicles': 'test_unicicles.py',
         'verify':    'test_verify_*.py',
         'archer':    'test_platforms_archer.py',
         'moo':       'test_platforms_moo.py',
@@ -71,6 +73,8 @@ def main():
                                       'atmos_' in groups[a]]),
         ' '.join(['nemo and cice groups:'] + [n for n in groups if
                                               'nemocice_' in groups[n]]),
+        ' '.join(['unicicles groups:'] + [u for u in groups if
+                                          'unicicles_' in groups[u]]),
         ' '.join(['verification group:'] + [v for v in groups if
                                             'verify_' in groups[v]]),
         ' '.join(['platforms group:'] + [p for p in groups if

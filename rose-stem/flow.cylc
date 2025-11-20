@@ -1,6 +1,7 @@
 #!jinja2
 {% set TASK_RUN = "rose task-run --verbose -O '(" + SITE + ")'"%}
 {% set PP_CYCLES = range(110,113)|list + range(201,213)|list + [301,]|list %}
+{% set PP_UNICICLES_CYCLES = [112,203,206,209,212,]|list %}
 
 {# Test to determine when to use single fcm_make tasks #}
 {% set MULTISTEP_FCM = ['archer'] %}
@@ -34,7 +35,6 @@
     [[events]]
         stall timeout handlers = "echo %worklfow%s %event%s"
         stall timeout = PT6H
-        mail events = timeout
 	abort on stall timeout = true
 
 [scheduling]

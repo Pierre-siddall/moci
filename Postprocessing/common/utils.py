@@ -59,7 +59,7 @@ def load_env(varname, default_value=None, required=False):
 
 class CylcCycle(object):
     ''' Object representing the current Cylc cycle point '''
-    def __init__(self, cyclepoint=None):
+    def __init__(self, cyclepoint=None, cycleperiod=None):
         '''
         Optional argument:
            cyclepoint - ISOformat datestring OR list/tuple of digits
@@ -71,16 +71,23 @@ class CylcCycle(object):
                 cyclepoint = load_env('CYLC_TASK_CYCLE_POINT', required=True)
         self.startcycle = self._cyclepoint(cyclepoint)
 
-        cycleperiod = load_env('CYCLEPERIOD', required=True)
+        if cycleperiod is None:
+            cycleperiod = load_env('CYCLEPERIOD', required=True)
         try:
             # Split period into list of integers if possible
             cycleperiod = [int(x) for x in cycleperiod.split(',')]
         except ValueError:
             # Period provided is intended as a string
             pass
+        self._period = cycleperiod
         enddate = add_period_to_date(self.startcycle['intlist'],
                                      cycleperiod)
         self.endcycle = self._cyclepoint(enddate)
+
+    @property
+    def period(self):
+        ''' Return the cycle period for the cycle point '''
+        return self._period
 
     @staticmethod
     def isoformat(cpoint):
@@ -122,16 +129,19 @@ def finalcycle():
     if arch_final is None:
         finalpoint = load_env('FINALCYCLE_OVERRIDE')
         if finalpoint is None:
-            finalpoint = load_env('CYLC_SUITE_FINAL_CYCLE_POINT', required=True)
+            finalpoint = load_env('CYLC_SUITE_FINAL_CYCLE_POINT')
 
         # The end point of final cycle will always be beyond the "final point"
         # as defined by either $CYLC_SUITE_FINAL_CYCLE_POINT (calendar cycling
         # suites) or $FINAL_CYCLE_OVERRIDE (for integer cycling suites), since
         # Cylc will not trigger further cycles beyond this point.
         # Set fcycle=True in this instance.
-        fcycle = (CylcCycle().endcycle['intlist'] >
-                  CylcCycle(cyclepoint=finalpoint).startcycle['intlist'])
-
+        if finalpoint:
+            fcycle = (CylcCycle().endcycle['intlist'] >
+                      CylcCycle(cyclepoint=finalpoint).startcycle['intlist'])
+        else:
+            # Cylc8 no longer requires a final cycle point to be set at all
+            fcycle = False
     else:
         # Set final cycle according to value of ARCHIVE_FINAL
         fcycle = ('true' in arch_final.lower())

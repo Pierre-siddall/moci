@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -45,12 +45,18 @@ class PostprocTests(unittest.TestCase):
         self.mock_cice = mock.Mock()
         self.mock_cice().runpp = True
         self.mock_cice().methods = self.methods
+        self.mock_unicicles = mock.Mock()
+        self.mock_unicicles().runpp = True
+        self.mock_unicicles().methods = self.methods
         self.modules = {'atmos': self.mock_atmos,
                         'nemo': self.mock_nemo,
-                        'cice': self.mock_cice}
+                        'cice': self.mock_cice,
+                        'unicicles': self.mock_unicicles}
         self.modules['atmos'].INSTANCE = ('nl_atmos', self.modules['atmos'])
         self.modules['nemo'].INSTANCE = ('nl_nemo', self.modules['nemo'])
         self.modules['cice'].INSTANCE = ('nl_cice', self.modules['cice'])
+        self.modules['unicicles'].INSTANCE = ('nl_unicicles',
+                                              self.modules['unicicles'])
 
     def tearDown(self):
         for fname in runtime_environment.RUNTIME_FILES:
@@ -81,6 +87,7 @@ class PostprocTests(unittest.TestCase):
         self.assertNotIn('Running method2 for atmos', func.capture())
         self.assertNotIn('Running method1 for nemo', func.capture())
         self.assertNotIn('Running method1 for cice', func.capture())
+        self.assertNotIn('Running method1 for unicicles', func.capture())
 
     def test_nemo_instantiation(self):
         '''Test instantiation of nemo model only'''
@@ -91,6 +98,7 @@ class PostprocTests(unittest.TestCase):
         self.assertIn('Running method1 for nemo', func.capture())
         self.assertNotIn('Running method1 for atmos', func.capture())
         self.assertNotIn('Running method1 for cice', func.capture())
+        self.assertNotIn('Running method1 for unicicles', func.capture())
 
     def test_cice_instantiation(self):
         '''Test instantiation of cice model only'''
@@ -101,6 +109,7 @@ class PostprocTests(unittest.TestCase):
         self.assertIn('Running method1 for cice', func.capture())
         self.assertNotIn('Running method1 for atmos', func.capture())
         self.assertNotIn('Running method1 for nemo', func.capture())
+        self.assertNotIn('Running method1 for unicicles', func.capture())
 
     def test_nemocice_instantiation(self):
         '''Test instantiation of nemocice models only'''
@@ -113,6 +122,19 @@ class PostprocTests(unittest.TestCase):
         self.assertIn('Running method1 for cice', func.capture())
         self.assertIn('Running method1 for nemo', func.capture())
         self.assertNotIn('Running method1 for atmos', func.capture())
+        self.assertNotIn('Running method1 for unicicles', func.capture())
+
+    def test_unicicles_instantiation(self):
+        '''Test instantiation of UniCiCles model only'''
+        func.logtest('Assert successful instantiation of UniCiCles model:')
+        sys.argv = ('script', 'unicicles')
+        with mock.patch('main_pp.sys.modules',
+                        {'unicicles': self.mock_unicicles}):
+            main_pp.run_postproc()
+        self.assertIn('Running method1 for unicicles', func.capture())
+        self.assertNotIn('Running method1 for atmos', func.capture())
+        self.assertNotIn('Running method1 for cice', func.capture())
+        self.assertNotIn('Running method1 for nemo', func.capture())
 
     def test_all_models(self):
         '''Test instantiation of all models'''
@@ -121,6 +143,7 @@ class PostprocTests(unittest.TestCase):
         main_pp.run_postproc()
         self.assertTrue(os.path.exists('atmospp.nl'))
         self.assertTrue(os.path.exists('nemocicepp.nl'))
+        self.assertTrue(os.path.exists('uniciclespp.nl'))
 
     def test_dummy_model(self):
         '''Test instantiation of a non-existent dummy model'''
@@ -143,8 +166,10 @@ class PostprocTests(unittest.TestCase):
                       func.capture('err'))
         self.assertNotIn('nemo', func.capture('err'))
         self.assertNotIn('cice', func.capture('err'))
+        self.assertNotIn('unicicles', func.capture('err'))
         self.assertIn('Running method1 for nemo', func.capture())
         self.assertIn('Running method1 for cice', func.capture())
+        self.assertIn('Running method1 for unicicles', func.capture())
 
     def test_nemo_failure(self):
         '''Test runtime failure of nemo model'''
@@ -157,6 +182,7 @@ class PostprocTests(unittest.TestCase):
         self.assertIn('Exiting with errors in nemo_debug', func.capture('err'))
         self.assertNotIn('cice', func.capture('err'))
         self.assertNotIn('atmos', func.capture('err'))
+        self.assertNotIn('unicicles', func.capture('err'))
 
     def test_cice_failure(self):
         '''Test runtime failure of cice model'''
@@ -170,6 +196,21 @@ class PostprocTests(unittest.TestCase):
                       func.capture('err'))
         self.assertNotIn('nemo', func.capture('err'))
         self.assertNotIn('atmos', func.capture('err'))
+        self.assertNotIn('unicicles', func.capture('err'))
+
+    def test_unicicles_failure(self):
+        '''Test runtime failure of UniCiCles model'''
+        func.logtest('Assert runtime failure of UniCiCles model:')
+        sys.argv = ('script',)
+        with mock.patch.dict('main_pp.sys.modules', self.modules):
+            self.mock_unicicles().debug_ok = False
+            with self.assertRaises(SystemExit):
+                main_pp.run_postproc()
+        self.assertIn('Exiting with errors in unicicles_debug',
+                      func.capture('err'))
+        self.assertNotIn('cice', func.capture('err'))
+        self.assertNotIn('atmos', func.capture('err'))
+        self.assertNotIn('nemo', func.capture('err'))
 
     @mock.patch('main_pp.run_postproc')
     @mock.patch('main_pp.run_archive_integrity')

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2024 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -108,7 +108,29 @@ class CiceVerify(object):
     streams_1d_1m = False
 
 
+class UniciclesVerify(object):
+    ''' Default namelist for Unicicles archive verification '''
+    def __init__(self):
+        pass
+
+    verify_model = False
+    archive_timestamps = '01-01'
+    base_mean = '1y'
+    buffer_mean = 1
+    buffer_restart = 1
+    cycle_length= '1y'
+    meanfields = None
+    mean_reference_date = '0101'
+    meanstreams = ['1y']
+    pp_climatemeans = False
+    unicicles_bisicles_ais_rst = False
+    unicicles_bisicles_gris_rst = False
+    unicicles_glint_ais_rst = False
+    unicicles_glint_gris_rst = False
+
+
 NAMELISTS = {'commonverify': PeriodicVerify,
              'atmosverify': AtmosVerify,
              'nemoverify': NemoVerify,
-             'ciceverify': CiceVerify}
+             'ciceverify': CiceVerify,
+             'uniciclesverify': UniciclesVerify}

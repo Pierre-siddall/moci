@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2024 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -95,7 +95,7 @@ class NemoPostProc(mt.ModelTemplate):
     def model_components(self):
         '''Name of model component, to be used as a prefix to archived files '''
         return {
-            'nemo': ['grid_T', 'grid_U', 'grid_V',
+            'nemo': ['grid_T', 'grid_U', 'grid_V', 'isf_T',
                      'grid_W', 'diaptr', 'trnd3d', 'scalar',
                      'UK_shelf_T', 'UK_shelf_U', 'UK_shelf_V'],
             'si3': ['icemod'],

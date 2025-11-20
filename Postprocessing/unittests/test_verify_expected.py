@@ -122,6 +122,10 @@ class ArchivedFilesTests(unittest.TestCase):
             self.files.extract_date('cice_runidi_1d_1988011012-1988011112.nc'),
             [1988, 1, 10, 12]
             )
+        self.assertListEqual(
+            self.files.extract_date('unicicles_runidc_1y_19880101-19890101.nc'),
+            [1988, 1, 1]
+            )
 
     def test_extract_end_date_atmos(self):
         '''Assert correct extraction of date from various filenames '''
@@ -221,6 +225,30 @@ class ArchivedFilesTests(unittest.TestCase):
         self.assertTupleEqual(self.files.get_fn_components(''),
                               ('ncf_mean', 'i', 'cice'))
 
+    def test_filename_dict_unicicles(self):
+        '''Assert return of key, realm and component for unicicles'''
+        func.logtest('Assert return of unicicles key, realm and component:')
+        self.files.model = 'unicicles'
+        self.files.naml = verify_namelist.UniciclesVerify()
+        self.assertTupleEqual(
+            self.files.get_fn_components('unicicles_bisicles_ais_rst'),
+            ('rst', 'c', None))
+        self.assertTupleEqual(
+            self.files.get_fn_components('unicicles_bisicles_gris_rst'),
+            ('rst', 'c', None))
+        self.assertTupleEqual(
+            self.files.get_fn_components('unicicles_glint_ais_rst'),
+            ('rst', 'c', None))
+        self.assertTupleEqual(
+            self.files.get_fn_components('unicicles_glint_gris_rst'),
+            ('rst', 'c', None))
+        self.assertTupleEqual(
+            self.files.get_fn_components('plot-AIS'),
+            ('bisicles_diag_hdf', 'c', 'bisicles'))
+        self.assertTupleEqual(
+            self.files.get_fn_components('calving'),
+            ('unicicles_diag_ncf', 'c', 'unicicles'))
+
     @mock.patch('expected_content.ArchivedFiles.get_fn_components')
     def test_collection_atmos(self, mock_cmp):
         ''' Assert return of collection name - atmos '''
@@ -266,6 +294,20 @@ class ArchivedFilesTests(unittest.TestCase):
         mock_cmp.return_value = ('ncf_mean', 'i', 'cice')
         self.assertEqual(self.files.get_collection(period='1y', stream=''),
                          'iny.nc.file')
+
+    @mock.patch('expected_content.ArchivedFiles.get_fn_components')
+    def test_collection_unicicles(self, mock_cmp):
+        ''' Assert return of collection name - unicicles '''
+        func.logtest('Assert successful return of a unicicles coll name')
+        self.files.model = 'unicicles'
+        mock_cmp.return_value = ('rst', 'c', None)
+        self.assertEqual(self.files.get_collection(), 'cda.file')
+        mock_cmp.return_value = ('unicicles_diag_ncf', 'c', 'unicicles')
+        self.assertEqual(self.files.get_collection(period='1s', stream=''),
+                         'cbs.file')
+        mock_cmp.return_value = ('bisicles_diag_hdf', 'c', 'unicicles')
+        self.assertEqual(self.files.get_collection(period='1y', stream=''),
+                         'chy.file')
 
     def test_modify_atmos_namelist(self):
         '''Assert update to atmosphere streams list namelist items'''
@@ -570,6 +612,44 @@ class RestartFilesTests(unittest.TestCase):
         self.assertListEqual(actual['ida.file'], expect)
         self.assertListEqual(list(actual.keys()), ['ida.file'])
 
+    def test_expected_unicicles_dumps(self):
+        ''' Test calculation of expected unicicles restarts'''
+        func.logtest('Assert list of archived unicicles dumps:')
+        naml =verify_namelist.UniciclesVerify()
+        naml.unicicles_bisicles_ais_rst = True
+        naml.unicicles_glint_gris_rst = True
+        with mock.patch('expected_content.utils.finalcycle',
+                        return_value=False):
+            files = expected_content.RestartFiles(
+                '19950101', '19980101', 'PREFIX', 'unicicles', naml)
+
+        expect = ['PREFIXc_19960101_bisicles-AIS_restart.hdf5',
+                  'PREFIXc_19960101_glint-GrIS_restart.nc',
+                  'PREFIXc_19970101_bisicles-AIS_restart.hdf5',
+                  'PREFIXc_19970101_glint-GrIS_restart.nc']
+
+        actual = files.expected_files()
+        self.assertListEqual(actual['cda.file'], expect)
+        self.assertListEqual(list(actual.keys()), ['cda.file'])
+
+    def test_expected_unicicles_dumps_final(self):
+        ''' Test calculation of expected unicicles restarts finalcycle'''
+        func.logtest('Assert list of archived finalcycle unicicles dumps:')
+        naml =verify_namelist.UniciclesVerify()
+        naml.unicicles_bisicles_ais_rst = True
+        naml.unicicles_glint_gris_rst = True
+        with mock.patch('expected_content.utils.finalcycle',
+                        return_value=True):
+            files = expected_content.RestartFiles(
+                '19950901', '19980901', 'PREFIX', 'unicicles', naml)
+
+        expect = ['PREFIXc_19960101_bisicles-AIS_restart.hdf5',
+                  'PREFIXc_19960101_glint-GrIS_restart.nc',
+                  'PREFIXc_19970101_bisicles-AIS_restart.hdf5',
+                  'PREFIXc_19970101_glint-GrIS_restart.nc'
+                  'PREFIXc_19980101_bisicles-AIS_restart.hdf5',
+                  'PREFIXc_19980101_glint-GrIS_restart.nc']
+
 
 class DiagnosticFilesTests(unittest.TestCase):
     ''' Unit tests relating to the DiagnosticFiles (child) class methods '''
@@ -585,7 +665,10 @@ class DiagnosticFilesTests(unittest.TestCase):
         elif 'cice' in self.id():
             model = 'cice'
             naml = verify_namelist.CiceVerify()
-            naml.cice_age_rst = True
+        elif 'unicicle' in self.id():
+            model = 'unicicles'
+            naml = verify_namelist.UniciclesVerify()
+            naml.meanfields = ['bisicles-icecouple']
         with mock.patch('expected_content.utils.finalcycle',
                         return_value=False):
             self.files = expected_content.DiagnosticFiles(
@@ -648,7 +731,7 @@ class DiagnosticFilesTests(unittest.TestCase):
                              verify_namelist.NemoVerify().meanfields)
 
     def test_reinit_generator_cice(self):
-        ''' Test performance of the reinit periods generator - nemo '''
+        ''' Test performance of the reinit periods generator - cice '''
         func.logtest('Test performance of the reinit periods generator:')
         yield_rtn = []
         self.files.naml.streams_1d_1m = True
@@ -660,6 +743,17 @@ class DiagnosticFilesTests(unittest.TestCase):
                     ('m', 'm', [''], 'mean'),
                     ('s', 's', [''], 'mean'),
                     ('y', 'y', [''], 'mean')]
+        self.assertListEqual(yield_rtn, expected)
+
+    def test_reinit_generator_unicicles(self):
+        ''' Test performance of the reinit periods generator - unicicles '''
+        func.logtest('Test performance of the reinit periods generator:')
+        yield_rtn = []
+        for rval in self.files.gen_reinit_period(['m', 'y']):
+            yield_rtn.append(rval)
+
+        expected = [('m', 'm', ['bisicles-icecouple'], 'mean'),
+                    ('y', 'y', ['bisicles-icecouple'], 'mean')]
         self.assertListEqual(yield_rtn, expected)
 
     def test_get_period_startdate(self):
@@ -1430,6 +1524,44 @@ class DiagnosticFilesTests(unittest.TestCase):
         for key in outfiles:
             self.assertListEqual(expected[key][:2], outfiles[key][:2])
             self.assertListEqual(expected[key][-2:], outfiles[key][-2:])
+        self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
+
+    def test_expected_unicicles(self):
+        ''' Assert correct list of expected unicicles files'''
+        func.logtest('Assert correct return of expected unicicles files:')
+        self.files.meanfields = ['plot-AIS', 'nemo-bathy-isf', 'calving']
+        self.files.edate = [1999, 1, 1]
+        outfiles = {
+            'chy.file':
+            ['bisicles_PREFIXc_1y_19960101-19970101_plot-AIS.hdf5',
+             'bisicles_PREFIXc_1y_19970101-19980101_plot-AIS.hdf5'],
+            'cby.file':
+            ['unicicles_PREFIXc_1y_19960101-19970101_calving.nc',
+             'unicicles_PREFIXc_1y_19960101-19970101_nemo-bathy-isf.nc',
+             'unicicles_PREFIXc_1y_19970101-19980101_calving.nc',
+             'unicicles_PREFIXc_1y_19970101-19980101_nemo-bathy-isf.nc']
+        }
+
+        expected = self.files.expected_diags()
+        self.assertListEqual(sorted(expected['chy.file']),
+                             sorted(outfiles['chy.file']))
+        self.assertListEqual(sorted(expected['cby.file']),
+                             sorted(outfiles['cby.file']))
+
+        self.files.finalcycle = True
+        additional = {
+            'chy.file':
+            ['bisicles_PREFIXc_1y_19980101-19990101_plot-AIS.hdf5'],
+            'cby.file':
+            ['unicicles_PREFIXc_1y_19980101-19990101_calving.nc',
+             'unicicles_PREFIXc_1y_19980101-19990101_nemo-bathy-isf.nc']
+        }
+
+        expected = self.files.expected_diags()
+        for key in outfiles:
+            self.assertListEqual(sorted(expected[key]),
+                                 sorted(outfiles[key] + additional[key]))
+
         self.assertListEqual(sorted(expected.keys()), sorted(outfiles.keys()))
 
 

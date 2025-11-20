@@ -241,8 +241,15 @@ class ArchivedFiles(object):
         realm, component = filenames.model_components(self.model, stream)
 
         if component:
-            # "component" is only relevant to the netCDF convention filenames
-            key = 'ncf_mean'
+            # "component" is relevant to the netCDF convention filenames
+            # and UniCiCles diagnostics
+            if component == 'bisicles':
+                key = 'bisicles_diag_hdf'
+            elif component == 'unicicles':
+                key = 'unicicles_diag_ncf'
+            else:
+                # A netCDF convention filename
+                key = 'ncf_mean'
         elif (stream).endswith('_rst'):
             # Restart files
             key = 'rst'
@@ -283,7 +290,14 @@ class RestartFiles(ArchivedFiles):
             # No delay in restart file archive
             dump_delay = '0d'
         self.sdate = utils.add_period_to_date(self.sdate[:], dump_delay)
-        self.rst_types = ['{}_rst'.format(model)]
+        if model == 'unicicles':
+            # UniCiCles can be run without Greenland or Antarctica ice sheets,
+            # so there are no restart files which are used everytime that
+            # UniCiCles is run. Hence, there is no restart file which could be
+            # 'unicicles_rst'.
+            self.rst_types = []
+        else:
+            self.rst_types = ['{}_rst'.format(model)]
         for rst in [a for a in dir(naml) if a.endswith('_rst')]:
             if getattr(self.naml, rst):
                 self.rst_types.append(rst)
@@ -366,20 +380,30 @@ class RestartFiles(ArchivedFiles):
         edate = self.edate[:]
         if not self.finalcycle and hasattr(self.naml, 'buffer_restart'):
             # Adjust for mean buffer
-            cyclefreq = os.environ.get('CYCLEPERIOD', None)
+            try:
+                cyclefreq = self.naml.cycle_length
+            except AttributeError:
+                cyclefreq = os.environ.get('CYCLEPERIOD', None)
             rst_buffer = self.naml.buffer_restart
+
             if isinstance(cyclefreq, str):
                 cyclefreq = '-' + cyclefreq
             else:
-                # `rose date not currently compatible with Python3 libraries
-                # Use only as a last resort.
+                # Check whether `isodatetime` command exists,
+                # or default to `rose date`
+                if utils.get_utility_avail('isodatetime'):
+                    datecmd = 'isodatetime'
+                else:
+                    datecmd = 'rose date'
+
                 cycletime = utils.CylcCycle().startcycle['iso']
                 edate_str = [str(x).zfill(2) for x in edate]
                 while len(edate_str) < 5:
                     edate_str.append('00')
                 endtime = '{}{}{}T{}{}Z'.format(*edate_str[:5])
-                cmd = 'rose date {} {} --calendar {}'.format(endtime, cycletime,
-                                                             utils.calendar())
+                cmd = '{} {} {} --calendar {}'.format(
+                    datecmd, endtime, cycletime, utils.calendar()
+                    )
                 rcode, cyclefreq = utils.exec_subproc(cmd, verbose=False)
                 if rcode != 0:
                     utils.log_msg('restart buffer - unable to calculate cycling'
@@ -567,15 +591,11 @@ class DiagnosticFiles(ArchivedFiles):
         try:
             intermittent_streams = \
                 utils.ensure_list(self.naml.intermittent_streams)
-            print('[EFNP] intermittent streams:', intermittent_streams)
             intermittent_patterns = \
                 utils.ensure_list(self.naml.intermittent_patterns)
-            print('[EFNP] intermittent patterns:', intermittent_patterns)
         except AttributeError:
             intermittent_streams = []
-            print('[EFNP] No intermittent streams/patterns found in ', dir(self.naml))
 
-        
         try:
             ozone_stream = self.naml.ozone_stream
         except AttributeError:
@@ -715,7 +735,6 @@ class DiagnosticFiles(ArchivedFiles):
                     ]
                 for i, fname in enumerate(all_files[fileset][:]):
                     if pattern[i % len(pattern)] == 'x':
-                        print(f'[EFNP] removing {fname} from intermittent collection')
                         all_files[fileset].remove(fname)
 
         all_files.update(self.iceberg_trajectory())

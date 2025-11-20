@@ -44,6 +44,10 @@ ADIAG = re.compile(r'.*a\.([pm])([a-z0-9])\d{4}[a-z_\d]*(\.pp)?')
 ANCF = re.compile(r'atmos_.*_[pm]([a-z0-9]).*\.nc')
 NCDATA = re.compile(r'[a-zA-Z0-9_-]*([io])[_.][\d_-]*([hdmsyx])?'
                     '(restart)?(trajectory)?')
+UNICICLES = re.compile(r'.*c_(\d*[dmy]_\d{8}-)?(\d{8})_.*[a-zA-Z-]*\.(nc|hdf5)')
+UNICICLES_DIAG = re.compile(
+    r'(unic|bis)icles_.*c_\d*([dmy])_\d{8}-\d{8}_.*[a-zA-Z-]*\.(nc|hdf5)')
+
 
 COLLECTION = None
 FILENAME = os.path.basename(FULL_FILENAME)
@@ -66,6 +70,23 @@ elif NCDATA.match(FILENAME):
     else:
         DATATYPE = 'i' if TRAJ else PERIOD
         COLLECTION = '{}n{}.nc.file'.format(REALM, DATATYPE)
+elif UNICICLES.match(FILENAME):
+    # UniCiCles
+    PRESTART, START, EXT = UNICICLES.match(FILENAME).groups()
+    if PRESTART == None:
+        # Pure restart files have only one date in their filename
+        COLLECTION = 'cda.file'
+    else:
+        TIME_PERIOD_UNIT = UNICICLES_DIAG.match(FILENAME).group(2)
+
+        if EXT == 'nc':
+            # Hope to change this after MASS configuration is
+            # unfrozen (Marc 13/2/24).
+            COLLECTION = 'cb' + TIME_PERIOD_UNIT + '.file'
+        elif EXT == 'hdf5':
+            # Hope to change this after MASS configuration is
+            # unfrozen (Marc 13/2/24).
+            COLLECTION = 'ch' + TIME_PERIOD_UNIT + '.file'
 else:
     # Unknown Data
     print('\n[FAIL] Unable to determine collection for the data')

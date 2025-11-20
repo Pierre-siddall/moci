@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2016-2024 Met Office. All rights reserved.
+ (C) Crown copyright 2016-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -27,12 +27,22 @@ MODEL_COMPONENTS = {
     # Value=tuple(realm, dict(fields associated with netCDF model component(s)))
     'atmos': {'atmos': ('a', [FIELD_REGEX], [''])},
     'nemo': {'nemo': ('o', ['grid-U', 'grid-V', 'grid-W', 'grid-T',
-                            'diaptr', 'trnd3d', 'scalar',
+                            'diaptr', 'trnd3d', 'scalar', 'isf-T',
                             'UK-shelf-T', 'UK-shelf-U', 'UK-shelf-V'],
                       ['', 'icebergs']),
              'medusa': ('o', ['ptrc-T', 'diad-T', 'ptrd-T'], ['ptracer']),
              'si3': ('i', ['icemod'], ['ice'])},
     'cice': {'cice': ('i', '', ['', 'age'])},
+    'unicicles': {'bisicles':
+                  ('c', ['calving-AIS', 'calving-GrIS', 'nemo-icecouple-AIS',
+                         'plot-AIS', 'plot-GrIS'], ['']),
+                  'unicicles':
+                  ('c', ['atmos-icecouple', 'nemo-bathy-isf',
+                         'bisicles-icecouple', 'bisicles-icecouple-AIS',
+                         'bisicles-icecouple-GrIS', 'calv-AIS',
+                         'calv-GrIS', 'calving',
+                         'nemo-icecouple'],
+                   [''])},
     }
 
 FNAMES = {
@@ -42,6 +52,17 @@ FNAMES = {
     'atmos_pp': r'{P}a.{CF}{Y1}{M1}{D1}{H1}.pp',
     'atmos_ff': r'{P}a.{CF}{Y1}{M1}{D1}{H1}',
     'atmos_ozone': r'{P}a.{CF}{Y1}.pp',
+
+    'unicicles_bisicles_ais_rst':
+    r'{P}c_{Y1:04d}{M1:02d}{D1:02d}_bisicles-AIS_restart.hdf5',
+    'unicicles_bisicles_gris_rst':
+    r'{P}c_{Y1:04d}{M1:02d}{D1:02d}_bisicles-GrIS_restart.hdf5',
+    'unicicles_glint_ais_rst':
+    r'{P}c_{Y1:04d}{M1:02d}{D1:02d}_glint-AIS_restart.nc',
+    'unicicles_glint_gris_rst':
+    r'{P}c_{Y1:04d}{M1:02d}{D1:02d}_glint-GrIS_restart.nc',
+    'bisicles_diag_hdf': r'{CM}_{P}{R}_{F}_{Y1}{M1}{D1}-{Y2}{M2}{D2}_{CF}.hdf5',
+    'unicicles_diag_ncf': r'{CM}_{P}{R}_{F}_{Y1}{M1}{D1}-{Y2}{M2}{D2}_{CF}.nc',
 
     'cice_rst': r'{P}i.restart.{Y1:04d}-{M1:02d}-{D1:02d}-00000{S}',
     'cice_age_rst': r'{P}i.restart.age.{Y1:04d}-{M1:02d}-{D1:02d}-00000{S}',
@@ -62,6 +83,11 @@ COLLECTIONS = {
     'atmos_ff': r'a{S}.file',
     'atmos_ozone': r'a{S}.pp',
     'ncf_mean': r'{R}n{S}.nc.file',
+    # Eventually we want to change 'bisicles_diag_hdf' and 'unicicles_diag_ncf'
+    # to '{R}h{S}.hdf.file' and '{R}n{S}.nc.file' respectively, but delay in
+    # new MASS means that this won't happen for many months (Marc 13/2/24).
+    'bisicles_diag_hdf': r'{R}h{S}.file',
+    'unicicles_diag_ncf': r'{R}b{S}.file',
     }
 
 
