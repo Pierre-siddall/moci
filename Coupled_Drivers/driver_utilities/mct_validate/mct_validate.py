@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2020 Met Office. All rights reserved.
+ (C) Crown copyright 2020-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -18,9 +18,9 @@ DESCRIPTION
     Validate coupling paramaters in the MCT driver
 '''
 
-#The from __future__ imports ensure compatibility between python2.7 and 3.x
-from __future__ import absolute_import
-from __future__ import division
+
+
+
 import re
 import sys
 

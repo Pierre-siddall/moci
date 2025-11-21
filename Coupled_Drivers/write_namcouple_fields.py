@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021 Met Office. All rights reserved.
+ (C) Crown copyright 2021-2025 Met Office. All rights reserved.
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
  of the code, the use, duplication or disclosure of it is strictly
@@ -182,7 +182,7 @@ def _read_stashmaster(stashmaster_dir):
     # Read STASHmaster_A
     stashmaster_info = {}
     stash_data = STASHmaster.from_file(stashmaster_a)
-    for stash_code in stash_data.keys():
+    for stash_code in list(stash_data.keys()):
         stash_code = int(stash_code)
         stash_info = stash_data[stash_code]
         stashmaster_info[stash_code] = StashInfo(stash_info.name,

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2023-2025 Met Office. All rights reserved.

@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2023-2024 Met Office. All rights reserved.
+ (C) Crown copyright 2023-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -18,9 +18,7 @@ DESCRIPTION
     Controller for the generation of CPMIP metrics
 '''
 
-#The from __future__ imports ensure compatibility between python2.7 and 3.x
-from __future__ import absolute_import
-from __future__ import division
+
 import math
 import re
 import sys
@@ -296,7 +294,7 @@ def _finalize_cpmip_controller(common_env):
         # number of cpus used per component to allow the CPMIP coupling metric
         # to be calculated, albiet with a slightly reduced accuracy.
         number_nodes = int(pbs_l_dict['select'])
-        if 'coretype' in pbs_l_dict.keys():
+        if 'coretype' in list(pbs_l_dict.keys()):
             plat_cores_per_node = CORES_PER_NODE[pbs_l_dict['coretype'].lower()]
             allocated_cpus = number_nodes * plat_cores_per_node
             allocated_um = int(math.ceil(

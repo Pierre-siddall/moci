@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021 Met Office. All rights reserved.
+ (C) Crown copyright 2021-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -87,7 +87,7 @@ class LoadEnvar(object):
         '''
         Export environment variable to the calling process
         '''
-        for i_key in self.env_vars.keys():
+        for i_key in list(self.env_vars.keys()):
             os.environ[i_key] = self.env_vars[i_key]
 
     def __getitem__(self, var_name):

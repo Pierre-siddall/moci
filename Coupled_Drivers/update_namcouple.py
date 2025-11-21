@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2022 Met Office. All rights reserved.
+ (C) Crown copyright 2022-2025 Met Office. All rights reserved.
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
  of the code, the use, duplication or disclosure of it is strictly
@@ -20,8 +20,8 @@ DESCRIPTION
     Note that OASIS3-MCT is fussy about the section headers starting in
     column 2 with a "$" sign. Any other positioning will lead to errors.
 '''
-#The from __future__ imports ensure compatibility between python2.7 and 3.x
-from __future__ import absolute_import
+
+
 import sys
 import re
 import os
