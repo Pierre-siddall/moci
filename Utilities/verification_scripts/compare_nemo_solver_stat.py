@@ -1,20 +1,24 @@
-#!/usr/bin/env python
-#
-#*****************************COPYRIGHT******************************
-#(C) Crown copyright Met Office. All rights reserved.
-# For further details please refer to the file COPYRIGHT.txt
-# which you should have received as part of this distribution.
-#*****************************COPYRIGHT******************************
+#!/usr/bin/env python3
+
 '''
- CODE OWNER
-   Erica Neininger
+*****************************COPYRIGHT******************************
+ (C) Crown copyright 2017-2025 Met Office. All rights reserved.
+
+ Use, duplication or disclosure of this code is subject to the restrictions
+ as set forth in the licence. If no licence has been raised with this copy
+ of the code, the use, duplication or disclosure of it is strictly
+ prohibited. Permission to do so must first be obtained in writing from the
+ Met Office Information Asset Owner at the following address:
+
+ Met Office, FitzRoy Road, Exeter, Devon, EX1 3PB, United Kingdom
+*****************************COPYRIGHT******************************
 
  NAME
    compare_nemo_stat.py
 
  USAGE
    Implements function to compare 2 NEMO solver.stat or run.stat (NEMO4.0) files
-   
+
 '''
 import os
 import re
@@ -22,11 +26,13 @@ import abc
 
 import test_common
 
+
 class NemoStatMismatchError(Exception):
     '''
     Error triggered when timesteps in solver.stat or run.stat files
     have differing norm values
     '''
+
     def __init__(self, msg=None):
         Exception.__init__(self)
         if msg:
@@ -87,6 +93,7 @@ class StatFileFmt(object):
 
 class SolverStatFmt(StatFileFmt):
     ''' Subclass of StatFileFmt to represent a line from solver.stat '''
+
     @property
     def _line_fmt(self):
         ''' Return a format string to match a line from solver.stat file '''
@@ -97,6 +104,7 @@ class SolverStatFmt(StatFileFmt):
 
 class RunStatFmt(StatFileFmt):
     ''' Subclass of StatFileFmt to represent a line from run.stat '''
+
     @property
     def _line_fmt(self):
         ''' Return a format string to match a line from run.stat.file '''
@@ -114,7 +122,7 @@ class NemoTimestep(object):
     def __init__(self, text_line1, timestep_num_offset=0):
         '''
         Constructor for NemoTimestep object.
-        
+
         obj1 = NemoTimeStep(text_line1, timestep_num_offset)
 
         Arguments:
@@ -153,16 +161,16 @@ class NemoTimestep(object):
                     msg='List of available norms do not match:'
                 )
             if abs(self.norms[norm] - other.norms[norm]) > \
-               NemoTimestep.COMP_TOLERANCE:
+                    NemoTimestep.COMP_TOLERANCE:
                 return False
         return True
 
     def __ne__(self, other):
         return not self == other
-        
+
     def set_attributes(self, match_groups):
         '''
-        Set the attibutes of the object:  
+        Set the attibutes of the object:
             self.timestep_num   <type int>   - Timestep number
             self.num_iterations <type int>   - Number of iterations
                                                (solver.stat only)
@@ -197,6 +205,7 @@ class NemoTimestep(object):
         for norm in self.norms:
             diffs[norm] = abs(self.norms[norm] - other.norms[norm])
         return diffs
+
 
 def parse_nemo_stat_file(path1, offset=0):
     '''
@@ -268,7 +277,7 @@ def compare_nemo_stat_files(nemo_stat_file1, nemo_stat_file2,
 
     Arguments:
        nemo_stat_file1 <type str>        - Path to first .stat file
-       nemo_stat_file2 <type str>        - Path to second .stat file   
+       nemo_stat_file2 <type str>        - Path to second .stat file
        list_errors <type bool >          - Reproduce the list of mismatched
                                            timetep numbers upon completion
        stop_on_error <type_bool>         - Stop on finding the first error
@@ -283,7 +292,6 @@ def compare_nemo_stat_files(nemo_stat_file1, nemo_stat_file2,
     if not io_manager:
         io_manager = test_common.TestIO()
 
-    
     timestep_list1 = parse_nemo_stat_file(nemo_stat_file1)
     timestep_list2 = parse_nemo_stat_file(nemo_stat_file2,
                                           offset=nemo_stat_file2_offset)
@@ -304,7 +312,7 @@ def compare_nemo_stat_files(nemo_stat_file1, nemo_stat_file2,
 
     io_manager.write_out('{} matching timesteps found'.format(num_comps))
     intro_msg = \
-                'Comparing norm values with tolerance {}'
+        'Comparing norm values with tolerance {}'
     intro_msg = intro_msg.format(NemoTimestep.COMP_TOLERANCE)
     io_manager.write_out(intro_msg)
 
@@ -335,7 +343,7 @@ def compare_nemo_stat_files(nemo_stat_file1, nemo_stat_file2,
 
     return ret_val
 
-    
+
 def compare_solver_stat_files(nemo_solver_file1, nemo_solver_file2,
                               list_errors,
                               stop_on_error,

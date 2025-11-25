@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021 Met Office. All rights reserved.
+ (C) Crown copyright 2021-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -63,7 +63,7 @@ class TestNlogprtVal1(unittest.TestCase):
                            15, 15, 15,
                            20, 20, 20, 20, 20,
                            30, 30, 30, 30, 30, 30, 30, 30, 30, 30]
-        input_values = range(0, 31)
+        input_values = list(range(0, 31))
         for in_val in input_values:
             self.assertEqual(generate_nam_s1.check_nlogprt_val1(in_val),
                              expected_values[in_val])

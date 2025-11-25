@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 """
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2023-2025 Met Office. All rights reserved.
@@ -445,7 +445,7 @@ class CylcDB(SqlDatabase):
         html_output1 = '<table>\n'
         summary1 = self.get_family_task_summary(family_list[0])
         # add header row
-        header_list1 = summary1.keys()
+        header_list1 = list(summary1.keys())
         header_html = '<tr>' + row_fmt.format(
             col=CylcDB.HIGHLIGHT_COLOURS['SummaryBar'],
             name='Task Family'
@@ -683,7 +683,7 @@ def read_config(conf_path, mode):
         rose_bush_base_url = dash_parser["base"].get("rose_bush_base_url", "")
         logo_file = dash_parser["base"].get("logo_file", "")
         wiki_url = dash_parser["base"].get("wiki_url", "")
-        suite_sections = [s1 for s1 in dash_parser.keys() if 'base' != s1]
+        suite_sections = [s1 for s1 in list(dash_parser.keys()) if 'base' != s1]
     else:
         cylc_run_path = dash_parser.get("base", "cylc_run_path")
         rose_bush_base_url = dash_parser.get("base", "rose_bush_base_url")

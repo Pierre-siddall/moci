@@ -1,7 +1,7 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2018 Met Office. All rights reserved.
+ (C) Crown copyright 2018-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -61,6 +61,7 @@ _COMPONENTS['son'] = ['sep', 'oct', 'nov']
 _COMPONENTS['1201'] = ['djf', 'mam', 'jja', 'son']
 
 _YEAR_STR = '1201'
+
 
 class UMFileError(Exception):
     ''' UMFile exception class '''
@@ -153,6 +154,7 @@ class ArchiveError(Exception):
 
 class Archive(object):
     ''' Class to define Moose archiving methods '''
+
     def __init__(self, listfiles, target):
         '''
         Arguments:
@@ -300,8 +302,8 @@ class PPMeanVar(object):
         try:
             _ = subprocess.check_output(cmd.split())
         except subprocess.CalledProcessError as exc:
-            raise PPMeanVarError('Error meaning files ({0})'.\
-                                     format(exc.returncode))
+            raise PPMeanVarError('Error meaning files ({0})'. \
+                                 format(exc.returncode))
 
         os.remove(self._listfile)
 
@@ -363,7 +365,7 @@ class MakeMean(object):
                 else:
                     raise FileMissingError(
                         'Input files missing for ' + meanfile
-                        )
+                    )
         except PPMeanVarError:
             raise
 
@@ -379,11 +381,11 @@ class MakeMean(object):
         Return True if the current cycle time is too close to the $BASIS
         for sufficient files to be available to create the mean.
         '''
-        basis = map(int, re.match(r'^(\d{4})(\d{2})(\d{2})',
-                                  os.environ['BASIS']).groups())
+        basis = list(map(int, re.match(r'^(\d{4})(\d{2})(\d{2})',
+                                       os.environ['BASIS']).groups()))
         mths = [None, 'jan', 'feb', 'mar', 'apr', 'may', 'jun',
                 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
-        ssns = [None]*13
+        ssns = [None] * 13
         ssns[3] = 'mam'
         ssns[6] = 'jja'
         ssns[9] = 'son'
@@ -514,4 +516,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

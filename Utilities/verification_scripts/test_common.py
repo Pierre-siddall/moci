@@ -1,15 +1,22 @@
-#!/usr/bin/env python2.7
-# *****************************COPYRIGHT******************************
-# (C) Crown copyright Met Office. All rights reserved.
-# For further details please refer to the file COPYRIGHT.txt
-# which you should have received as part of this distribution.
-# *****************************COPYRIGHT******************************
+#!/usr/bin/env python3
 """
-Created on 3 March 2017
+*****************************COPYRIGHT******************************
+ (C) Crown copyright 2017-2025 Met Office. All rights reserved.
 
-@author: Stephen Haddad
+ Use, duplication or disclosure of this code is subject to the restrictions
+ as set forth in the licence. If no licence has been raised with this copy
+ of the code, the use, duplication or disclosure of it is strictly
+ prohibited. Permission to do so must first be obtained in writing from the
+ Met Office Information Asset Owner at the following address:
 
-Common test-related error classes derived from Exception.
+ Met Office, FitzRoy Road, Exeter, Devon, EX1 3PB, United Kingdom
+*****************************COPYRIGHT******************************
+
+NAME
+    test_common.py
+
+DESCRIPTION
+   Common test-related error classes derived from Exception.
 """
 import sys
 

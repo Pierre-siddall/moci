@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2021 Met Office. All rights reserved.
+ (C) Crown copyright 2021-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -75,8 +75,10 @@ def read_rose_app_conf(filename):
             result_dict[key] = {}
     return 0, result_dict
 
+
 if __name__ == '__main__':
     import sys
     import pprint
+
     _, ROSE_APP_CONF_DICT = read_rose_app_conf(sys.argv[1])
     pprint.pprint(ROSE_APP_CONF_DICT)

@@ -1,7 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2020 Met Office. All rights reserved.
+ (C) Crown copyright 2020-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -18,6 +18,7 @@ NAME
 DESCRIPTION
     Unit tests for compare_absnorms.py
 '''
+
 import os
 import sys
 from copy import deepcopy
@@ -103,7 +104,7 @@ class TestCompareFiles(unittest.TestCase):
         ''' Assert creation of a timesteps dictionary '''
         tsteps = compare_absnorms.create_timesteps(self.kgofile)
         self.assertIsInstance(tsteps, dict)
-        self.assertIsInstance(tsteps[tsteps.keys()[0]],
+        self.assertIsInstance(tsteps[list(tsteps.keys())[0]],
                               compare_absnorms.Timestep)
 
     def test_compare_timesteps(self):

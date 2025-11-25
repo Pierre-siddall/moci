@@ -1,8 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2019 Met Office. All rights reserved.
+ (C) Crown copyright 2019-2025 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -21,7 +21,6 @@ DESCRIPTION
     indicators
 '''
 
-from __future__ import absolute_import
 import os
 import re
 import sys
@@ -60,14 +59,14 @@ def _gather_metrics(cpmip_output_file):
     a dictionary of metric name environment variable root with it's
     associated Metric object
     '''
-    metrics = {'IO_COST_UM' : Metric('IO cost UM'),
-               'IO_COST_NEMO' : Metric('IO_cost NEMO'),
-               'DATA_VOLUME' : Metric('Data Volume'),
-               'DATA_INTENSITY' : Metric('Data Intensity'),
-               'CPMIP_ANALYSIS' : Metric('Load balancing metric'),
-               'COMPLEXITY_UM' : Metric('UM complexity'),
-               'COMPLEXITY_NEMO' : Metric('NEMO complexity'),
-               'COMPLEXITY_CICE' : Metric('CICE complexity')}
+    metrics = {'IO_COST_UM': Metric('IO cost UM'),
+               'IO_COST_NEMO': Metric('IO_cost NEMO'),
+               'DATA_VOLUME': Metric('Data Volume'),
+               'DATA_INTENSITY': Metric('Data Intensity'),
+               'CPMIP_ANALYSIS': Metric('Load balancing metric'),
+               'COMPLEXITY_UM': Metric('UM complexity'),
+               'COMPLEXITY_NEMO': Metric('NEMO complexity'),
+               'COMPLEXITY_CICE': Metric('CICE complexity')}
 
     with open(cpmip_output_file) as f_h:
         for line in f_h.readlines():
@@ -110,10 +109,10 @@ def _compare_max_only(name, measured_val, reference_val, tolerance=0.1):
         return_code = 0
     else:
         error_msg = '\n[FAIL] Metric %s hasnt passed validation\n' \
-            '  Measured value is %.4f\n' \
-            '  Expected value is %.4f with tolerance of %.2f\n' \
-            '    Should have a value less than or equal to %.4f\n' % \
-            (name, measured_val, reference_val, tolerance, max_accepted)
+                    '  Measured value is %.4f\n' \
+                    '  Expected value is %.4f with tolerance of %.2f\n' \
+                    '    Should have a value less than or equal to %.4f\n' % \
+                    (name, measured_val, reference_val, tolerance, max_accepted)
         sys.stderr.write(error_msg)
         return_code = 1
     return return_code
@@ -131,14 +130,15 @@ def _compare(name, measured_val, reference_val, tolerance=0.1):
         return_code = 0
     else:
         error_msg = '\n[FAIL] Metric %s hasnt passed validation\n' \
-            '  Measured value is %.4f\n' \
-            '  Expected value is %.4f with tolerance of %.2f\n' \
-            '    Should be in range [%.4f, %.4f]\n' % \
-            (name, measured_val, reference_val, tolerance, \
-                 min_accepted, max_accepted)
+                    '  Measured value is %.4f\n' \
+                    '  Expected value is %.4f with tolerance of %.2f\n' \
+                    '    Should be in range [%.4f, %.4f]\n' % \
+                    (name, measured_val, reference_val, tolerance, \
+                     min_accepted, max_accepted)
         sys.stderr.write(error_msg)
         return_code = 1
     return return_code
+
 
 def perform_comparison(cpmip_file):
     '''
@@ -166,14 +166,15 @@ def perform_comparison(cpmip_file):
             number_failed += did_fail
         else:
             msg_unavailable += '[INFO] %s metric not avaliable for this run\n' \
-                % info.label
+                               % info.label
             number_unavailable += 1
     if number_unavailable:
         sys.stdout.write(msg_unavailable)
     sys.stdout.write('\n[INFO] %i/%i metric tests succeeded\n' %
-                     (number_metrics-number_failed, number_metrics))
+                     (number_metrics - number_failed, number_metrics))
     if number_failed > 0:
         sys.exit(9)
+
 
 if __name__ == '__main__':
     perform_comparison(sys.argv[1])
