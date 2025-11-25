@@ -413,22 +413,6 @@ class MooseTests(unittest.TestCase):
         mock_subproc.assert_called_with('moo put -f -vv ' + src + ' ' + dest)
 
     @mock.patch('moo.utils.exec_subproc')
-    def test_putdata_pp(self, mock_subproc):
-        '''Test put_data function with fieldsfile'''
-        func.logtest('test put_data function with fieldsfile:')
-        self.inst._rqst_name = 'TESTPa.pmTestfile'
-        self.inst._model_id = 'a'
-        self.inst._file_id = 'pm'
-        mock_subproc.return_value = (0, '')
-        with mock.patch('moo.os.path.exists', return_value=True):
-            self.inst.put_data()
-        cmd = 'moo put -f -vv -c=umpp '
-        src = 'TestDir/TESTPa.pmTestfile'
-        dest = 'moose:myclass/mysuite/apm.pp/TESTPa.pmTestfile.pp'
-        mock_subproc.assert_called_with(cmd + os.path.expandvars(
-            src + ' ' + dest))
-
-    @mock.patch('moo.utils.exec_subproc')
     def test_putdata_pp_no_convert(self, mock_subproc):
         '''Test put_data function with converted fieldsfile'''
         func.logtest('test put_data function with converted fieldsfile:')

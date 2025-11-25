@@ -111,7 +111,6 @@ class AtmosPostProc(control.RunPostProc):
     def _process_methods(self):
         ''' Return <type OrderedDict> List of processing methods '''
         process_methods = OrderedDict()
-        print(self.suite.naml.process_toplevel)
         if self.suite.naml.process_toplevel is True:
             process_methods['do_ozone'] = self.naml.atmospp.preserve_ozone
             process_methods['do_meaning'] = self.naml.atmospp.create_means
@@ -701,9 +700,15 @@ class AtmosPostProc(control.RunPostProc):
         if self.naml.archiving.archive_pp:
             files_to_archive += self.diags_to_process(finalcycle,
                                                       log_file=log_file)
-            # Do not archive both fieldsfile and ppfile
-            files_to_archive = [fn for fn in files_to_archive
-                                if fn + '.pp' not in files_to_archive]
+
+            if self.naml.atmospp.convert_pp:
+                # Remove any fieldsfiles which should be archived in pp format
+                convpp_patt = re.compile(self.ff_match(self.convpp_streams))
+                files_to_archive = [
+                    fn for fn in files_to_archive
+                    if not convpp_patt.match(os.path.basename(fn))
+                ]
+
         if not finalcycle:
             # Dumps are archived by first call to do_archive during final cycle
             files_to_archive += self.dumps_to_archive(log_file)

@@ -266,15 +266,9 @@ class _Moose(object):
         moo_cmd = os.path.join(self._moopath, 'moo') + ' put -f -vv '
         if self._act_as:
             moo_cmd += '--act-as {} '.format(self._act_as)
-        if self.fl_pp and not crn.endswith('.pp'):
-            crn_pp = os.path.basename(crn) + '.pp'
-            filepath = os.path.join(self.dataset, self._ens_id,
-                                    collection_name, crn_pp)
-            moo_cmd += '-c=umpp {} {}'.format(crn, filepath)
-        else:
-            filepath = os.path.join(self.dataset, self._ens_id,
-                                    collection_name)
-            moo_cmd += '{} {}'.format(crn, filepath)
+        filepath = os.path.join(self.dataset, self._ens_id,
+                                collection_name)
+        moo_cmd += '{} {}'.format(crn, filepath)
 
         if os.path.exists(crn):
             try:

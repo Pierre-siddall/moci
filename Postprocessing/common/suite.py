@@ -347,7 +347,7 @@ class SuitePostProc(object):
     nccopy_path = ''
     ncdump_path = ''
     ncrcat_path = ''
-    ncks_path = '/projects/ocean/hadgem3/nco/nco-4.4.7/bin'
+    ncks_path = ''
     mean_reference_date = 0, 12, 1
     process_toplevel = False
     archive_toplevel = False

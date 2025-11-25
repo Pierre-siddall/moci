@@ -72,8 +72,7 @@ class ArchiveDeleteTests(unittest.TestCase):
                 self.atmos.do_archive()
         self.assertListEqual(
             sorted(self.atmos.suite.archive_file.mock_calls),
-            sorted([mock.call('path/Ra.pa20000101', preproc=True),
-                    mock.call('path/Ra.pb20000101.pp', preproc=True),
+            sorted([mock.call('path/Ra.pb20000101.pp', preproc=True),
                     mock.call('path/FF_noconv', preproc=False),
                     mock.call('DumpFile', preproc=False)])
             )
@@ -96,8 +95,7 @@ class ArchiveDeleteTests(unittest.TestCase):
 
             self.assertListEqual(
                 sorted(self.atmos.suite.archive_file.mock_calls),
-                sorted([mock.call('path/Ra.pa20000101', preproc=True),
-                        mock.call('path/Ra.pb20000101.pp', preproc=False),
+                sorted([mock.call('path/Ra.pb20000101.pp', preproc=False),
                         mock.call('path/Ra.pc20000101', preproc=False),
                         mock.call('path/Ra.pd20000101.pp', preproc=True)])
                 )
@@ -123,7 +121,8 @@ class ArchiveDeleteTests(unittest.TestCase):
         mock_pp.assert_called_once_with(False, log_file=mock.ANY)
 
     @mock.patch('atmos.AtmosPostProc.diags_to_process',
-                return_value=['path/Ra.pa20000101', 'path/Ra.pb20000101.pp',
+                return_value=['path/Ra.pa20000101', 'path/Ra.pb20000101',
+                              'path/Ra.pc20000101', 'path/Ra.pc20000101.pp',
                               'path/Ra.po2000.pp'])
     @mock.patch('atmos.AtmosPostProc.dumps_to_archive',
                 return_value=['DumpFile'])
@@ -131,17 +130,19 @@ class ArchiveDeleteTests(unittest.TestCase):
     def test_do_archive_finalcycle(self, mock_rm, mock_dump, mock_pp):
         '''Test do_archive functionality - final cycle'''
         func.logtest('Assert call to archive_file - final cycle')
+        self.atmos.convpp_streams = \
+            self.atmos._stream_expr('a', inverse=True)
         self.atmos.naml.archiving.archive_pp = True
         self.atmos.naml.atmospp.ozone_output_stream = 'o'
         self.atmos.suite.archive_file.return_value = 0
         self.atmos.do_archive(finalcycle=True)
-        arch_calls = [mock.call('path/Ra.pa20000101', preproc=True),
-                      mock.call('path/Ra.pb20000101.pp', preproc=True),
+        arch_calls = [mock.call('path/Ra.pa20000101', preproc=False),
+                      mock.call('path/Ra.pc20000101.pp', preproc=True),
                       mock.call('path/Ra.po2000.pp', preproc=True)]
         self.assertListEqual(sorted(self.atmos.suite.archive_file.mock_calls),
                              sorted(arch_calls))
         self.assertListEqual(mock_dump.mock_calls, [])
-        mock_rm.assert_called_once_with('path/Ra.pb20000101.pp')
+        mock_rm.assert_called_once_with('path/Ra.pc20000101.pp')
         self.assertListEqual(
             sorted(self.atmos.suite.archive_file.mock_calls),
             sorted(arch_calls)
@@ -157,11 +158,13 @@ class ArchiveDeleteTests(unittest.TestCase):
     def test_do_archive_final_debug(self, mock_mv, mock_dump, mock_pp):
         '''Test do_archive functionality - final cycle, debug'''
         func.logtest('Assert call to archive_file - final cycle debug')
+        self.atmos.convpp_streams = \
+            self.atmos._stream_expr('a', inverse=True)
         self.atmos.naml.archiving.archive_pp = True
         self.atmos.suite.archive_file.return_value = 0
         with mock.patch('atmos.utils.get_debugmode', return_value=True):
             self.atmos.do_archive(finalcycle=True)
-        arch_calls = [mock.call('path/Ra.pa20000101', preproc=True),
+        arch_calls = [mock.call('path/Ra.pa20000101', preproc=False),
                       mock.call('path/Ra.pb20000101.pp', preproc=True)]
         self.assertListEqual(sorted(self.atmos.suite.archive_file.mock_calls),
                              sorted(arch_calls))
