@@ -504,10 +504,15 @@ class RestartFilesTests(unittest.TestCase):
                          'PREFIXo_19961201_restart_ice.nc',
                          'PREFIXo_19970601_restart_ice.nc',
                          'PREFIXo_19971201_restart_ice.nc',
-                         'PREFIXo_19980601_restart_ice.nc'])
+                         'PREFIXo_19980601_restart_ice.nc',
+                         'PREFIXo_19981101_restart_ice.nc'])
         actual = self.files.expected_files()
-        self.assertListEqual(sorted(actual['ida.file']), expect)
+        self.assertListEqual(sorted(actual['ida.file']), expect[:-1])
         self.assertListEqual(sorted(actual.keys()), ['ida.file', 'oda.file'])
+
+        self.files.finalcycle = True
+        actual = self.files.expected_files()
+        self.assertListEqual(actual['ida.file'], expect)
 
     def test_expected_nemo_dumps_buffer(self):
         ''' Test calculation of expected nemo restart files buffer=3'''
@@ -714,7 +719,7 @@ class DiagnosticFilesTests(unittest.TestCase):
                                                   '1m', '2s', 'y']):
             yield_rtn.append(rval)
 
-        expected = [('6h', '1m', ['OtherFld1', 'OtherFld2'], 'instantaneous'),
+        expected = [('6h', '1m', ['OtherFld1', 'OtherFld2'], 'concatenated'),
                     ('1d', '1d', ['grid-T'], 'instantaneous'),
                     ('1m', '1m', self.files.naml.meanfields, 'mean'),
                     ('2s', '2s', self.files.naml.meanfields, 'mean'),
@@ -739,7 +744,7 @@ class DiagnosticFilesTests(unittest.TestCase):
                                                   'm', 's', 'y']):
             yield_rtn.append(rval)
 
-        expected = [('1d', '1m', [''], 'instantaneous'),
+        expected = [('1d', '1m', [''], 'concatenated'),
                     ('m', 'm', [''], 'mean'),
                     ('s', 's', [''], 'mean'),
                     ('y', 'y', [''], 'mean')]

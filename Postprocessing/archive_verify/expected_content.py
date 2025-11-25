@@ -363,6 +363,7 @@ class RestartFiles(ArchivedFiles):
                     month = 12
                     year -= 1
             for rsttype in self.rst_types:
+                coll = self.get_collection(stream=rsttype)
                 final_rst = self.get_filename(year, month, day, suffix, rsttype)
                 if final_rst not in restart_files[coll]:
                     restart_files[coll].append(final_rst)
@@ -477,7 +478,7 @@ class DiagnosticFiles(ArchivedFiles):
            base     - period of the data in the stream
            delta    - reinitialisation period of the stream
            streams  - list of stream ids to process
-           descript - "[concatenated_]mean" or "instantaneous" stream
+           descript - "concatenated", "mean" or "instantaneous" stream
         '''
         for reinit in reinit_periods:
             # In the case of concatenated files, delta follows '_'
@@ -486,13 +487,16 @@ class DiagnosticFiles(ArchivedFiles):
             delta = reinit.split('_')[-1]
 
             if reinit in dir(self.naml):
-                descript = 'instantaneous'
+                if base == delta:
+                    descript = 'instantaneous'
+                else:
+                    descript = 'concatenated'
                 streams = utils.ensure_list(getattr(self.naml, reinit))
                 if len(streams) == 1 and streams[0] is True:
                     # Allow for blank field name
                     streams = ['']
             else:
-                descript = 'mean' if base == delta else 'concatenated_mean'
+                descript = 'mean' if base == delta else 'concatenated'
                 if self.model == 'atmos':
                     streams = ['p' + reinit[-1]]
                 else:

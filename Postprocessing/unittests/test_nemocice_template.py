@@ -846,7 +846,8 @@ class ArchiveTests(unittest.TestCase):
                             return_value='RUNID'):
                 self.model.prepare_archive()
 
-        pattern = r'.*_runidx_(1m|1s|1y)_\d{4}\d{2}\d{2}-\d{4}\d{2}\d{2}.nc'
+        pattern = r'.*_runid[a-z]+_(1m|1s|1y)_' \
+                  '\d{4}\d{2}\d{2}-\d{4}\d{2}\d{2}.nc'
         self.assertListEqual(mock_set.mock_calls,
                              [mock.call(os.getcwd(), pattern)])
 
@@ -876,7 +877,8 @@ class ArchiveTests(unittest.TestCase):
                 with self.assertRaises(SystemExit):
                     self.model.prepare_archive()
 
-        pattern = r'.*_runidx_(1m|1s|1y)_\d{4}\d{2}\d{2}-\d{4}\d{2}\d{2}.nc'
+        pattern = r'.*_runid[a-z]+_(1m|1s|1y)_' \
+                  '\d{4}\d{2}\d{2}-\d{4}\d{2}\d{2}.nc'
         self.assertListEqual(mock_set.mock_calls,
                              [mock.call(os.getcwd(), pattern)])
         self.assertIn('Failed to copy', func.capture('err'))

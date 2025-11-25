@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
 *****************************COPYRIGHT******************************
- (C) Crown copyright 2015-2018 Met Office. All rights reserved.
+ (C) Crown copyright 2015-2022 Met Office. All rights reserved.
 
  Use, duplication or disclosure of this code is subject to the restrictions
  as set forth in the licence. If no licence has been raised with this copy
@@ -677,6 +677,8 @@ class ModelTemplate(control.RunPostProc):
                 match_bases = '({})'.format('|'.join(list(additional) +
                                                      requested_means))
                 ncf.base = match_bases
+                # Account for models sending files to multiple realms
+                ncf.prefix = ncf.prefix[:-1] + '[a-z]+'
                 final_means = utils.get_subset(self.share,
                                                self.mean_stencil(ncf))
                 for fname in utils.add_path(final_means, self.share):
