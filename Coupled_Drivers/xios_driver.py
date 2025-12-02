@@ -41,6 +41,10 @@ def _update_iodef(
     is_server_mode and is_coupled_mode are boolean. (true when each option
     is activated, false otherwise).
     '''
+
+    # Work-around in lieu of viable multi component iodef.xml handling
+    _, _ = common.exec_subproc(['cp', 'mydef.xml', iodef_fname])
+
     # Note we do not use python's xml module for this job, as the comment
     # line prevalent in the first line of the GO5 iodef.xml files renders
     # the file invalid as far as the xml module is concerned.
@@ -106,7 +110,7 @@ def _setup_executable(common_env):
         # Running in attached mode
         using_server = False
     else:
-        # Running in server (detatched) mode
+        # Running in server (detached) mode
         # The following environment variables are only relevant for this
         # mode
         using_server = True

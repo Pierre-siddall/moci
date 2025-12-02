@@ -59,6 +59,21 @@ class TestSetupLFRicCpld(unittest.TestCase):
         mock_rmfile.assert_has_calls([mock.call('file1'), mock.call('file2')])
 
 
+class TestSetupRiversCpld(unittest.TestCase):
+    '''
+    Test the setting up for Rivers for coupling
+    '''
+    @mock.patch('mct_driver.glob.glob')
+    @mock.patch('mct_driver.common.remove_file')
+    def test_setup_lfric_cpld(self, mock_rmfile, mock_glob):
+        '''Test the function'''
+        river_envar = {'RIVER_LINK': 'river_link'}
+        mock_glob.return_value = ['file1', 'file2']
+        mct_driver._setup_river_cpld(None, None, river_envar)
+        mock_glob.assert_called_once_with('*river_link*.nc')
+        mock_rmfile.assert_has_calls([mock.call('file1'), mock.call('file2')])
+
+
 class TestGenerateNGMSNamcouple(unittest.TestCase):
     '''
     Test the generation of the NGMS namcouple file

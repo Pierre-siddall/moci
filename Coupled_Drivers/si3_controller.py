@@ -62,6 +62,7 @@ def _verify_si3_rst(cyclepointstr, nemo_nproc, si3_restart_files):
     si3_rst_regex = r'%s_restart_ice(_\d+)?\.nc' % cyclepointstr
     current_rst_files = [f for f in si3_restart_files if
                          re.findall(si3_rst_regex, f)]
+
     if len(current_rst_files) not in (1, nemo_nproc, nemo_nproc+1):
         sys.stderr.write('[FAIL] Unable to find SI3 restart files for'
                          ' this cycle. Must either have one rebuilt file,'
@@ -132,6 +133,7 @@ def _setup_si3_controller(common_env,
     if si3_restart_files:
         # Set up full path to restart files
         latest_si3_dump = os.path.join(si3_rst, si3_restart_files[-1])
+
     else:
         # If we didn't find any restart files in the suite data directory,
         # check the SI3_START env var.

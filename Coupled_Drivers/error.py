@@ -257,3 +257,15 @@ MISSING_DEFAULT_OPTION = 870
 
 # Not found the coupling namelist in namelist_cfg
 MISSING_NAMSBC_CPL = 871
+
+# Missing the JULES river resolution namelist
+MISSING_RIVER_RESOL_NML = 872
+
+# Missing the JULES river resolution parameters
+MISSING_RIVER_RESOL = 873
+
+# Missing OASIS send file for JULES river
+MISSING_OASIS_RIV_SEND = 874
+
+# Missing namelist oasis_riv_send_nml from OASIS_RIV_SEND
+MISSING_OASIS_RIV_SEND_NML = 875

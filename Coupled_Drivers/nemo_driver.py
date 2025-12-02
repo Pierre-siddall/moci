@@ -124,7 +124,7 @@ def _verify_nemo_rst(cyclepointstr, nemo_rst, nemo_nl, nemo_nproc, nemo_version)
         else:
            # Post nemo 4.2 compatibility
            nemo_icb_regex = r'_%s_restart_icb(_\d+)?\.nc' % cyclepointstr
-  
+
         icb_restart_files = [f for f in restart_files if
                              re.findall(nemo_icb_regex, f)]
 
@@ -246,6 +246,8 @@ def _setup_dates(common_env):
     Setup the dates for the NEMO model run
     '''
     calendar = common_env['CALENDAR']
+
+    sys.stdout.write('[INFO] NEMO calendar= %s ' % calendar)
     if calendar == '360day':
         calendar = '360'
         nleapy = 30
@@ -422,7 +424,7 @@ def _setup_executable(common_env):
     # Any variables containing things that can be globbed will start with gl_
     gl_first_step_match = 'nn_it000='
     gl_last_step_match = 'nn_itend='
-    
+
     gl_nemo_restart_date_match = 'ln_rstdate'
     gl_model_basis_time = 'nn_date0='
 

@@ -125,7 +125,7 @@ def _verify_top_rst(cyclepointstr, nemo_nproc, top_restart_files):
                          '[FAIL] Found %i top restart files\n'
                          % (nemo_nproc, len(current_rst_files)))
         sys.exit(error.MISSING_MODEL_FILE_ERROR)
-    
+
 
 def _load_environment_variables(top_envar):
     '''
