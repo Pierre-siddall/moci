@@ -7,4 +7,4 @@ on:
 jobs:
     check_cr_approved:
          if: ${{ github.event.pull_request.number }}
-         uses: MetOffice/growss/.github/workflows/check-cr-approved.yaml@main
+         uses: MetOffice/growss/.github/workflows/check-cr-approved.yaml@
