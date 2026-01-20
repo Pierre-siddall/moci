@@ -1,10 +1,9 @@
 import timer
 import subprocess
-import shlex
 import os
 import sys
 
-
+@timer.run_timer
 def _exec_subprocess(cmd, verbose=True, current_working_directory=os.getcwd()):
     """
     Execute a given shell command
