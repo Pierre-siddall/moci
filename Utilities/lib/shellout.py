@@ -2,6 +2,7 @@ import timer
 import subprocess
 import os
 import sys
+import shlex
 
 @timer.run_timer
 def _exec_subprocess(cmd, verbose=True, current_working_directory=os.getcwd()):
@@ -14,6 +15,9 @@ def _exec_subprocess(cmd, verbose=True, current_working_directory=os.getcwd()):
     :param current_working_directory: The directory in which the
     command should be executed.
     """
+
+    cmd = shlex.split(cmd)
+
     try:
 
         output = subprocess.run(
