@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+'''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2021-2025 Met Office. All rights reserved.
 
@@ -59,7 +59,8 @@ DESCRIPTION
     all pre- and post-proccessing code.
 
     Version compatibility: NEMO vn3.6
-"""
+'''
+
 
 
 import re
@@ -76,82 +77,73 @@ import dr_env_lib.env_lib
 # Define errors for the TOP controller only
 SERIAL_MODE_ERROR = 99
 
-
 def _check_topnl_envar(envar_container):
-    """
+    '''
     As the environment variable TOP_NL is required by both the setup
     and finalize functions, this will be encapsulated here.
-    """
-    # Information will be retrieved from this file during the running of the
-    # controller, so check it exists.
+    '''
+    #Information will be retrieved from this file during the running of the
+    #controller, so check it exists.
 
-    if not os.path.isfile(envar_container["TOP_NL"]):
-        sys.stderr.write(
-            "[FAIL] top_controller: Can not find the TOP namelist "
-            "file %s\n" % envar_container["TOP_NL"]
-        )
+    if not os.path.isfile(envar_container['TOP_NL']):
+        sys.stderr.write('[FAIL] top_controller: Can not find the TOP namelist '
+                         'file %s\n' % envar_container['TOP_NL'])
         sys.exit(error.MISSING_CONTROLLER_FILE_ERROR)
     return 0
 
-
 def _get_toprst_dir(top_nl_file):
-    """
+    '''
     Retrieve the restart directory from the TOP namelist file.
     Currently TOP/MEDUSA uses the same restart directory as the
     main NEMO component so we could in principle get this from
     the NEMO namelist. However, for complete flexibility we
     interrogate the TOP namelist in case this is ever defined as
     something different.
-    """
+    '''
 
     toprst_rcode, toprst_val = shellout._exec_subprocess(
-        "grep cn_trcrst_outdir %s" % top_nl_file
-    )
+            'grep cn_trcrst_outdir %s' % top_nl_file)
 
     if toprst_rcode == 0:
-        top_rst_dir = re.findall("[\"'](.*?)[\"']", toprst_val)[0]
-        if top_rst_dir[-1] == "/":
+        top_rst_dir = re.findall('[\"\'](.*?)[\"\']', toprst_val)[0]
+        if top_rst_dir[-1] == '/':
             top_rst_dir = top_rst_dir[:-1]
         return top_rst_dir
 
-
 def _verify_top_rst(cyclepointstr, nemo_nproc, top_restart_files):
-    """
+    '''
     Verify that the top restart files match what we expect from the number
     of NEMO processors.
-    """
-    top_rst_regex = r"%s_restart_trc(_\d+)?\.nc" % cyclepointstr
-    current_rst_files = [f for f in top_restart_files if re.findall(top_rst_regex, f)]
-    if len(current_rst_files) not in (1, nemo_nproc, nemo_nproc + 1):
-        sys.stderr.write(
-            "[FAIL] Unable to find top restart files for"
-            " this cycle. Must either have one rebuilt file,"
-            " as many as there are nemo processors (%i) or"
-            " both rebuilt and processor files."
-            "[FAIL] Found %i top restart files\n" % (nemo_nproc, len(current_rst_files))
-        )
+    '''
+    top_rst_regex = r'%s_restart_trc(_\d+)?\.nc' % cyclepointstr
+    current_rst_files = [f for f in top_restart_files if
+                         re.findall(top_rst_regex, f)]
+    if len(current_rst_files) not in (1, nemo_nproc, nemo_nproc+1):
+        sys.stderr.write('[FAIL] Unable to find top restart files for'
+                         ' this cycle. Must either have one rebuilt file,'
+                         ' as many as there are nemo processors (%i) or'
+                         ' both rebuilt and processor files.'
+                         '[FAIL] Found %i top restart files\n'
+                         % (nemo_nproc, len(current_rst_files)))
         sys.exit(error.MISSING_MODEL_FILE_ERROR)
 
 
 def _load_environment_variables(top_envar):
-    """
+    '''
     Load the TOP environment variables required for the model run
     into the top_envar container
-    """
+    '''
     top_envar = dr_env_lib.env_lib.load_envar_from_definition(
-        top_envar, dr_env_lib.ocn_cont_def.TOP_ENVIRONMENT_VARS_INITIAL
-    )
+        top_envar, dr_env_lib.ocn_cont_def.TOP_ENVIRONMENT_VARS_INITIAL)
     _ = _check_topnl_envar(top_envar)
 
     return top_envar
 
-
-def _setup_top_controller(
-    common_env, restart_ctl, nemo_nproc, runid, verify_restart, nemo_dump_time
-):
-    """
+def _setup_top_controller(common_env, restart_ctl, nemo_nproc, runid,
+                          verify_restart, nemo_dump_time):
+    '''
     Setup the environment and any files required by the executable
-    """
+    '''
     # Create the environment variable container
     top_envar = dr_env_lib.env_lib.LoadEnvar()
 
@@ -160,17 +152,17 @@ def _setup_top_controller(
 
     # TOP controller hasn't been set up to use CONTINUE_FROM_FAIL yet
     # Raise an error if it's set to prevent unexpected behaviour in future
-    if common_env["CONTINUE_FROM_FAIL"] == "true":
-        sys.stderr.write(
-            "[FAIL] top_controller is not coded to work with" "CONTINUE_FROM_FAIL=true"
-        )
+    if common_env['CONTINUE_FROM_FAIL'] == 'true':
+        sys.stderr.write('[FAIL] top_controller is not coded to work with'
+                         'CONTINUE_FROM_FAIL=true')
         sys.exit(error.INVALID_EVAR_ERROR)
+
 
     # Read restart from TOP namelist
     restart_direcs = []
 
     # Find the TOP restart location
-    top_rst = _get_toprst_dir(top_envar["TOP_NL"])
+    top_rst = _get_toprst_dir(top_envar['TOP_NL'])
 
     if top_rst:
         restart_direcs.append(top_rst)
@@ -185,9 +177,8 @@ def _setup_top_controller(
     # <some arbitrary name>_yyyymmdd_restart_trc_<PE rank>.nc" or
     # <some arbitrary name>_yyyymmdd_restart_trc.nc" in the case
     # of the restart file having been rebuilt.
-    top_restart_files = [
-        f for f in os.listdir(top_rst) if re.findall(r".+_\d{8}_restart_trc", f)
-    ]
+    top_restart_files = [f for f in os.listdir(top_rst) if
+                         re.findall(r'.+_\d{8}_restart_trc', f)]
     top_restart_files.sort()
 
     # Default position is that we're starting from a restart file and
@@ -201,55 +192,57 @@ def _setup_top_controller(
     else:
         # If we didn't find any restart files in the suite data directory,
         # check the TOP_START env var.
-        if common_env["CONTINUE"] == "false":
-            latest_top_dump = top_envar["TOP_START"]
+        if common_env['CONTINUE'] == 'false':
+            latest_top_dump = top_envar['TOP_START']
         else:
             # We don't have a restart file, which implies we must be
             # starting from climatology.
-            latest_top_dump = "unset"
+            latest_top_dump = 'unset'
 
-    top_init_dir = "."
+    top_init_dir = '.'
 
     # If we have a link to restart_trc.nc left over from a previous run,
     # remove it for both NRUNs and CRUNs
-    common.remove_file("restart_trc.nc")
+    common.remove_file('restart_trc.nc')
 
     # Is this a CRUN or an NRUN?
-    if common_env["CONTINUE"] == "false":
+    if common_env['CONTINUE'] == 'false':
 
         # This is definitely a new run
-        sys.stdout.write("[INFO] top_controller: New TOP/MEDUSA run\n\n")
+        sys.stdout.write('[INFO] top_controller: New TOP/MEDUSA run\n\n')
 
         if os.path.isfile(latest_top_dump):
-            sys.stdout.write(
-                "[INFO] top_controller: Removing old TOP " "restart data\n\n"
-            )
+            sys.stdout.write('[INFO] top_controller: Removing old TOP '
+                             'restart data\n\n')
             # For NRUNS, get rid of any existing restart files from
             # previous runs.
-            for file_path in glob.glob(top_rst + "/*restart_trc*"):
+            for file_path in glob.glob(top_rst+'/*restart_trc*'):
                 # os.path.isfile will return true for symbolic links as well
                 # as physical files.
                 common.remove_file(file_path)
 
         # If we do have a passive tracer start dump.
-        if top_envar["TOP_START"] != "":
-            if os.path.isfile(top_envar["TOP_START"]):
-                os.symlink(top_envar["TOP_START"], "restart_trc.nc")
-            elif os.path.isfile("%s_0000.nc" % top_envar["TOP_START"]):
-                for fname in glob.glob("%s_????.nc" % top_envar["TOP_START"]):
-                    proc_number = fname.split(".")[-2][-4:]
-                    common.remove_file("restart_trc_%s.nc" % proc_number)
-                    os.symlink(fname, "restart_trc_%s.nc" % proc_number)
-            elif os.path.isfile("%s_0000.nc" % top_envar["TOP_START"][:-3]):
-                for fname in glob.glob("%s_????.nc" % top_envar["TOP_START"][-3:]):
-                    proc_number = fname.split(".")[-2][-4:]
-                    common.remove_file("restart_trc_%s.nc" % proc_number)
-                    os.symlink(fname, "restart_trc_%s.nc" % proc_number)
+        if top_envar['TOP_START'] != '':
+            if os.path.isfile(top_envar['TOP_START']):
+                os.symlink(top_envar['TOP_START'], 'restart_trc.nc')
+            elif os.path.isfile('%s_0000.nc' %
+                                top_envar['TOP_START']):
+                for fname in glob.glob('%s_????.nc' %
+                                       top_envar['TOP_START']):
+                    proc_number = fname.split('.')[-2][-4:]
+                    common.remove_file('restart_trc_%s.nc' % proc_number)
+                    os.symlink(fname, 'restart_trc_%s.nc' % proc_number)
+            elif os.path.isfile('%s_0000.nc' %
+                                top_envar['TOP_START'][:-3]):
+                for fname in glob.glob('%s_????.nc' %
+                                       top_envar['TOP_START'][-3:]):
+                    proc_number = fname.split('.')[-2][-4:]
+                    common.remove_file('restart_trc_%s.nc' % proc_number)
+                    os.symlink(fname, 'restart_trc_%s.nc' % proc_number)
         else:
             # If there's no TOP restart we must be starting from climatology.
-            sys.stdout.write(
-                "[INFO] top_controller: TOP is starting from" " climatology.\n\n"
-            )
+            sys.stdout.write('[INFO] top_controller: TOP is starting from'
+                             ' climatology.\n\n')
             # Set the restart flag accordingly
             ln_restart = ".false."
 
@@ -259,28 +252,27 @@ def _setup_top_controller(
         # in all components.
         restart_ctl = 0
 
+
     elif os.path.isfile(latest_top_dump):
         # We have a valid restart file so we're not starting from climatology
         # This could be a new run or a continutaion run.
-        top_dump_time = re.findall(r"_(\d*)_restart_trc", latest_top_dump)[0]
+        top_dump_time = re.findall(r'_(\d*)_restart_trc', latest_top_dump)[0]
 
-        if verify_restart == "True":
+        if verify_restart == 'True':
             _verify_top_rst(nemo_dump_time, nemo_nproc, top_restart_files)
         if top_dump_time != nemo_dump_time:
-            sys.stderr.write(
-                "[FAIL] top_controller: Mismatch in TOP restart "
-                "file date %s and NEMO restart file date %s\n"
-                % (top_dump_time, nemo_dump_time)
-            )
+            sys.stderr.write('[FAIL] top_controller: Mismatch in TOP restart '
+                             'file date %s and NEMO restart file date %s\n'
+                             % (top_dump_time, nemo_dump_time))
             sys.exit(error.MISMATCH_RESTART_DATE_ERROR)
+
 
         # This could be a new run (the first NRUN of a cycle) or
         # a CRUN.
-        sys.stdout.write(
-            "[INFO] top_controller: Restart data avaliable in "
-            "TOP restart directory %s. Restarting from previous "
-            "task output\n\n" % top_rst
-        )
+        sys.stdout.write('[INFO] top_controller: Restart data avaliable in '
+                         'TOP restart directory %s. Restarting from previous '
+                         'task output\n\n'
+                         % top_rst)
         top_init_dir = top_rst
 
         # For each PE, set up a link to the appropriate sub-domain
@@ -289,33 +281,25 @@ def _setup_top_controller(
 
         for i_proc in range(nemo_nproc):
             tag = str(i_proc).zfill(4)
-            top_rst_source = "%s/%so_%s_restart_trc_%s.nc" % (
-                top_init_dir,
-                runid,
-                top_dump_time,
-                tag,
-            )
-            top_rst_link = "restart_trc_%s.nc" % tag
+            top_rst_source = '%s/%so_%s_restart_trc_%s.nc' % \
+                (top_init_dir, runid, top_dump_time, tag)
+            top_rst_link = 'restart_trc_%s.nc' % tag
             common.remove_file(top_rst_link)
             if os.path.isfile(top_rst_source):
                 os.symlink(top_rst_source, top_rst_link)
                 top_restart_count += 1
 
         if top_restart_count < 1:
-            sys.stdout.write("[INFO] No TOP sub-PE restarts found\n")
+            sys.stdout.write('[INFO] No TOP sub-PE restarts found\n')
             # We found no passive tracer restart sub-domain files let's
             # look for a full domain file.
-            top_rst_source = "%s/%so_%s_restart_trc.nc" % (
-                top_init_dir,
-                runid,
-                top_dump_time,
-            )
+            top_rst_source = '%s/%so_%s_restart_trc.nc' % \
+                (top_init_dir, runid, top_dump_time)
 
             if os.path.isfile(top_rst_source):
-                sys.stdout.write(
-                    "[INFO] Using rebuilt TOP restart " "file: %s\n" % top_rst_source
-                )
-                top_rst_link = "restart_trc.nc"
+                sys.stdout.write('[INFO] Using rebuilt TOP restart '\
+                     'file: %s\n' % top_rst_source)
+                top_rst_link = 'restart_trc.nc'
                 common.remove_file(top_rst_link)
                 os.symlink(top_rst_source, top_rst_link)
 
@@ -325,10 +309,8 @@ def _setup_top_controller(
         # during a CRUN seems pretty slim.
 
     else:
-        sys.stderr.write(
-            "[FAIL] top_controller: No restart data available in "
-            "TOP restart directory:\n  %s\n" % top_rst
-        )
+        sys.stderr.write('[FAIL] top_controller: No restart data available in '
+                         'TOP restart directory:\n  %s\n' % top_rst)
         sys.exit(error.MISSING_MODEL_FILE_ERROR)
 
     # ln_trcdta appears to always be the opposite of ln_restart, so we
@@ -342,72 +324,74 @@ def _setup_top_controller(
     elif ln_restart == ".false.":
         ln_trcdta = ".true."
     else:
-        sys.stderr.write(
-            "[FAIL] top_controller: invalid ln_restart value: " "%s\n" % ln_restart
-        )
+        sys.stderr.write('[FAIL] top_controller: invalid ln_restart value: '
+                         '%s\n' % ln_restart)
         sys.exit(error.INVALID_LOCAL_ERROR)
 
     # Update the TOP namelist.
-    mod_topnl = common.ModNamelist(top_envar["TOP_NL"])
-    mod_topnl.var_val("ln_rsttr", ln_restart)
-    mod_topnl.var_val("nn_rsttr", restart_ctl)
-    mod_topnl.var_val("ln_trcdta", ln_trcdta)
+    mod_topnl = common.ModNamelist(top_envar['TOP_NL'])
+    mod_topnl.var_val('ln_rsttr', ln_restart)
+    mod_topnl.var_val('nn_rsttr', restart_ctl)
+    mod_topnl.var_val('ln_trcdta', ln_trcdta)
     mod_topnl.replace()
 
     # Write details of our namelist settings
-    sys.stdout.write("[INFO] top_controller: Start of TOP namelist settings:\n")
-    sys.stdout.write("[INFO]     Namelist file: %s \n" % top_envar["TOP_NL"])
-    sys.stdout.write("[INFO]     ln_rsttr = %s \n" % ln_restart)
-    sys.stdout.write("[INFO]     nn_rsttr = %d \n" % restart_ctl)
-    sys.stdout.write("[INFO]     ln_trcdta = %s \n" % ln_trcdta)
-    sys.stdout.write("[INFO] top_controller: End of TOP namelist settings\n\n")
+    sys.stdout.write('[INFO] top_controller: Start of TOP namelist settings:\n')
+    sys.stdout.write('[INFO]     Namelist file: %s \n' % top_envar['TOP_NL'])
+    sys.stdout.write('[INFO]     ln_rsttr = %s \n' % ln_restart)
+    sys.stdout.write('[INFO]     nn_rsttr = %d \n' % restart_ctl)
+    sys.stdout.write('[INFO]     ln_trcdta = %s \n' % ln_trcdta)
+    sys.stdout.write('[INFO] top_controller: End of TOP namelist settings\n\n')
 
     return top_envar
 
-
 def _set_launcher_command(_):
-    """
+    '''
     Setup the launcher command for the executable
-    """
-    sys.stdout.write(
-        "[INFO] top_controller: MEDUSA/TOP uses the same launch " "command as NEMO\n\n"
-    )
-    launch_cmd = ""
+    '''
+    sys.stdout.write('[INFO] top_controller: MEDUSA/TOP uses the same launch '
+                     'command as NEMO\n\n')
+    launch_cmd = ''
     return launch_cmd
 
-
 def _finalize_top_controller():
-    """
+    '''
     Finalize the passive tracer set-up, copy the TOP namelist to the
     restart directory for the next cycle.
-    """
-    sys.stdout.write("[INFO] finalizing Ocean Passive Tracers \n")
-    sys.stdout.write("[INFO] running finalize in %s \n" % os.getcwd())
+    '''
+    sys.stdout.write('[INFO] finalizing Ocean Passive Tracers \n')
+    sys.stdout.write('[INFO] running finalize in %s \n' % os.getcwd())
 
     # Move the TOP namelist to the restart directory to allow the next cycle
     # to pick it up
     top_envar_fin = dr_env_lib.env_lib.LoadEnvar()
     top_envar_fin = dr_env_lib.env_lib.load_envar_from_definition(
-        top_envar_fin, dr_env_lib.ocn_cont_def.TOP_ENVIRONMENT_VARS_FINAL
-    )
-    top_rst = _get_toprst_dir(top_envar_fin["TOP_NL"])
-    if os.path.isdir(top_rst) and os.path.isfile(top_envar_fin["TOP_NL"]):
-        shutil.copy(top_envar_fin["TOP_NL"], top_rst)
+        top_envar_fin, dr_env_lib.ocn_cont_def.TOP_ENVIRONMENT_VARS_FINAL)
+    top_rst = _get_toprst_dir(top_envar_fin['TOP_NL'])
+    if os.path.isdir(top_rst) and \
+            os.path.isfile(top_envar_fin['TOP_NL']):
+        shutil.copy(top_envar_fin['TOP_NL'], top_rst)
 
 
-def run_controller(
-    common_env, restart_ctl, nemo_nproc, runid, verify_restart, nemo_dump_time, mode
-):
-    """
+def run_controller(common_env,
+                   restart_ctl,
+                   nemo_nproc,
+                   runid,
+                   verify_restart,
+                   nemo_dump_time, mode):
+    '''
     Run the passive tracer controller.
-    """
-    if mode == "run_controller":
-        exe_envar = _setup_top_controller(
-            common_env, restart_ctl, nemo_nproc, runid, verify_restart, nemo_dump_time
-        )
+    '''
+    if mode == 'run_controller':
+        exe_envar = _setup_top_controller(common_env,
+                                          restart_ctl,
+                                          nemo_nproc,
+                                          runid,
+                                          verify_restart,
+                                          nemo_dump_time)
 
         launch_cmd = _set_launcher_command(exe_envar)
-    elif mode == "finalize":
+    elif mode == 'finalize':
         _finalize_top_controller()
         exe_envar = None
         launch_cmd = None

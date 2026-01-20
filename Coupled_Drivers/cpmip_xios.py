@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+'''
 *****************************COPYRIGHT******************************
  (C) Crown copyright 2021-2025 Met Office. All rights reserved.
 
@@ -16,28 +16,26 @@ NAME
 
 DESCRIPTION
     CPMIP functions for XIOS
-"""
+'''
 import os
 import shutil
 import sys
 import common
 import shellout
 
-
 def data_metrics_setup_nemo():
-    """
+    '''
     Set up IODEF file to produce XIOS timing files
-    """
-    with open("iodef.xml", "r") as f_in, open("iodef_out.xml", "w") as f_out:
+    '''
+    with open('iodef.xml', 'r') as f_in, \
+            open('iodef_out.xml', 'w') as f_out:
         update = False
         for line in f_in.readlines():
             if 'variable id="print_file"' in line:
                 continue
             if update:
-                updated_line = (
-                    '\t  <variable id="print_file"           '
-                    + '     type="bool">true</variable>\n'
-                )
+                updated_line = '\t  <variable id="print_file"           ' + \
+                               '     type="bool">true</variable>\n'
                 f_out.write(updated_line)
                 f_out.write(line)
                 update = False
@@ -45,35 +43,34 @@ def data_metrics_setup_nemo():
                 f_out.write(line)
                 if 'variable id="using_server"' in line:
                     update = True
-    shutil.move("iodef_out.xml", "iodef.xml")
-
+    shutil.move('iodef_out.xml', 'iodef.xml')
 
 def measure_xios_client_times(timeout=120):
-    """
+    '''
     Gather the output from XIOS client files. Takes in an optional value
     of timeout in seconds, as there may be a lot of files and we don't want
     to hang around forever if there is a problem opening them all. Returns
     the mean time and high watermark time
-    """
+    '''
     total_measured = 0
-    total_time = 0.0
-    max_time = 0.0
-    files = [i_f for i_f in os.listdir(".") if "xios_client" in i_f and "out" in i_f]
+    total_time = 0.
+    max_time = 0.
+    files = [i_f for i_f in os.listdir('.') if \
+                 'xios_client' in i_f and 'out' in i_f]
     total_files = len(files)
     for i_f in files:
-        rcode, out = shellout._exec_subprocess('grep "total time" %s' % i_f, timeout)
+        rcode, out = shellout._exec_subprocess(
+            'grep "total time" %s' % i_f, timeout)
         if rcode == 0:
             meas_time = float(out.split()[-2])
             total_measured += 1
             total_time += meas_time
             if meas_time > max_time:
                 max_time = meas_time
-    sys.stdout.write(
-        "[INFO] Measured timings for (%s/%s) XIOS clients\n"
-        % (total_measured, total_files)
-    )
+    sys.stdout.write('[INFO] Measured timings for (%s/%s) XIOS clients\n' %
+                     (total_measured, total_files))
     if total_measured == 0:
-        sys.stderr.write("[WARN] Unable to find any XIOS client output files\n")
+        sys.stderr.write('[WARN] Unable to find any XIOS client output files\n')
         mean_time = 0.0
         max_time = 0.0
     else:
