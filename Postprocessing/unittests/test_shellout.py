@@ -25,8 +25,12 @@ class ExecTets(unittest.TestCase):
         assert rcode == 0
 
     @given(st.text())
-    def test_non_existent(self,command):
+    def test_OS_error(self,command):
         cmd = command
         _,rcode = shellout._exec_subprocess(cmd=cmd)
-        assert rcode !=0
+        assert rcode != 0
 
+    def test_called_process_error(self):
+        cmd = "ls /nonexistent"
+        _,rcode = shellout._exec_subprocess(cmd=cmd)
+        assert rcode != 0 
