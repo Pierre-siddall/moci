@@ -11,10 +11,6 @@
 
  Met Office, FitzRoy Road, Exeter, Devon, EX1 3PB, United Kingdom
 *****************************COPYRIGHT******************************
-
-# Some of the content of this file has been produced with the assistance of
-# Claude Sonnet 4.5.
-
 NAME
     xios_driver.py
 
