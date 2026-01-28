@@ -48,4 +48,4 @@ def _exec_subprocess(cmd, verbose=False, current_working_directory=os.getcwd()):
         output = exc.strerror
         rcode = exc.errno
 
-    return rcode, output
+    return output, rcode
