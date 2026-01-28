@@ -10,7 +10,7 @@ import sys
 import shlex
 
 
-def _exec_subprocess(cmd, verbose=False, current_working_directory=os.getcwd()):
+def _exec_subprocess(cmd, verbose=False, timeout=None ,current_working_directory=os.getcwd()):
     """
     Execute a given shell command
 
@@ -30,7 +30,7 @@ def _exec_subprocess(cmd, verbose=False, current_working_directory=os.getcwd()):
             stdin=subprocess.PIPE,
             capture_output=True,
             cwd=current_working_directory,
-            timeout=10,
+            timeout=timeout
         )
         rcode = output.returncode
 
