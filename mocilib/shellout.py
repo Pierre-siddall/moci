@@ -27,7 +27,6 @@ def _exec_subprocess(cmd, verbose=False, timeout=None ,current_working_directory
 
         output = subprocess.run(
             cmd,
-            stdin=subprocess.PIPE,
             capture_output=True,
             cwd=current_working_directory,
             timeout=timeout,
