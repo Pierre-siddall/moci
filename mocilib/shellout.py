@@ -38,8 +38,6 @@ def _exec_subprocess(cmd, verbose=False, timeout=None ,current_working_directory
             sys.stdout.write(f"[DEBUG]{output.stdout}\n")
         if output.stderr and output.returncode != 0:
             sys.stderr.write(f"[ERROR] {output.stderr}\n")
-        if sys.version_info[0] >= 3:
-            output.stdout = output.stdout.decode()
 
     except subprocess.CalledProcessError as exc:
         output = exc.output
