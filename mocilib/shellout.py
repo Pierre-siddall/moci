@@ -30,7 +30,7 @@ def _exec_subprocess(cmd, verbose=False, timeout=None ,current_working_directory
             stdin=subprocess.PIPE,
             capture_output=True,
             cwd=current_working_directory,
-            timeout=timeout
+            timeout=timeout,
             check=True
         )
         rcode = output.returncode
