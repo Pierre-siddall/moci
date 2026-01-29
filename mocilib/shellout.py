@@ -33,6 +33,7 @@ def _exec_subprocess(cmd, verbose=False, timeout=None ,current_working_directory
             check=True
         )
         rcode = output.returncode
+        output_message = output.stdout.decode()
 
         if verbose and output:
             sys.stdout.write(f"[DEBUG]{output.stdout}\n")
@@ -40,11 +41,11 @@ def _exec_subprocess(cmd, verbose=False, timeout=None ,current_working_directory
             sys.stderr.write(f"[ERROR] {output.stderr}\n")
 
     except subprocess.CalledProcessError as exc:
-        output = exc.output
+        output_message = exc.stdout.decode() if exc.stdout else ""
         rcode = exc.returncode
 
     except subprocess.TimeoutExpired as exc:
-        output = exc.output
+        output_message = exc.stdout.decode() if exc.stdout else ""
         rcode = exc.returncode
 
-    return output, rcode
+    return rcode,output_message
