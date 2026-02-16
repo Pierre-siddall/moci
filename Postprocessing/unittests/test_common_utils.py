@@ -26,6 +26,8 @@ except ImportError:
 import testing_functions as func
 import utils
 
+from mocilib import shellout
+
 DUMMY = ['fileone', 'filetwo', 'filethree']
 
 class EnvironTests(unittest.TestCase):
@@ -84,33 +86,33 @@ class ExecTests(unittest.TestCase):
     def test_success(self):
         '''Test shell out to subprocess command'''
         func.logtest('Shell out with simple echo command:')
-        rcode, _ = utils.exec_subproc(self.cmd, verbose=False)
+        rcode, _ = shellout._exec_subprocess(self.cmd, verbose=False)
         self.assertEqual(rcode, 0)
 
     def test_list_success(self):
         '''test shell out with a list of commands'''
         func.logtest('Shell out with simple list as single command:')
-        rcode, _ = utils.exec_subproc(self.cmd.split(), verbose=False)
+        rcode, _ = shellout._exec_subprocess(self.cmd.split(), verbose=False)
         self.assertEqual(rcode, 0)
 
     def test_failed_exec(self):
         '''Test failure mode of exec_subproc with invalid arguments'''
         func.logtest('Attempt to shell out with invalid arguments:')
-        _, output = utils.exec_subproc(self.cmd.replace('echo', 'ls'))
+        _, output = shellout._exec_subprocess(self.cmd.replace('echo', 'ls'))
         # Code should catch exception: subprocess.CalledProcessError
         self.assertIn('no such file or directory', output.lower())
 
     def test_unknown_cmd(self):
         '''Test failure mode of exec_subproc with unknown command'''
         func.logtest('Attempt to shell out with unknown command:')
-        rcode, _ = utils.exec_subproc(self.cmd.replace('echo', 'pumpkin'))
+        rcode, _ = shellout._exec_subprocess(self.cmd.replace('echo', 'pumpkin'))
         # Code should catch exception: OSError
         self.assertNotEqual(rcode, 0)
 
     def test_multi_command(self):
         '''Test subprocess with consecutive commands'''
         func.logtest('Attempt to shell out with consecutive commands:')
-        _, output = utils.exec_subproc(self.cmd.replace(' World',
+        _, output = shellout._exec_subprocess(self.cmd.replace(' World',
                                                         '; echo World'))
         self.assertEqual(output.strip(), 'World!')
 
@@ -118,14 +120,14 @@ class ExecTests(unittest.TestCase):
         '''Test subprocess with consecutive commands'''
         func.logtest('Attempt to shell out with consecutive commands:')
         cmd = 'pumpkin "Hello\n"; echo "There"'
-        rcode, _ = utils.exec_subproc(cmd)
+        rcode, _ = shellout._exec_subprocess(cmd)
         # Code should catch exception: OSError
         self.assertNotEqual(rcode, 0)
 
     def test_output(self):
         '''Test verbose output of exec_subproc'''
         func.logtest('Verbose output of subprocess command:')
-        _, output = utils.exec_subproc(self.cmd)
+        _, output = shellout._exec_subprocess(self.cmd)
         self.assertEqual(output.strip(), 'Hello World!')
 
     def test_command_path(self):
@@ -134,7 +136,7 @@ class ExecTests(unittest.TestCase):
         func.logtest('Subprocess command run in an alternative location:')
         os.mkdir('TestDir')
         open('TestDir/MyFile', 'w').close()
-        rcode, output = utils.exec_subproc('ls', cwd='TestDir', verbose=False)
+        rcode, output = shellout._exec_subprocess('ls', cwd='TestDir', verbose=False)
         self.assertEqual(rcode, 0)
         self.assertIn('MyFile', output)
 
@@ -143,8 +145,8 @@ class ExecTests(unittest.TestCase):
         func.logtest('Test optional arguments to subprocess calls:')
         with mock.patch('subprocess.check_output') as mock_check:
             mock_check.side_effect = ['CMD1 output', 'CMD2 output']
-            _, _ = utils.exec_subproc('cmd 1')
-            _, _ = utils.exec_subproc('cmd2', verbose=False, cwd='MyDir')
+            _, _ = shellout._exec_subprocess('cmd 1')
+            _, _ = shellout._exec_subprocess('cmd2', verbose=False, cwd='MyDir')
 
             self.assertListEqual(
                 mock_check.mock_calls,
@@ -736,7 +738,7 @@ class CycletimeTests(unittest.TestCase):
         with mock.patch.dict('utils.os.environ',
                              {'CYLC_SUITE_FINAL_CYCLE_POINT': ''}):
             self.assertFalse(utils.finalcycle())
-        
+
     def test_not_final_cycle(self):
         '''Test negative assertion of final cycle'''
         func.logtest('Assert final cycle time property - FALSE:')
