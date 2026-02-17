@@ -48,8 +48,4 @@ def _exec_subprocess(cmd, verbose=False, timeout=None ,current_working_directory
         output_message = exc.stdout.decode() if exc.stdout else ""
         rcode = exc.returncode
 
-    except OSError as exc:
-        output_message = str(exc)
-        rcode = exc.errno if exc.errno else 1
-
     return rcode,output_message

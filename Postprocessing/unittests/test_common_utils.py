@@ -86,13 +86,13 @@ class ExecTests(unittest.TestCase):
     def test_success(self):
         '''Test shell out to subprocess command'''
         func.logtest('Shell out with simple echo command:')
-        rcode, _ = shellout._exec_subprocess(self.cmd)
+        rcode, _ = shellout._exec_subprocess(self.cmd, verbose=False)
         self.assertEqual(rcode, 0)
 
     def test_list_success(self):
         '''test shell out with a list of commands'''
         func.logtest('Shell out with simple list as single command:')
-        rcode, _ = shellout._exec_subprocess(self.cmd)
+        rcode, _ = shellout._exec_subprocess(self.cmd.split(), verbose=False)
         self.assertEqual(rcode, 0)
 
     def test_failed_exec(self):
@@ -136,7 +136,7 @@ class ExecTests(unittest.TestCase):
         func.logtest('Subprocess command run in an alternative location:')
         os.mkdir('TestDir')
         open('TestDir/MyFile', 'w').close()
-        rcode, output = shellout._exec_subprocess('ls TestDir')
+        rcode, output = shellout._exec_subprocess('ls', cwd='TestDir', verbose=False)
         self.assertEqual(rcode, 0)
         self.assertIn('MyFile', output)
 
@@ -146,7 +146,7 @@ class ExecTests(unittest.TestCase):
         with mock.patch('subprocess.check_output') as mock_check:
             mock_check.side_effect = ['CMD1 output', 'CMD2 output']
             _, _ = shellout._exec_subprocess('cmd 1')
-            _, _ = shellout._exec_subprocess('cmd2 MyDir')
+            _, _ = shellout._exec_subprocess('cmd2', verbose=False, cwd='MyDir')
 
             self.assertListEqual(
                 mock_check.mock_calls,
