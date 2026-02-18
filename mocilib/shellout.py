@@ -21,24 +21,60 @@ def exec_subprocess(cmd, verbose=False, timeout=None ,current_working_directory=
     command should be executed.
     """
 
-    cmd = shlex.split(cmd)
+    # Handle list and string commands
+    if ";" in cmd:
+        cmd=cmd.split(";")
+
+    if "&" in cmd:
+        cmd =cmd.split("&")
+
+    if isinstance(cmd,str):
+        cmd = shlex.split(cmd)
+    elif isinstance(cmd,list):
+        commands = []
+        tmp = ""
+        for argument in cmd:
+            if argument == "&" or argument == ";":
+                commands.append(tmp)
+                tmp=""
+            else:
+                tmp += argument
+        cmd = commands
 
     try:
+        if isinstance(cmd,list):
+            for command in cmd:
+                output = subprocess.run(
+                    command,
+                    capture_output=True,
+                    cwd=current_working_directory,
+                    timeout=timeout,
+                    check=True
+                )
+                rcode = output.returncode
+                output_message = output.stdout.decode()
 
-        output = subprocess.run(
-            cmd,
-            capture_output=True,
-            cwd=current_working_directory,
-            timeout=timeout,
-            check=True
-        )
-        rcode = output.returncode
-        output_message = output.stdout.decode()
+                if verbose and output:
+                    sys.stdout.write(f"[DEBUG]{output.stdout}\n")
+                if output.stderr and output.returncode != 0:
+                    sys.stderr.write(f"[ERROR] {output.stderr}\n")
+        else:
 
-        if verbose and output:
-            sys.stdout.write(f"[DEBUG]{output.stdout}\n")
-        if output.stderr and output.returncode != 0:
-            sys.stderr.write(f"[ERROR] {output.stderr}\n")
+            output = subprocess.run(
+                cmd,
+                capture_output=True,
+                cwd=current_working_directory,
+                timeout=timeout,
+                check=True
+            )
+            rcode = output.returncode
+            output_message = output.stdout.decode()
+
+            if verbose and output:
+                sys.stdout.write(f"[DEBUG]{output.stdout}\n")
+            if output.stderr and output.returncode != 0:
+                sys.stderr.write(f"[ERROR] {output.stderr}\n")
+
 
     except subprocess.CalledProcessError as exc:
         output_message = exc.stdout.decode() if exc.stdout else ""

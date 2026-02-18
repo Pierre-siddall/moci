@@ -26,6 +26,8 @@ import shutil
 import subprocess
 import timer
 
+from mocilib import shellout
+
 globals()['debug_mode'] = None
 globals()['debug_ok'] = True
 
@@ -167,7 +169,7 @@ def exec_subproc(cmd, verbose=True, cwd=os.getcwd()):
 
     This function is now DEPRECATED in favour of the exec_shellout function in
     mocilib
-    
+
     '''
     import shlex
 
@@ -184,10 +186,7 @@ def exec_subproc(cmd, verbose=True, cwd=os.getcwd()):
 
     for cmd in cmd_array:
         try:
-            output = subprocess.check_output(cmd,
-                                             stderr=subprocess.STDOUT,
-                                             universal_newlines=True, cwd=cwd)
-            rcode = 0
+            rcode,output = shellout.exec_subprocess(cmd, current_working_directory=cwd)
             if verbose:
                 log_msg('[SUBPROCESS]: ' + str(output))
         except subprocess.CalledProcessError as exc:
